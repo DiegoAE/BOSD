@@ -5,17 +5,19 @@ using namespace arma;
 using namespace std;
 
 int main() {
-    int nobs = 100;
-    int nstates = 3;
-    int ndurations = 5;
-    int min_duration = 10;
+    int nobs = 18;
+    int nstates = 1;
+    int ndurations = 2;
+    int min_duration = 6;
     mat transition(nstates, nstates, fill::eye);
-    vec pi = {1, 0, 0};
+    vec pi = {1};
     mat durations(nstates, ndurations, fill::zeros);
-    durations.col(2) = ones<vec>(nstates);
+    durations.col(0) = ones<vec>(nstates);
     cube pdf(nstates, nobs, ndurations, fill::zeros);
     mat alpha(nstates, nobs, fill::zeros);
-    FB(transition, pi, durations, pdf, alpha, min_duration, nobs);
+    mat beta(nstates, nobs, fill::zeros);
+    FB(transition, pi, durations, pdf, alpha, beta, min_duration, nobs);
     cout << alpha << endl;
+    cout << beta << endl;
     return 0;
 }
