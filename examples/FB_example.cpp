@@ -5,10 +5,10 @@ using namespace arma;
 using namespace std;
 
 int main() {
-    int nobs = 18;
+    int nobs = 31;
     int nstates = 1;
-    int ndurations = 2;
-    int min_duration = 6;
+    int ndurations = 3;
+    int min_duration = 4;
     mat transition(nstates, nstates, fill::eye);
     vec pi = {1};
     mat durations(nstates, ndurations, fill::zeros);

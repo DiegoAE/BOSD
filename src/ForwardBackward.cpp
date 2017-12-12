@@ -55,7 +55,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                 int first_idx_seg = t - min_duration - d + 1;
                 if (first_idx_seg < 0)
                     break;
-                Debug('f', first_idx_seg, t, first_idx_seg - 1);
+                // Debug('f', first_idx_seg, t, first_idx_seg - 1);
                 double e_lh = pdf(j, first_idx_seg, d) * duration(j, d);
                 double sum = 0;
                 if (first_idx_seg == 0)
@@ -68,7 +68,6 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
             }
         }
     }
-    // TODO: Include Pi(j) here and review the base case above.
     // Backward pass base case.
     for(int i = 0; i < nstates; i++)
         beta(i, nobs - 1) = 1.0;
@@ -83,7 +82,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                     int last_idx_seg = t + min_duration + d;
                     if (last_idx_seg >= nobs)
                         break;
-                    Debug('b', first_idx_seg, last_idx_seg, last_idx_seg);
+                    // Debug('b', first_idx_seg, last_idx_seg, last_idx_seg);
                     double e_lh = pdf(i, first_idx_seg, d) * duration(i, d);
                     sum += e_lh * beta(i, last_idx_seg);
                 }
