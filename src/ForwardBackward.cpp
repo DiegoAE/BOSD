@@ -10,8 +10,8 @@ bool equal(double a, double b) {
 }
 
 void safety_checks(const mat& transition,const vec& pi, const mat& duration,
-        const cube& pdf, mat& alpha, mat& beta, const int min_duration,
-        const int nobs) {
+        const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
+        const int min_duration, const int nobs) {
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
     // Dimensions checking.
@@ -27,6 +27,10 @@ void safety_checks(const mat& transition,const vec& pi, const mat& duration,
     assert(alpha.n_cols == nobs);
     assert(beta.n_rows == nstates);
     assert(beta.n_cols == nobs);
+    assert(alpha_s.n_rows == nstates);
+    assert(alpha_s.n_cols == nobs);
+    assert(beta_s.n_rows == nstates);
+    assert(beta_s.n_cols == nobs);
     // Normalization checking.
     assert(equal(norm(sum(transition, 1) - ones<vec>(nstates)), 0));
     assert(equal(sum(pi), 1.0));
@@ -38,15 +42,16 @@ void Debug(char c, int a, int b, int d) {
 }
 
 void FB(const mat& transition,const vec& pi, const mat& duration,
-        const cube& pdf, mat& alpha, mat& beta, const int min_duration,
-        const int nobs) {
-    safety_checks(transition, pi, duration, pdf, alpha, beta, min_duration,
-            nobs);
+        const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
+        const int min_duration, const int nobs) {
+    // TODO: Fill the alpha_s and beta_s in.
+    safety_checks(transition, pi, duration, pdf, alpha, beta, alpha_s, beta_s,
+            min_duration, nobs);
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
     for(int i = 0; i < nstates; i++)
         for(int j = 0; j < nobs; j++)
-            alpha(i, j) = beta(i, j) = 0;
+            alpha(i, j) = beta(i, j) = alpha_s(i, j) = alpha_s(i, j) = 0;
     // Forward recursion.
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {

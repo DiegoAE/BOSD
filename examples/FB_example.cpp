@@ -16,7 +16,10 @@ int main() {
     cube pdf(nstates, nobs, ndurations, fill::zeros);
     mat alpha(nstates, nobs, fill::zeros);
     mat beta(nstates, nobs, fill::zeros);
-    FB(transition, pi, durations, pdf, alpha, beta, min_duration, nobs);
+    mat alpha_s(nstates, nobs, fill::zeros);
+    mat beta_s(nstates, nobs, fill::zeros);
+    FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s,
+            min_duration, nobs);
     cout << alpha << endl;
     cout << beta << endl;
     return 0;
