@@ -68,6 +68,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                 else {
                     for(int i = 0; i < nstates; i++)
                         sum += transition(i, j) * alpha(i, first_idx_seg - 1);
+                    alpha_s(j, first_idx_seg - 1) = sum;
                 }
                 alpha(j, t) += e_lh * sum;
             }
@@ -75,7 +76,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
     }
     // Backward pass base case.
     for(int i = 0; i < nstates; i++)
-        beta(i, nobs - 1) = 1.0;
+        beta(i, nobs - 1) = beta_s(i, nobs - 1) = 1.0;
     // Backward recursion.
     for(int t = nobs - min_duration - 1; t >= 0; t--) {
         for(int j = 0; j < nstates; j++) {
@@ -91,6 +92,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                     double e_lh = pdf(i, first_idx_seg, d) * duration(i, d);
                     sum += e_lh * beta(i, last_idx_seg);
                 }
+                beta_s(i, t) = sum;
                 beta(j, t) += transition(j, i) * sum;
             }
         }
