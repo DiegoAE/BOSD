@@ -10,8 +10,9 @@ bool equal(double a, double b) {
 }
 
 void safety_checks(const mat& transition,const vec& pi, const mat& duration,
-        const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
-        const int min_duration, const int nobs) {
+        const cube& pdf, const mat& alpha, const mat& beta,
+        const mat& alpha_s, const mat& beta_s, const int min_duration,
+        const int nobs) {
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
     // Dimensions checking.
@@ -44,7 +45,6 @@ void Debug(char c, int a, int b, int d) {
 void FB(const mat& transition,const vec& pi, const mat& duration,
         const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
         const int min_duration, const int nobs) {
-    // TODO: Fill the alpha_s and beta_s in.
     safety_checks(transition, pi, duration, pdf, alpha, beta, alpha_s, beta_s,
             min_duration, nobs);
     int nstates = transition.n_rows;
@@ -95,6 +95,53 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                 beta_s(i, t) = sum;
                 beta(j, t) += transition(j, i) * sum;
             }
+        }
+    }
+}
+
+void Viterbi(const mat& transition,const vec& pi, const mat& duration,
+        const cube& pdf, mat& delta, imat& psi_duration, imat& psi_state,
+        const int min_duration, const int nobs) {
+    safety_checks(transition, pi, duration, pdf, delta, delta,
+            conv_to<mat>::from(psi_duration), conv_to<mat>::from(psi_state),
+            min_duration, nobs);
+    int nstates = transition.n_rows;
+    int duration_steps = duration.n_cols;
+    for(int i = 0; i < nstates; i++)
+        for(int j = 0; j < nobs; j++)
+            psi_duration(i, j) = psi_state(i, j) = -1;
+    for(int t = min_duration - 1; t < nobs; t++) {
+        for(int j = 0; j < nstates; j++) {
+            delta(j, t) = 0.0;
+            int best_duration = -1;
+            int best_state = -1;
+            for(int d = 0; d < duration_steps; d++) {
+                int first_idx_seg = t - min_duration - d + 1;
+                if (first_idx_seg < 0)
+                    break;
+                double e_lh = pdf(j, first_idx_seg, d) * duration(j, d);
+                if (first_idx_seg == 0) {
+                    // Base case.
+                    if (e_lh * pi(j) > delta(j, t)) {
+                        delta(j, t) = e_lh * pi(j);
+                        best_duration = min_duration + d;
+                        best_state = -1;  // There isn't a previous state.
+                    }
+                }
+                else {
+                    for(int i = 0; i < nstates; i++) {
+                        double tmp = e_lh * transition(i, j);
+                        tmp *= delta(i, first_idx_seg - 1);
+                        if (tmp > delta(j, t)) {
+                            delta(j, t) = tmp;
+                            best_duration = min_duration + d;
+                            best_state = i;
+                        }
+                    }
+                }
+            }
+            psi_duration(j, t) = best_duration;
+            psi_state(j, t) = best_state;
         }
     }
 }
