@@ -102,14 +102,17 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
 void Viterbi(const mat& transition,const vec& pi, const mat& duration,
         const cube& pdf, mat& delta, imat& psi_duration, imat& psi_state,
         const int min_duration, const int nobs) {
+    // TODO: implement logs in the Viterbi algorithm.
     safety_checks(transition, pi, duration, pdf, delta, delta,
             conv_to<mat>::from(psi_duration), conv_to<mat>::from(psi_state),
             min_duration, nobs);
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
     for(int i = 0; i < nstates; i++)
-        for(int j = 0; j < nobs; j++)
+        for(int j = 0; j < nobs; j++) {
+            delta(i, j) = 0;
             psi_duration(i, j) = psi_state(i, j) = -1;
+        }
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
             delta(j, t) = 0.0;
