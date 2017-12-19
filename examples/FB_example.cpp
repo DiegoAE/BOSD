@@ -18,7 +18,8 @@ int sampleFromCategorical(rowvec pmf) {
 
 class DummyHSMM {
     public:
-        DummyHSMM(mat transition, vec pi, vec duration, int min_duration) {
+        DummyHSMM(mat transition, vec pi, mat duration, int min_duration) {
+            assert(min_duration >= 1);
             transition_ = transition;
             pi_ = pi;
             duration_ = duration;
@@ -30,7 +31,7 @@ class DummyHSMM {
         }
 
         rowvec sampleFromState(int state, int len) {
-            return randn<vec>(len) * 0.1 + state;
+            return randn<rowvec>(len) * 0.1 + state;
         }
 
         mat sampleSegments(int nsegments, ivec& hiddenStates,
@@ -70,7 +71,7 @@ class DummyHSMM {
 
         mat transition_;
         vec pi_;
-        vec duration_;
+        mat duration_;
         int min_duration_;
 };
 
@@ -110,30 +111,43 @@ double gaussianpdf(double x, double mu, double sigma) {
 }
 
 int main() {
-    int nobs = 10;
     int nstates = 4;
-    int ndurations = 1;
+    int ndurations = 4;
     int min_duration = 1;
     mat transition(nstates, nstates, fill::eye);
     transition.fill(1.0/nstates);
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
-    mat durations(nstates, ndurations, fill::zeros);
-    durations.col(0) = ones<vec>(nstates);
-    cube pdf(nstates, nobs, ndurations, fill::zeros);
-
+    mat durations(nstates, ndurations, fill::eye);
     DummyHSMM dhsmm(transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
-    mat samples = dhsmm.sampleSegments(nobs, hiddenStates, hiddenDurations);
-
+    int nSampledSegments = 10;
+    mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
+            hiddenDurations);
     cout << "Generated samples" << endl;
     cout << samples << endl;
     cout << "Generated states and durations" << endl;
     cout << join_horiz(hiddenStates, hiddenDurations) << endl;
 
+    // Computing the likelihoods w.r.t. the emission model.
+    int nobs = samples.n_cols;
+    cube pdf(nstates, nobs, ndurations, fill::zeros);
     for(int i = 0; i < nstates; i++)
         for(int t = 0; t < nobs; t++)
-            pdf(i, t, 0) = gaussianpdf(samples(0, t), i, 0.1);
+            for(int d = 0; d < ndurations; d++) {
+                if (t + min_duration + d > nobs)
+                    break;
+                int end_idx = t + min_duration + d - 1;
+                if (d == 0) {
+                    pdf(i, t, d) = 1.0;
+                    for(int j = t; j <= end_idx; j++)
+                        pdf(i, t, d) *= gaussianpdf(samples(0, j), i, 0.1);
+                }
+                else {
+                    pdf(i, t, d) = pdf(i, t, d - 1) *
+                            gaussianpdf(samples(0, end_idx), i, 0.1);
+                }
+            }
 
     mat alpha(nstates, nobs, fill::zeros);
     mat beta(nstates, nobs, fill::zeros);
@@ -161,6 +175,7 @@ int main() {
     mat delta(nstates, nobs, fill::zeros);
     Viterbi(transition, pi, durations, pdf, delta, psi_duration, psi_state,
             min_duration, nobs);
+    //TODO: See why you're having values greater than 1 in delta.
     cout << "Delta last column" << endl;
     cout << delta.col(nobs - 1) << endl;
     ivec viterbiStates, viterbiDurations;
@@ -171,21 +186,15 @@ int main() {
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
 
     // Debug
-    double real_acum = 1.0;
-    double debug_acum = 1.0;
     int differences = 0;
-    for(int t = 0; t < nobs; t++) {
-        real_acum *= gaussianpdf(samples(0, t) -
-                hiddenStates(t), 0, 0.1) * 0.25;
-        debug_acum *= gaussianpdf(samples(0, t) -
-                viterbiStates(t), 0, 0.1) * 0.25;
-        if (hiddenStates(t) != viterbiStates(t))
-            differences++;
+    if (viterbiStates.n_elem == hiddenStates.n_elem) {
+        for(int t = 0; t < viterbiStates.n_elem; t++)
+            if (hiddenStates(t) != viterbiStates(t))
+                differences++;
+        cout << " Differences: " << differences << endl;
     }
-    cout << "Real seq: " << real_acum << " Viterbi seq " << debug_acum <<
-            " Differences: " << differences << endl;
-
+    else
+        cout << "The dimensions don't match." << endl;
     // TODO: Test the beta recursions with this example.
-    // TODO: Test with a duration greater than 1.
     return 0;
 }
