@@ -19,11 +19,32 @@ int sampleFromCategorical(rowvec pmf) {
 class DummyHSMM {
     public:
         DummyHSMM(mat transition, vec pi, mat duration, int min_duration) {
-            assert(min_duration >= 1);
-            transition_ = transition;
-            pi_ = pi;
-            duration_ = duration;
+            nstates_ = transition.n_rows;
+            ndurations_ = duration.n_cols;
             min_duration_ = min_duration;
+            assert(min_duration_ >= 1);
+            assert(nstates_ >= 1);
+            assert(ndurations_ >= 1);
+            setDuration(duration);
+            setPi(pi);
+            setTransition(transition);
+        }
+
+        void setDuration(mat duration) {
+            assert(duration.n_rows == nstates_);
+            assert(duration.n_cols == ndurations_);
+            duration_ = duration;
+        }
+
+        void setPi(vec pi) {
+            assert(pi.n_elem == nstates_);
+            pi_ = pi;
+        }
+
+        void setTransition(mat transition) {
+            assert(transition.n_rows == transition.n_cols);
+            assert(transition.n_rows == nstates_);
+            transition_ = transition;
         }
 
         int getNumberOfStates() {
@@ -72,7 +93,9 @@ class DummyHSMM {
         mat transition_;
         vec pi_;
         mat duration_;
+        int ndurations_;
         int min_duration_;
+        int nstates_;
 };
 
 void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
@@ -111,17 +134,20 @@ double gaussianpdf(double x, double mu, double sigma) {
 }
 
 int main() {
-    int nstates = 4;
     int ndurations = 4;
-    int min_duration = 1;
-    mat transition(nstates, nstates, fill::eye);
-    transition.fill(1.0/nstates);
+    int min_duration = 3;
+    mat transition = {{0.0, 0.1, 0.4, 0.5},
+                      {0.3, 0.0, 0.6, 0.1},
+                      {0.2, 0.2, 0.0, 0.6},
+                      {0.4, 0.4, 0.2, 0.0}};
+    int nstates = transition.n_rows;
+    // transition.fill(1.0/nstates);
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations, fill::eye);
     DummyHSMM dhsmm(transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 10;
+    int nSampledSegments = 3;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     cout << "Generated samples" << endl;
@@ -175,7 +201,6 @@ int main() {
     mat delta(nstates, nobs, fill::zeros);
     Viterbi(transition, pi, durations, pdf, delta, psi_duration, psi_state,
             min_duration, nobs);
-    //TODO: See why you're having values greater than 1 in delta.
     cout << "Delta last column" << endl;
     cout << delta.col(nobs - 1) << endl;
     ivec viterbiStates, viterbiDurations;

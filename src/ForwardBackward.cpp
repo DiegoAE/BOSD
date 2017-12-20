@@ -51,7 +51,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
     int duration_steps = duration.n_cols;
     for(int i = 0; i < nstates; i++)
         for(int j = 0; j < nobs; j++)
-            alpha(i, j) = beta(i, j) = alpha_s(i, j) = alpha_s(i, j) = 0;
+            alpha(i, j) = beta(i, j) = alpha_s(i, j) = beta_s(i, j) = 0;
     // Forward recursion.
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
