@@ -49,9 +49,10 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
             min_duration, nobs);
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
-    for(int i = 0; i < nstates; i++)
-        for(int j = 0; j < nobs; j++)
-            alpha(i, j) = beta(i, j) = alpha_s(i, j) = beta_s(i, j) = 0;
+    alpha.fill(0.0);
+    beta.fill(0.0);
+    alpha_s.fill(0.0);
+    beta_s.fill(0.0);
     // Forward recursion.
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
@@ -108,11 +109,9 @@ void Viterbi(const mat& transition,const vec& pi, const mat& duration,
             min_duration, nobs);
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
-    for(int i = 0; i < nstates; i++)
-        for(int j = 0; j < nobs; j++) {
-            delta(i, j) = 0;
-            psi_duration(i, j) = psi_state(i, j) = -1;
-        }
+    delta.fill(0.0);
+    psi_duration.fill(-1);
+    psi_state.fill(-1);
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
             delta(j, t) = 0.0;

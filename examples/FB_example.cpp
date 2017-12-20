@@ -96,6 +96,22 @@ class DummyHSMM {
             return samples;
         }
 
+        void fit(mat obs, int max_iter) {
+            // For now only the transition matrix is being learned.
+            int nobs = obs.n_cols;
+            assert(nobs >= 1);
+            mat alpha(nstates_, nobs, fill::zeros);
+            mat beta(nstates_, nobs, fill::zeros);
+            mat alpha_s(nstates_, nobs, fill::zeros);
+            mat beta_s(nstates_, nobs, fill::zeros);
+            cube pdf = computeEmissionsLikelihood(obs);
+            for(int i = 0; i < max_iter; i++) {
+                FB(transition_, pi_, duration_, pdf, alpha, beta, alpha_s,
+                        beta_s, min_duration_, nobs);
+                // TODO: reetimate the transitions.
+            }
+        }
+
         // Computes the likelihoods w.r.t. the emission model.
         cube computeEmissionsLikelihood(mat obs) {
             // TODO: make this method abstract.
@@ -165,7 +181,6 @@ int main() {
                       {0.2, 0.2, 0.0, 0.6},
                       {0.4, 0.4, 0.2, 0.0}};
     int nstates = transition.n_rows;
-    // transition.fill(1.0/nstates);
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations, fill::eye);
@@ -226,6 +241,13 @@ int main() {
     }
     else
         cout << "The dimensions don't match." << endl;
-    // TODO: Test the beta recursions with this example.
+    // Testing the learning algorithm.
+
+    // Setting a uniform transition with no self-loops.
+    transition.fill(1.0/(nstates-1));
+    transition.diag().zeros();
+    dhsmm.setTransition(transition);
+
+    dhsmm.fit(samples, 20);
     return 0;
 }
