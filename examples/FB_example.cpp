@@ -16,6 +16,12 @@ int sampleFromCategorical(rowvec pmf) {
             prefixsum.begin();
 }
 
+double gaussianpdf(double x, double mu, double sigma) {
+    double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
+    ret = ret / (sqrt(2 * M_PI) * sigma);
+    return ret;
+}
+
 class DummyHSMM {
     public:
         DummyHSMM(mat transition, vec pi, mat duration, int min_duration) {
@@ -90,6 +96,30 @@ class DummyHSMM {
             return samples;
         }
 
+        // Computes the likelihoods w.r.t. the emission model.
+        cube computeEmissionsLikelihood(mat obs) {
+            // TODO: make this method abstract.
+            int nobs = obs.n_cols;
+            cube pdf(nstates_, nobs, ndurations_, fill::zeros);
+            for(int i = 0; i < nstates_; i++)
+                for(int t = 0; t < nobs; t++)
+                    for(int d = 0; d < ndurations_; d++) {
+                        if (t + min_duration_ + d > nobs)
+                            break;
+                        int end_idx = t + min_duration_ + d - 1;
+                        if (d == 0) {
+                            pdf(i, t, d) = 1.0;
+                            for(int j = t; j <= end_idx; j++)
+                                pdf(i, t, d) *= gaussianpdf(obs(0, j), i, 0.1);
+                        }
+                        else {
+                            pdf(i, t, d) = pdf(i, t, d - 1) *
+                                    gaussianpdf(obs(0, end_idx), i, 0.1);
+                        }
+                    }
+            return pdf;
+        }
+
         mat transition_;
         vec pi_;
         mat duration_;
@@ -127,12 +157,6 @@ void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
     hiddenDurations = conv_to<ivec>::from(durationSeq);
 }
 
-double gaussianpdf(double x, double mu, double sigma) {
-    double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
-    ret = ret / (sqrt(2 * M_PI) * sigma);
-    return ret;
-}
-
 int main() {
     int ndurations = 4;
     int min_duration = 3;
@@ -150,30 +174,12 @@ int main() {
     int nSampledSegments = 3;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
+    int nobs = samples.n_cols;
+    cube pdf = dhsmm.computeEmissionsLikelihood(samples);
     cout << "Generated samples" << endl;
     cout << samples << endl;
     cout << "Generated states and durations" << endl;
     cout << join_horiz(hiddenStates, hiddenDurations) << endl;
-
-    // Computing the likelihoods w.r.t. the emission model.
-    int nobs = samples.n_cols;
-    cube pdf(nstates, nobs, ndurations, fill::zeros);
-    for(int i = 0; i < nstates; i++)
-        for(int t = 0; t < nobs; t++)
-            for(int d = 0; d < ndurations; d++) {
-                if (t + min_duration + d > nobs)
-                    break;
-                int end_idx = t + min_duration + d - 1;
-                if (d == 0) {
-                    pdf(i, t, d) = 1.0;
-                    for(int j = t; j <= end_idx; j++)
-                        pdf(i, t, d) *= gaussianpdf(samples(0, j), i, 0.1);
-                }
-                else {
-                    pdf(i, t, d) = pdf(i, t, d - 1) *
-                            gaussianpdf(samples(0, end_idx), i, 0.1);
-                }
-            }
 
     mat alpha(nstates, nobs, fill::zeros);
     mat beta(nstates, nobs, fill::zeros);
