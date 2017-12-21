@@ -44,7 +44,7 @@ void Debug(char c, int a, int b, int d) {
 
 void FB(const mat& transition,const vec& pi, const mat& duration,
         const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
-        const int min_duration, const int nobs) {
+        vec& beta_s_0, const int min_duration, const int nobs) {
     safety_checks(transition, pi, duration, pdf, alpha, beta, alpha_s, beta_s,
             min_duration, nobs);
     int nstates = transition.n_rows;
@@ -96,6 +96,19 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                 beta_s(i, t) = sum;
                 beta(j, t) += transition(j, i) * sum;
             }
+        }
+    }
+
+    // Computing beta*_0(j) required to estimate pi.
+    beta_s_0 = zeros<vec>(nstates);
+    for(int j = 0; j < nstates; j++) {
+        for(int d = 0; d < duration_steps; d++) {
+            int first_idx_seg = 0;
+            int last_idx_seg = min_duration + d - 1;
+            if (last_idx_seg >= nobs)
+                break;
+            double e_lh = pdf(j, first_idx_seg, d) * duration(j, d);
+            beta_s_0(j) += e_lh * beta(j, last_idx_seg);
         }
     }
 }

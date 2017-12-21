@@ -1,3 +1,4 @@
+#include <armadillo>
 #include <ForwardBackward.hpp>
 #include <iostream>
 #include <cassert>
@@ -100,11 +101,14 @@ class DummyHSMM {
             mat beta(nstates_, nobs, fill::zeros);
             mat alpha_s(nstates_, nobs, fill::zeros);
             mat beta_s(nstates_, nobs, fill::zeros);
+            vec beta_s_0(nstates_, fill::zeros);
             cube pdf = computeEmissionsLikelihood(obs);
             mat estimated_transition(transition_);
+            vec estimated_pi(pi_);
             for(int i = 0; i < max_iter; i++) {
-                FB(estimated_transition, pi_, duration_, pdf, alpha, beta,
-                        alpha_s, beta_s, min_duration_, nobs);
+                FB(estimated_transition, estimated_pi, duration_, pdf, alpha, beta,
+                        alpha_s, beta_s, beta_s_0, min_duration_, nobs);
+
                 // Reestimating transitions.
                 mat tmp_transition(size(transition_), fill::zeros);
                 for(int t = 0; t < nobs - 1; t++)
@@ -116,10 +120,15 @@ class DummyHSMM {
                 for(int r = 0; r < nstates_; r++)
                     tmp_transition.row(r) /= row_sums(r);
                 estimated_transition = tmp_transition;
+
+                // Reestimating the initial state pmf.
+                estimated_pi = beta_s_0 % estimated_pi;
+                estimated_pi = estimated_pi / sum(estimated_pi);
             }
 
-            // Updating the transition matrix.
-            transition_ = estimated_transition;
+            // Updating the model parameters.
+           setTransition(estimated_transition);
+           setPi(estimated_pi);
         }
 
         // Computes the likelihoods w.r.t. the emission model.
@@ -211,7 +220,8 @@ int main() {
     mat beta(nstates, nobs, fill::zeros);
     mat alpha_s(nstates, nobs, fill::zeros);
     mat beta_s(nstates, nobs, fill::zeros);
-    FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s,
+    vec beta_s_0(nstates, fill::zeros);
+    FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s, beta_s_0,
             min_duration, nobs);
     cout << "Alpha" << endl;
     // cout << alpha << endl;
@@ -262,14 +272,17 @@ int main() {
         prueba.row(i) /= pruebasum(i);
     cout << prueba << endl;
 
-    // Setting a uniform transition with no self-loops.
+    // Initializing uniformly the transitions and the initial state pmf.
     transition.fill(1.0/(nstates-1));
-    transition.diag().zeros();
+    transition.diag().zeros();  // No self-loops.
     dhsmm.setTransition(transition);
+    pi.fill(1.0/nstates);
 
     // Testing the learning algorithm.
     dhsmm.fit(samples, 100);
-    cout << "Matrix we learnt:" << endl;
+    cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
+    cout << "Learnt pi:" << endl;
+    cout << dhsmm.pi_ << endl;
     return 0;
 }
