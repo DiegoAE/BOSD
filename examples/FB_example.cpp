@@ -105,11 +105,23 @@ class DummyHSMM {
             mat alpha_s(nstates_, nobs, fill::zeros);
             mat beta_s(nstates_, nobs, fill::zeros);
             cube pdf = computeEmissionsLikelihood(obs);
+            mat estimated_transition(transition_);
             for(int i = 0; i < max_iter; i++) {
-                FB(transition_, pi_, duration_, pdf, alpha, beta, alpha_s,
-                        beta_s, min_duration_, nobs);
-                // TODO: reetimate the transitions.
+                FB(estimated_transition, pi_, duration_, pdf, alpha, beta,
+                        alpha_s, beta_s, min_duration_, nobs);
+                // Reestimating transitions.
+                mat tmp_transition(size(transition_), fill::zeros);
+                for(int t = 0; t < nobs - 1; t++)
+                    for(int i = 0; i < nstates_; i++)
+                        for(int j = 0; j < nstates_; j++)
+                            tmp_transition(i, j) += alpha(i, t) *
+                                    estimated_transition(i, j) * beta_s(j, t);
+                vec row_sums = sum(tmp_transition, 1);
+                for(int r = 0; r < nstates_; r++)
+                    tmp_transition.row(r) /= row_sums(r);
+                estimated_transition = tmp_transition;
             }
+            cout << estimated_transition << endl;
         }
 
         // Computes the likelihoods w.r.t. the emission model.
@@ -174,8 +186,8 @@ void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
 }
 
 int main() {
-    int ndurations = 4;
-    int min_duration = 3;
+    int ndurations = 1;
+    int min_duration = 1;
     mat transition = {{0.0, 0.1, 0.4, 0.5},
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
@@ -184,9 +196,10 @@ int main() {
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations, fill::eye);
+    durations.fill(1.0);
     DummyHSMM dhsmm(transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 3;
+    int nSampledSegments = 3200;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_cols;
@@ -241,13 +254,13 @@ int main() {
     }
     else
         cout << "The dimensions don't match." << endl;
-    // Testing the learning algorithm.
 
     // Setting a uniform transition with no self-loops.
     transition.fill(1.0/(nstates-1));
     transition.diag().zeros();
     dhsmm.setTransition(transition);
 
-    dhsmm.fit(samples, 20);
+    // Testing the learning algorithm.
+    dhsmm.fit(samples, 100);
     return 0;
 }
