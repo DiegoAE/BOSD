@@ -7,7 +7,7 @@
 using namespace arma;
 using namespace std;
 
-
+// TODO: Make sure there is not any bias here.
 int sampleFromCategorical(rowvec pmf) {
     rowvec prefixsum(pmf);
     for(int i = 1; i < pmf.n_elem; i++)
@@ -51,10 +51,6 @@ class DummyHSMM {
             assert(transition.n_rows == transition.n_cols);
             assert(transition.n_rows == nstates_);
             transition_ = transition;
-        }
-
-        int getNumberOfStates() {
-            return transition_.n_rows;
         }
 
         rowvec sampleFromState(int state, int len) {
@@ -121,7 +117,9 @@ class DummyHSMM {
                     tmp_transition.row(r) /= row_sums(r);
                 estimated_transition = tmp_transition;
             }
-            cout << estimated_transition << endl;
+
+            // Updating the transition matrix.
+            transition_ = estimated_transition;
         }
 
         // Computes the likelihoods w.r.t. the emission model.
@@ -186,8 +184,8 @@ void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
 }
 
 int main() {
-    int ndurations = 1;
-    int min_duration = 1;
+    int ndurations = 4;
+    int min_duration = 4;
     mat transition = {{0.0, 0.1, 0.4, 0.5},
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
@@ -196,10 +194,10 @@ int main() {
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations, fill::eye);
-    durations.fill(1.0);
+    // durations.fill(1.0);
     DummyHSMM dhsmm(transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 3200;
+    int nSampledSegments = 100;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_cols;
@@ -216,17 +214,17 @@ int main() {
     FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s,
             min_duration, nobs);
     cout << "Alpha" << endl;
-    cout << alpha << endl;
+    // cout << alpha << endl;
     cout << "Beta" << endl;
-    cout << beta << endl;
+    // cout << beta << endl;
     cout << "Alpha normalized" << endl;
     mat alpha_normalized(alpha);
     for(int i = 0; i < alpha.n_rows; i++)
         alpha_normalized.row(i) /= sum(alpha, 0);
-    cout << alpha_normalized << endl;
+    // cout << alpha_normalized << endl;
     cout << "Sums columns" << endl;
-    cout << sum(alpha, 0) << endl;
-    cout << sum(beta, 0) << endl;
+    // cout << sum(alpha, 0) << endl;
+    // cout << sum(beta, 0) << endl;
     cout << "Sums rows" << endl;
     cout << sum(alpha, 1) << endl;
     cout << sum(beta, 1) << endl;
@@ -255,6 +253,15 @@ int main() {
     else
         cout << "The dimensions don't match." << endl;
 
+    cout << "Best matrix we can aim at:" << endl;
+    mat prueba(nstates, nstates, fill::zeros);
+    for(int i = 0; i < hiddenStates.n_elem - 1; i++)
+        prueba(hiddenStates(i), hiddenStates(i + 1))++;
+    mat pruebasum = sum(prueba, 1);
+    for(int i = 0; i < nstates; i++)
+        prueba.row(i) /= pruebasum(i);
+    cout << prueba << endl;
+
     // Setting a uniform transition with no self-loops.
     transition.fill(1.0/(nstates-1));
     transition.diag().zeros();
@@ -262,5 +269,7 @@ int main() {
 
     // Testing the learning algorithm.
     dhsmm.fit(samples, 100);
+    cout << "Matrix we learnt:" << endl;
+    cout << dhsmm.transition_ << endl;
     return 0;
 }
