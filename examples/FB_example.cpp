@@ -102,12 +102,15 @@ class DummyHSMM {
             mat alpha_s(nstates_, nobs, fill::zeros);
             mat beta_s(nstates_, nobs, fill::zeros);
             vec beta_s_0(nstates_, fill::zeros);
+            mat eta(nstates_, ndurations_, fill::zeros);
             cube pdf = computeEmissionsLikelihood(obs);
             mat estimated_transition(transition_);
             vec estimated_pi(pi_);
+            mat estimated_duration(duration_);
             for(int i = 0; i < max_iter; i++) {
-                FB(estimated_transition, estimated_pi, duration_, pdf, alpha, beta,
-                        alpha_s, beta_s, beta_s_0, min_duration_, nobs);
+                FB(estimated_transition, estimated_pi, estimated_duration, pdf,
+                        alpha, beta, alpha_s, beta_s, beta_s_0, eta,
+                        min_duration_, nobs);
 
                 // Reestimating transitions.
                 mat tmp_transition(size(transition_), fill::zeros);
@@ -124,11 +127,18 @@ class DummyHSMM {
                 // Reestimating the initial state pmf.
                 estimated_pi = beta_s_0 % estimated_pi;
                 estimated_pi = estimated_pi / sum(estimated_pi);
+
+                // Reestimating durations.
+                vec eta_sums = sum(eta, 1);
+                for(int r = 0; r < nstates_; r++)
+                    eta.row(r) /= eta_sums(r);
+                estimated_duration = eta;
             }
 
             // Updating the model parameters.
            setTransition(estimated_transition);
            setPi(estimated_pi);
+           setDuration(estimated_duration);
         }
 
         // Computes the likelihoods w.r.t. the emission model.
@@ -202,8 +212,11 @@ int main() {
     int nstates = transition.n_rows;
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
-    mat durations(nstates, ndurations, fill::eye);
-    // durations.fill(1.0);
+    // mat durations(nstates, ndurations, fill::eye);
+    mat durations =  {{0.0, 0.1, 0.4, 0.5},
+                      {0.3, 0.0, 0.6, 0.1},
+                      {0.2, 0.2, 0.0, 0.6},
+                      {0.4, 0.4, 0.2, 0.0}};
     DummyHSMM dhsmm(transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 100;
@@ -221,8 +234,9 @@ int main() {
     mat alpha_s(nstates, nobs, fill::zeros);
     mat beta_s(nstates, nobs, fill::zeros);
     vec beta_s_0(nstates, fill::zeros);
+    mat eta(nstates, ndurations, fill::zeros);
     FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s, beta_s_0,
-            min_duration, nobs);
+            eta, min_duration, nobs);
     cout << "Alpha" << endl;
     // cout << alpha << endl;
     cout << "Beta" << endl;
@@ -263,7 +277,19 @@ int main() {
     else
         cout << "The dimensions don't match." << endl;
 
-    cout << "Best matrix we can aim at:" << endl;
+    // Initializing uniformly the transitions, initial state pmf and durations.
+    transition.fill(1.0/(nstates-1));
+    transition.diag().zeros();  // No self-loops.
+    dhsmm.setTransition(transition);
+    pi.fill(1.0/nstates);
+    dhsmm.setPi(pi);
+    durations.fill(1.0/ndurations);
+    dhsmm.setDuration(durations);
+
+    // Testing the learning algorithm.
+    dhsmm.fit(samples, 10);
+
+    cout << "Best transition matrix we can aim at:" << endl;
     mat prueba(nstates, nstates, fill::zeros);
     for(int i = 0; i < hiddenStates.n_elem - 1; i++)
         prueba(hiddenStates(i), hiddenStates(i + 1))++;
@@ -271,17 +297,20 @@ int main() {
     for(int i = 0; i < nstates; i++)
         prueba.row(i) /= pruebasum(i);
     cout << prueba << endl;
-
-    // Initializing uniformly the transitions and the initial state pmf.
-    transition.fill(1.0/(nstates-1));
-    transition.diag().zeros();  // No self-loops.
-    dhsmm.setTransition(transition);
-    pi.fill(1.0/nstates);
-
-    // Testing the learning algorithm.
-    dhsmm.fit(samples, 100);
     cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
+
+    cout << "Best duration matrix we can aim at:" << endl;
+    mat emp_durations(nstates, ndurations, fill::zeros);
+    for(int i = 0; i < hiddenStates.n_elem; i++)
+        emp_durations(hiddenStates(i), hiddenDurations(i) - min_duration)++;
+    mat emp_durations_sum = sum(emp_durations, 1);
+    for(int i = 0; i < nstates; i++)
+        emp_durations.row(i) /= emp_durations_sum(i);
+    cout << emp_durations << endl;
+    cout << "Learnt durations:" << endl;
+    cout << dhsmm.duration_ << endl;
+
     cout << "Learnt pi:" << endl;
     cout << dhsmm.pi_ << endl;
     return 0;
