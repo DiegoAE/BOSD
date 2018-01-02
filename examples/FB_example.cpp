@@ -46,7 +46,7 @@ class AbstractEmission {
             return pdf;
         }
 
-        virtual mat sampleForState(int state, int size) const = 0;
+        virtual mat sampleFromState(int state, int size) const = 0;
 
     private:
         int nstates_;
@@ -67,7 +67,7 @@ class DummyGaussianEmission : public AbstractEmission {
             return ret;
         }
 
-        mat sampleForState(int state, int size) const {
+        mat sampleFromState(int state, int size) const {
             return randn<mat>(1, size) * std_devs_(state) + means_(state);
         }
 
@@ -114,10 +114,6 @@ class HSMM {
             transition_ = transition;
         }
 
-        rowvec sampleFromState(int state, int len) {
-            return randn<rowvec>(len) * 0.1 + state;
-        }
-
         mat sampleSegments(int nsegments, ivec& hiddenStates,
                 ivec& hiddenDurations) {
             assert(nsegments >= 1);
@@ -144,7 +140,7 @@ class HSMM {
             mat samples(1, sampleSequenceLength, fill::zeros);
             int idx = 0;
             for(int i = 0; i < nsegments; i++) {
-                rowvec currSample = sampleFromState(states(i), durations(i));
+                mat currSample = emission_->sampleFromState(states(i), durations(i));
                 samples.cols(idx, idx + durations(i) - 1) = currSample;
                 idx += durations(i);
             }
