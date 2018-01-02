@@ -1,8 +1,9 @@
 #include <armadillo>
 #include <ForwardBackward.hpp>
-#include <iostream>
 #include <cassert>
 #include <cmath>
+#include <iostream>
+#include <memory>
 #include <vector>
 
 using namespace arma;
@@ -22,6 +23,47 @@ double gaussianpdf(double x, double mu, double sigma) {
     ret = ret / (sqrt(2 * M_PI) * sigma);
     return ret;
 }
+
+class AbstractEmission {
+    public:
+        AbstractEmission(int nstates) : nstates_(nstates) {}
+
+        int getNumberStates() {
+            return nstates_;
+        }
+
+        virtual double likelihood(int state, const mat& obs) const = 0;
+
+        virtual mat sampleForState(int state, int size) const = 0;
+
+    private:
+        int nstates_;
+};
+
+class DummyGaussianEmission : public AbstractEmission {
+    public:
+        DummyGaussianEmission(int nstates, vec& means, vec& std_devs) :
+                AbstractEmission(nstates), means_(means), std_devs_(std_devs) {
+            assert(means_.n_elem == getNumberStates());
+            assert(std_devs_.n_elem == getNumberStates());
+        }
+
+        double likelihood(int state, const mat& obs) const {
+            double ret = 1.0;
+            for(int i = 0; i < obs.n_cols; i++)
+                ret *= gaussianpdf(obs(0, i), means_(state), std_devs_(state));
+            return ret;
+        }
+
+        mat sampleForState(int state, int size) const {
+            return randn<mat>(1, size) * std_devs_(state) + means_(state);
+        }
+
+    private:
+
+        vec means_;
+        vec std_devs_;
+};
 
 class DummyHSMM {
     public:
@@ -217,6 +259,19 @@ int main() {
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
                       {0.4, 0.4, 0.2, 0.0}};
+
+    // Instantiating the emission process.
+    vec means(nstates);
+    vec std_devs(nstates);
+    for(int i = 0; i < nstates; i++)
+        means(i) = i;
+    std_devs.fill(0.1);
+    DummyGaussianEmission gemission(nstates, means, std_devs);
+    mat sample = gemission.sampleForState(0, 10);
+    cout << sample << endl;
+    double ll_sample = gemission.likelihood(0, sample);
+    cout << ll_sample << endl;
+
     DummyHSMM dhsmm(transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 100;
