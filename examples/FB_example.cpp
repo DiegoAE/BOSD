@@ -18,12 +18,6 @@ int sampleFromCategorical(rowvec pmf) {
             prefixsum.begin();
 }
 
-double gaussianpdf(double x, double mu, double sigma) {
-    double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
-    ret = ret / (sqrt(2 * M_PI) * sigma);
-    return ret;
-}
-
 class AbstractEmission {
     public:
         AbstractEmission(int nstates) : nstates_(nstates) {}
@@ -51,7 +45,7 @@ class DummyGaussianEmission : public AbstractEmission {
         double likelihood(int state, const mat& obs) const {
             double ret = 1.0;
             for(int i = 0; i < obs.n_cols; i++)
-                ret *= gaussianpdf(obs(0, i), means_(state), std_devs_(state));
+                ret *= gaussianpdf_(obs(0, i), means_(state), std_devs_(state));
             return ret;
         }
 
@@ -60,15 +54,21 @@ class DummyGaussianEmission : public AbstractEmission {
         }
 
     private:
+        double gaussianpdf_(double x, double mu, double sigma) const {
+            double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
+            ret = ret / (sqrt(2 * M_PI) * sigma);
+            return ret;
+        }
 
         vec means_;
         vec std_devs_;
 };
 
-class DummyHSMM {
+class HSMM {
     public:
-        DummyHSMM(mat transition, vec pi, mat duration, int min_duration) {
-            nstates_ = transition.n_rows;
+        HSMM(shared_ptr<AbstractEmission> emission, mat transition,
+                vec pi, mat duration, int min_duration) : emission_(emission) {
+            nstates_ = emission_->getNumberStates();
             ndurations_ = duration.n_cols;
             min_duration_ = min_duration;
             assert(min_duration_ >= 1);
@@ -185,7 +185,6 @@ class DummyHSMM {
 
         // Computes the likelihoods w.r.t. the emission model.
         cube computeEmissionsLikelihood(mat obs) {
-            // TODO: make this method abstract.
             int nobs = obs.n_cols;
             cube pdf(nstates_, nobs, ndurations_, fill::zeros);
             for(int i = 0; i < nstates_; i++)
@@ -194,15 +193,7 @@ class DummyHSMM {
                         if (t + min_duration_ + d > nobs)
                             break;
                         int end_idx = t + min_duration_ + d - 1;
-                        if (d == 0) {
-                            pdf(i, t, d) = 1.0;
-                            for(int j = t; j <= end_idx; j++)
-                                pdf(i, t, d) *= gaussianpdf(obs(0, j), i, 0.1);
-                        }
-                        else {
-                            pdf(i, t, d) = pdf(i, t, d - 1) *
-                                    gaussianpdf(obs(0, end_idx), i, 0.1);
-                        }
+                        pdf(i, t, d) = emission_->likelihood(i, obs.cols(t, end_idx));
                     }
             return pdf;
         }
@@ -213,6 +204,7 @@ class DummyHSMM {
         int ndurations_;
         int min_duration_;
         int nstates_;
+        const shared_ptr<AbstractEmission> emission_;
 };
 
 void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
@@ -266,13 +258,14 @@ int main() {
     for(int i = 0; i < nstates; i++)
         means(i) = i;
     std_devs.fill(0.1);
-    DummyGaussianEmission gemission(nstates, means, std_devs);
-    mat sample = gemission.sampleForState(0, 10);
+    shared_ptr<AbstractEmission> ptr_emission(new DummyGaussianEmission(
+            nstates, means, std_devs));
+    mat sample = ptr_emission->sampleForState(0, 10);
     cout << sample << endl;
-    double ll_sample = gemission.likelihood(0, sample);
+    double ll_sample = ptr_emission->likelihood(0, sample);
     cout << ll_sample << endl;
 
-    DummyHSMM dhsmm(transition, pi, durations, min_duration);
+    HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 100;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
