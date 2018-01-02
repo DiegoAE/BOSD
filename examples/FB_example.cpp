@@ -22,11 +22,29 @@ class AbstractEmission {
     public:
         AbstractEmission(int nstates) : nstates_(nstates) {}
 
-        int getNumberStates() {
+        int getNumberStates() const {
             return nstates_;
         }
 
         virtual double likelihood(int state, const mat& obs) const = 0;
+
+        // This should return a cube of dimensions (nstates, nobs, ndurations)
+        // where the entry (i, j, k) is the likelihood of the observations in
+        // the interval [j, min_duration + k - 1] being produced by state i.
+        virtual cube likelihoodCube(int min_duration, int ndurations,
+                const mat& obs) const {
+            int nobs = obs.n_cols;
+            cube pdf(getNumberStates(), nobs, ndurations, fill::zeros);
+            for(int i = 0; i < getNumberStates(); i++)
+                for(int t = 0; t < nobs; t++)
+                    for(int d = 0; d < ndurations; d++) {
+                        if (t + min_duration + d > nobs)
+                            break;
+                        int end_idx = t + min_duration + d - 1;
+                        pdf(i, t, d) = likelihood(i, obs.cols(t, end_idx));
+                    }
+            return pdf;
+        }
 
         virtual mat sampleForState(int state, int size) const = 0;
 
@@ -184,18 +202,8 @@ class HSMM {
         }
 
         // Computes the likelihoods w.r.t. the emission model.
-        cube computeEmissionsLikelihood(mat obs) {
-            int nobs = obs.n_cols;
-            cube pdf(nstates_, nobs, ndurations_, fill::zeros);
-            for(int i = 0; i < nstates_; i++)
-                for(int t = 0; t < nobs; t++)
-                    for(int d = 0; d < ndurations_; d++) {
-                        if (t + min_duration_ + d > nobs)
-                            break;
-                        int end_idx = t + min_duration_ + d - 1;
-                        pdf(i, t, d) = emission_->likelihood(i, obs.cols(t, end_idx));
-                    }
-            return pdf;
+        cube computeEmissionsLikelihood(const mat obs) {
+            return emission_->likelihoodCube(min_duration_, ndurations_, obs);
         }
 
         mat transition_;
@@ -260,12 +268,10 @@ int main() {
     std_devs.fill(0.1);
     shared_ptr<AbstractEmission> ptr_emission(new DummyGaussianEmission(
             nstates, means, std_devs));
-    mat sample = ptr_emission->sampleForState(0, 10);
-    cout << sample << endl;
-    double ll_sample = ptr_emission->likelihood(0, sample);
-    cout << ll_sample << endl;
 
+    // Instantiating the HSMM.
     HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
+
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 100;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
