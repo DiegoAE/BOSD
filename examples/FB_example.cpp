@@ -222,6 +222,7 @@ class HSMM {
 
                 // Reestimating the initial state pmf.
                 estimated_pi = beta_s_0 % estimated_pi;
+                // double mllh = log(sum(estimated_pi));
                 estimated_pi = estimated_pi / sum(estimated_pi);
 
                 // Reestimating durations.
