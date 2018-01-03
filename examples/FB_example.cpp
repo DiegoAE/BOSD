@@ -18,12 +18,23 @@ int sampleFromCategorical(rowvec pmf) {
             prefixsum.begin();
 }
 
+double gaussianpdf_(double x, double mu, double sigma) {
+    double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
+    ret = ret / (sqrt(2 * M_PI) * sigma);
+    return ret;
+}
+
 class AbstractEmission {
     public:
-        AbstractEmission(int nstates) : nstates_(nstates) {}
+        AbstractEmission(int nstates, int dimension) : nstates_(nstates),
+                dimension_(dimension) {}
 
         int getNumberStates() const {
             return nstates_;
+        }
+
+        int getDimension() const {
+            return dimension_;
         }
 
         virtual double likelihood(int state, const mat& obs) const = 0;
@@ -50,20 +61,22 @@ class AbstractEmission {
 
     private:
         int nstates_;
+        int dimension_;
 };
 
 class DummyGaussianEmission : public AbstractEmission {
     public:
-        DummyGaussianEmission(int nstates, vec& means, vec& std_devs) :
-                AbstractEmission(nstates), means_(means), std_devs_(std_devs) {
-            assert(means_.n_elem == getNumberStates());
-            assert(std_devs_.n_elem == getNumberStates());
+        DummyGaussianEmission(vec& means, vec& std_devs) :
+                AbstractEmission(means.n_elem, 1), means_(means),
+                std_devs_(std_devs) {
+            assert(means_.n_elem == std_devs_.n_elem);
         }
 
         double likelihood(int state, const mat& obs) const {
             double ret = 1.0;
             for(int i = 0; i < obs.n_cols; i++)
-                ret *= gaussianpdf_(obs(0, i), means_(state), std_devs_(state));
+                ret *= gaussianpdf_(obs(0, i), means_(state),
+                        std_devs_(state));
             return ret;
         }
 
@@ -72,14 +85,39 @@ class DummyGaussianEmission : public AbstractEmission {
         }
 
     private:
-        double gaussianpdf_(double x, double mu, double sigma) const {
-            double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
-            ret = ret / (sqrt(2 * M_PI) * sigma);
+        vec means_;
+        vec std_devs_;
+};
+
+class DummyMultivariateGaussianEmission : public AbstractEmission {
+    public:
+        DummyMultivariateGaussianEmission(mat& means, double std_dev_output_noise) :
+                AbstractEmission(means.n_rows, means.n_cols), means_(means),
+                std_dev_output_noise_(std_dev_output_noise) {}
+
+        double likelihood(int state, const mat& obs) const {
+            assert(obs.n_rows == getDimension());
+            int size = obs.n_cols;
+            mat copy_obs(obs);
+            for(int i = 0; i < getDimension(); i++)
+                copy_obs.row(i) -= linspace<rowvec>(0.0, 1.0, size) + means_(state, i);
+            double ret = 1.0;
+            for(int i = 0; i < getDimension(); i++)
+                for(int j = 0; j < size; j++)
+                    ret *= gaussianpdf_(copy_obs(i, j), 0, std_dev_output_noise_);
             return ret;
         }
 
-        vec means_;
-        vec std_devs_;
+        mat sampleFromState(int state, int size) const {
+            mat ret = randn<mat>(getDimension(), size) * std_dev_output_noise_;
+            for(int i = 0; i < getDimension(); i++)
+                ret.row(i) += linspace<rowvec>(0.0, 1.0, size) + means_(state, i);
+            return ret;
+        }
+
+    private:
+        double std_dev_output_noise_;
+        mat means_;
 };
 
 class HSMM {
@@ -263,7 +301,18 @@ int main() {
         means(i) = i;
     std_devs.fill(0.1);
     shared_ptr<AbstractEmission> ptr_emission(new DummyGaussianEmission(
-            nstates, means, std_devs));
+            means, std_devs));
+
+    // Multivariate emission.
+    mat mult_means(nstates, 2, fill::zeros);
+    for(int i = 0; i < nstates; i++)
+        mult_means.row(i).fill(i);
+    shared_ptr<AbstractEmission> ptr_mult_emission(
+            new DummyMultivariateGaussianEmission(mult_means, 0.1));
+    mat mult_sample = ptr_mult_emission->sampleFromState(0, 5);
+    cout << mult_sample << endl;
+    for(int i = 0; i < nstates; i++)
+        cout << ptr_mult_emission->likelihood(i, mult_sample) << endl;
 
     // Instantiating the HSMM.
     HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
