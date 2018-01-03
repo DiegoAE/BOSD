@@ -175,7 +175,7 @@ class HSMM {
             }
 
             // Generating samples
-            mat samples(1, sampleSequenceLength, fill::zeros);
+            mat samples(emission_->getDimension(), sampleSequenceLength);
             int idx = 0;
             for(int i = 0; i < nsegments; i++) {
                 mat currSample = emission_->sampleFromState(states(i), durations(i));
@@ -310,21 +310,18 @@ int main() {
     shared_ptr<AbstractEmission> ptr_mult_emission(
             new DummyMultivariateGaussianEmission(mult_means, 0.1));
     mat mult_sample = ptr_mult_emission->sampleFromState(0, 5);
-    cout << mult_sample << endl;
-    for(int i = 0; i < nstates; i++)
-        cout << ptr_mult_emission->likelihood(i, mult_sample) << endl;
 
     // Instantiating the HSMM.
-    HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
+    HSMM dhsmm(ptr_mult_emission, transition, pi, durations, min_duration);
 
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 100;
+    int nSampledSegments = 75;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_cols;
     cube pdf = dhsmm.computeEmissionsLikelihood(samples);
     cout << "Generated samples" << endl;
-    cout << samples << endl;
+    // cout << samples << endl;
     cout << "Generated states and durations" << endl;
     cout << join_horiz(hiddenStates, hiddenDurations) << endl;
 
@@ -385,9 +382,6 @@ int main() {
     durations.fill(1.0/ndurations);
     dhsmm.setDuration(durations);
 
-    // Testing the learning algorithm.
-    dhsmm.fit(samples, 10);
-
     cout << "Best transition matrix we can aim at:" << endl;
     mat prueba(nstates, nstates, fill::zeros);
     for(int i = 0; i < hiddenStates.n_elem - 1; i++)
@@ -396,6 +390,9 @@ int main() {
     for(int i = 0; i < nstates; i++)
         prueba.row(i) /= pruebasum(i);
     cout << prueba << endl;
+
+    // Testing the learning algorithm.
+    dhsmm.fit(samples, 10);
     cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
 
