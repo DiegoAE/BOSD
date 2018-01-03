@@ -187,7 +187,7 @@ class HSMM {
             return samples;
         }
 
-        void fit(mat obs, int max_iter) {
+        void fit(mat obs, int max_iter, double tol) {
             // For now only the transition matrix is being learned.
             int nobs = obs.n_cols;
             assert(nobs >= 1);
@@ -201,7 +201,9 @@ class HSMM {
             mat estimated_transition(transition_);
             vec estimated_pi(pi_);
             mat estimated_duration(duration_);
-            for(int i = 0; i < max_iter; i++) {
+            double marginal_llikelihood = -datum::inf;
+            bool convergence_reached = false;
+            for(int i = 0; i < max_iter && !convergence_reached; i++) {
                 FB(estimated_transition, estimated_pi, estimated_duration, pdf,
                         alpha, beta, alpha_s, beta_s, beta_s_0, eta,
                         min_duration_, nobs);
@@ -227,7 +229,23 @@ class HSMM {
                 for(int r = 0; r < nstates_; r++)
                     eta.row(r) /= eta_sums(r);
                 estimated_duration = eta;
+
+                // Computing marginal likelihood (aka observation likelihood).
+                double current_llikelihood = 0.0;
+                for(int j = 0; j < nstates_; j++)
+                    current_llikelihood += alpha(j, nobs - 1);
+                current_llikelihood = log(current_llikelihood);
+                cout << "EM iteration " << i << " marginal log-likelihood: " <<
+                        current_llikelihood << ". Diff: " <<
+                        current_llikelihood - marginal_llikelihood << endl;
+                assert(!(current_llikelihood < marginal_llikelihood));
+                if (current_llikelihood - marginal_llikelihood < tol)
+                    convergence_reached = true;
+                marginal_llikelihood = current_llikelihood;
             }
+
+            cout << "Stopped because of " << ((convergence_reached) ?
+                    "convergence." : "max iter.") << endl;
 
             // Updating the model parameters.
            setTransition(estimated_transition);
@@ -392,7 +410,7 @@ int main() {
     cout << prueba << endl;
 
     // Testing the learning algorithm.
-    dhsmm.fit(samples, 10);
+    dhsmm.fit(samples, 10, 1e-10);
     cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
 
