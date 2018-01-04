@@ -208,6 +208,22 @@ class HSMM {
                         alpha, beta, alpha_s, beta_s, beta_s_0, eta,
                         min_duration_, nobs);
 
+                // Computing marginal likelihood (aka observation likelihood).
+                double current_llikelihood = 0.0;
+                for(int j = 0; j < nstates_; j++)
+                    current_llikelihood += alpha(j, nobs - 1);
+                current_llikelihood = log(current_llikelihood);
+                cout << "EM iteration " << i << " marginal log-likelihood: " <<
+                        current_llikelihood << ". Diff: " <<
+                        current_llikelihood - marginal_llikelihood << endl;
+                assert(!(current_llikelihood < marginal_llikelihood));
+                if (current_llikelihood - marginal_llikelihood < tol) {
+                    convergence_reached = true;
+                    marginal_llikelihood = current_llikelihood;
+                    break;
+                }
+                marginal_llikelihood = current_llikelihood;
+
                 // Reestimating transitions.
                 mat tmp_transition(size(transition_), fill::zeros);
                 for(int t = 0; t < nobs - 1; t++)
@@ -233,19 +249,6 @@ class HSMM {
                 for(int r = 0; r < nstates_; r++)
                     D.row(r) /= D_sums(r);
                 estimated_duration = D;
-
-                // Computing marginal likelihood (aka observation likelihood).
-                double current_llikelihood = 0.0;
-                for(int j = 0; j < nstates_; j++)
-                    current_llikelihood += alpha(j, nobs - 1);
-                current_llikelihood = log(current_llikelihood);
-                cout << "EM iteration " << i << " marginal log-likelihood: " <<
-                        current_llikelihood << ". Diff: " <<
-                        current_llikelihood - marginal_llikelihood << endl;
-                assert(!(current_llikelihood < marginal_llikelihood));
-                if (current_llikelihood - marginal_llikelihood < tol)
-                    convergence_reached = true;
-                marginal_llikelihood = current_llikelihood;
             }
 
             cout << "Stopped because of " << ((convergence_reached) ?
