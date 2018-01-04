@@ -57,6 +57,11 @@ class AbstractEmission {
             return pdf;
         }
 
+        // Reestimates in place the emission parameters using the statistics
+        // provided by the HSMM E step. eta(j, d, t) represents the expected
+        // value of state j generating a segment of length d ending at time t.
+        virtual void reestimate(const cube& eta) = 0;
+
         virtual mat sampleFromState(int state, int size) const = 0;
 
     private:
@@ -78,6 +83,10 @@ class DummyGaussianEmission : public AbstractEmission {
                 ret *= gaussianpdf_(obs(0, i), means_(state),
                         std_devs_(state));
             return ret;
+        }
+
+        void reestimate(const cube& eta) {
+            // TODO.
         }
 
         mat sampleFromState(int state, int size) const {
@@ -106,6 +115,10 @@ class DummyMultivariateGaussianEmission : public AbstractEmission {
                 for(int j = 0; j < size; j++)
                     ret *= gaussianpdf_(copy_obs(i, j), 0, std_dev_output_noise_);
             return ret;
+        }
+
+        void reestimate(const cube& eta) {
+            // TODO.
         }
 
         mat sampleFromState(int state, int size) const {
@@ -249,6 +262,11 @@ class HSMM {
                 for(int r = 0; r < nstates_; r++)
                     D.row(r) /= D_sums(r);
                 estimated_duration = D;
+
+                // Reestimating emissions.
+                // NOTE: the rest of the HSMM parameters are updated out of
+                // this loop.
+                emission_->reestimate(eta);
             }
 
             cout << "Stopped because of " << ((convergence_reached) ?
