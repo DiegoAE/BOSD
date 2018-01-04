@@ -196,7 +196,7 @@ class HSMM {
             mat alpha_s(nstates_, nobs, fill::zeros);
             mat beta_s(nstates_, nobs, fill::zeros);
             vec beta_s_0(nstates_, fill::zeros);
-            mat eta(nstates_, ndurations_, fill::zeros);
+            cube eta(nstates_, ndurations_, nobs, fill::zeros);
             cube pdf = computeEmissionsLikelihood(obs);
             mat estimated_transition(transition_);
             vec estimated_pi(pi_);
@@ -226,10 +226,13 @@ class HSMM {
                 estimated_pi = estimated_pi / sum(estimated_pi);
 
                 // Reestimating durations.
-                vec eta_sums = sum(eta, 1);
+                // D(j, d) represents the expected number of times that state
+                // j is visited with duration d (non-normalized).
+                mat D = sum(eta, 2);
+                vec D_sums = sum(D, 1);
                 for(int r = 0; r < nstates_; r++)
-                    eta.row(r) /= eta_sums(r);
-                estimated_duration = eta;
+                    D.row(r) /= D_sums(r);
+                estimated_duration = D;
 
                 // Computing marginal likelihood (aka observation likelihood).
                 double current_llikelihood = 0.0;
@@ -349,7 +352,7 @@ int main() {
     mat alpha_s(nstates, nobs, fill::zeros);
     mat beta_s(nstates, nobs, fill::zeros);
     vec beta_s_0(nstates, fill::zeros);
-    mat eta(nstates, ndurations, fill::zeros);
+    cube eta(nstates, ndurations, nobs, fill::zeros);
     FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s, beta_s_0,
             eta, min_duration, nobs);
     cout << "Alpha" << endl;

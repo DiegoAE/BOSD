@@ -44,7 +44,7 @@ void Debug(char c, int a, int b, int d) {
 
 void FB(const mat& transition,const vec& pi, const mat& duration,
         const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
-        vec& beta_s_0, mat& eta, const int min_duration, const int nobs) {
+        vec& beta_s_0, cube& eta, const int min_duration, const int nobs) {
     safety_checks(transition, pi, duration, pdf, alpha, beta, alpha_s, beta_s,
             min_duration, nobs);
     int nstates = transition.n_rows;
@@ -112,9 +112,9 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
         }
     }
 
-    // Computing eta(j, d). The expected number of times that state j is
-    // visited with duration d.
-    eta = zeros<mat>(nstates, duration_steps);
+    // Computing eta(j, d, t). The expected value of state j generating a
+    // segment of length d ending a time t (non-normalized).
+    eta = zeros<cube>(nstates, duration_steps, nobs);
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
             for(int d = 0; d < duration_steps; d++) {
@@ -125,7 +125,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
                 double left_side = (first_idx_seg == 0) ?
                         pi(j) : alpha_s(j, first_idx_seg - 1);
                 double right_side = beta(j, t);
-                eta(j, d) += left_side * e_lh * right_side;
+                eta(j, d, t) = left_side * e_lh * right_side;
             }
         }
     }
