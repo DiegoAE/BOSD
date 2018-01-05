@@ -113,7 +113,7 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
     }
 
     // Computing eta(j, d, t). The expected value of state j generating a
-    // segment of length d ending a time t (non-normalized).
+    // segment of length min_duration + d ending at time t (non-normalized).
     eta = zeros<cube>(nstates, duration_steps, nobs);
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {

@@ -37,6 +37,8 @@ class AbstractEmission {
             return dimension_;
         }
 
+        virtual AbstractEmission* clone() const = 0;
+
         virtual double likelihood(int state, const mat& obs) const = 0;
 
         // This should return a cube of dimensions (nstates, nobs, ndurations)
@@ -57,10 +59,16 @@ class AbstractEmission {
             return pdf;
         }
 
+        virtual void printParameters() const {
+            return;
+        }
+
         // Reestimates in place the emission parameters using the statistics
         // provided by the HSMM E step. eta(j, d, t) represents the expected
-        // value of state j generating a segment of length d ending at time t.
-        virtual void reestimate(const cube& eta) = 0;
+        // value of state j generating a segment of length min_duration + d
+        // ending at time t.
+        virtual void reestimate(int min_duration, const cube& eta,
+                const mat& obs) = 0;
 
         virtual mat sampleFromState(int state, int size) const = 0;
 
@@ -77,6 +85,10 @@ class DummyGaussianEmission : public AbstractEmission {
             assert(means_.n_elem == std_devs_.n_elem);
         }
 
+        DummyGaussianEmission* clone() const {
+            return new DummyGaussianEmission(*this);
+        }
+
         double likelihood(int state, const mat& obs) const {
             double ret = 1.0;
             for(int i = 0; i < obs.n_cols; i++)
@@ -85,7 +97,12 @@ class DummyGaussianEmission : public AbstractEmission {
             return ret;
         }
 
-        void reestimate(const cube& eta) {
+        virtual void printParameters() const {
+            cout << "means:" << endl << means_ << endl;
+            cout << "std_devs:" << endl << std_devs_ << endl;
+        }
+
+        void reestimate(int min_duration, const cube& eta, const mat& obs) {
             // TODO.
         }
 
@@ -104,6 +121,10 @@ class DummyMultivariateGaussianEmission : public AbstractEmission {
                 AbstractEmission(means.n_rows, means.n_cols), means_(means),
                 std_dev_output_noise_(std_dev_output_noise) {}
 
+        DummyMultivariateGaussianEmission* clone() const {
+            return new DummyMultivariateGaussianEmission(*this);
+        }
+
         double likelihood(int state, const mat& obs) const {
             assert(obs.n_rows == getDimension());
             int size = obs.n_cols;
@@ -117,7 +138,7 @@ class DummyMultivariateGaussianEmission : public AbstractEmission {
             return ret;
         }
 
-        void reestimate(const cube& eta) {
+        void reestimate(int min_duration, const cube& eta, const mat& obs) {
             // TODO.
         }
 
@@ -152,6 +173,11 @@ class HSMM {
             assert(duration.n_rows == nstates_);
             assert(duration.n_cols == ndurations_);
             duration_ = duration;
+        }
+
+        void setEmission(shared_ptr<AbstractEmission> emission) {
+            assert(emission->getNumberStates() == nstates_);
+            emission_ = emission;
         }
 
         void setPi(vec pi) {
@@ -210,18 +236,20 @@ class HSMM {
             mat beta_s(nstates_, nobs, fill::zeros);
             vec beta_s_0(nstates_, fill::zeros);
             cube eta(nstates_, ndurations_, nobs, fill::zeros);
-            cube pdf = computeEmissionsLikelihood(obs);
             mat estimated_transition(transition_);
             vec estimated_pi(pi_);
             mat estimated_duration(duration_);
             double marginal_llikelihood = -datum::inf;
             bool convergence_reached = false;
             for(int i = 0; i < max_iter && !convergence_reached; i++) {
+                // Recomputing the emission likelihoods.
+                cube pdf = computeEmissionsLikelihood(obs);
+
                 FB(estimated_transition, estimated_pi, estimated_duration, pdf,
                         alpha, beta, alpha_s, beta_s, beta_s_0, eta,
                         min_duration_, nobs);
 
-                // Computing marginal likelihood (aka observation likelihood).
+                // Computing the marginal likelihood (aka observation likelihood).
                 double current_llikelihood = 0.0;
                 for(int j = 0; j < nstates_; j++)
                     current_llikelihood += alpha(j, nobs - 1);
@@ -266,7 +294,7 @@ class HSMM {
                 // Reestimating emissions.
                 // NOTE: the rest of the HSMM parameters are updated out of
                 // this loop.
-                emission_->reestimate(eta);
+                emission_->reestimate(min_duration_, eta, obs);
             }
 
             cout << "Stopped because of " << ((convergence_reached) ?
@@ -289,7 +317,7 @@ class HSMM {
         int ndurations_;
         int min_duration_;
         int nstates_;
-        const shared_ptr<AbstractEmission> emission_;
+        shared_ptr<AbstractEmission> emission_;
 };
 
 void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
@@ -355,7 +383,7 @@ int main() {
     mat mult_sample = ptr_mult_emission->sampleFromState(0, 5);
 
     // Instantiating the HSMM.
-    HSMM dhsmm(ptr_mult_emission, transition, pi, durations, min_duration);
+    HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
 
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 75;
@@ -425,6 +453,12 @@ int main() {
     durations.fill(1.0/ndurations);
     dhsmm.setDuration(durations);
 
+    // Resetting emission parameters.
+    vec new_means = zeros<vec>(nstates);
+    shared_ptr<AbstractEmission> init_emission(new DummyGaussianEmission(
+            new_means, std_devs));
+    // dhsmm.setEmission(init_emission);
+
     cout << "Best transition matrix we can aim at:" << endl;
     mat prueba(nstates, nstates, fill::zeros);
     for(int i = 0; i < hiddenStates.n_elem - 1; i++)
@@ -452,5 +486,8 @@ int main() {
 
     cout << "Learnt pi:" << endl;
     cout << dhsmm.pi_ << endl;
+
+    cout << "Learnt emission parameters" << endl;
+    dhsmm.emission_->printParameters();
     return 0;
 }
