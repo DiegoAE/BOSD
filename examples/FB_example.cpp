@@ -103,7 +103,47 @@ class DummyGaussianEmission : public AbstractEmission {
         }
 
         void reestimate(int min_duration, const cube& eta, const mat& obs) {
-            // TODO.
+            int nobs = obs.n_cols;
+            int ndurations = eta.n_cols;
+            for(int i = 0; i < getNumberStates(); i++) {
+
+                // Reestimating the mean.
+                double new_mean_num = 0;
+                double new_common_den = 0;
+                for(int t = min_duration - 1; t < nobs; t++) {
+                    for(int d = 0; d < ndurations; d++) {
+                        int first_idx_seg = t - min_duration - d + 1;
+                        if (first_idx_seg < 0)
+                            break;
+
+                        // Since the observations factorize given t, d and i.
+                        for(int s = first_idx_seg; s <= t; s++) {
+                            new_common_den += eta(i, d, t);
+                            new_mean_num += eta(i, d, t) * obs(0, s);
+                        }
+                    }
+                }
+                double new_mean = new_mean_num / new_common_den;
+
+                // Reestimating the variance.
+                double new_var_num = 0;
+                for(int t = min_duration - 1; t < nobs; t++) {
+                    for(int d = 0; d < ndurations; d++) {
+                        int first_idx_seg = t - min_duration - d + 1;
+                        if (first_idx_seg < 0)
+                            break;
+
+                        // Since the observations factorize given t, d and i.
+                        for(int s = first_idx_seg; s <= t; s++) {
+                            double diff = (obs(0, s) - new_mean);
+                            new_var_num += eta(i, d, t) * diff * diff;
+                        }
+                    }
+                }
+
+                means_(i) = new_mean;
+                std_devs_(i) = sqrt(new_var_num / new_common_den);
+            }
         }
 
         mat sampleFromState(int state, int size) const {
@@ -386,7 +426,7 @@ int main() {
     HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
 
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 75;
+    int nSampledSegments = 35;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_cols;
@@ -454,10 +494,11 @@ int main() {
     dhsmm.setDuration(durations);
 
     // Resetting emission parameters.
-    vec new_means = zeros<vec>(nstates);
+    vec new_means = {0.1, 0.2, 0.3, 0.4}; //ones<vec>(nstates) * 10;
+    vec new_std_devs = ones<vec>(nstates) * 10;
     shared_ptr<AbstractEmission> init_emission(new DummyGaussianEmission(
-            new_means, std_devs));
-    // dhsmm.setEmission(init_emission);
+            new_means, new_std_devs));
+    dhsmm.setEmission(init_emission);
 
     cout << "Best transition matrix we can aim at:" << endl;
     mat prueba(nstates, nstates, fill::zeros);
@@ -469,7 +510,7 @@ int main() {
     cout << prueba << endl;
 
     // Testing the learning algorithm.
-    dhsmm.fit(samples, 10, 1e-10);
+    dhsmm.fit(samples, 20, 1e-10);
     cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
 
