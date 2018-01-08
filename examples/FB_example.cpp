@@ -18,10 +18,14 @@ int sampleFromCategorical(rowvec pmf) {
             prefixsum.begin();
 }
 
-double gaussianpdf_(double x, double mu, double sigma) {
-    double ret = exp(((x - mu)*(x - mu)) / (-2*sigma*sigma));
-    ret = ret / (sqrt(2 * M_PI) * sigma);
+double gaussianlogpdf_(double x, double mu, double sigma) {
+    double ret = ((x - mu)*(x - mu)) / (-2*sigma*sigma);
+    ret = ret - log(sqrt(2 * M_PI) * sigma);
     return ret;
+}
+
+double gaussianpdf_(double x, double mu, double sigma) {
+    return exp(gaussianlogpdf_(x, mu, sigma));
 }
 
 class AbstractEmission {
