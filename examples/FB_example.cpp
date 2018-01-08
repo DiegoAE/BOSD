@@ -406,11 +406,8 @@ int main() {
                       {0.4, 0.4, 0.2, 0.0}};
 
     // Instantiating the emission process.
-    vec means(nstates);
-    vec std_devs(nstates);
-    for(int i = 0; i < nstates; i++)
-        means(i) = i;
-    std_devs.fill(0.1);
+    vec means = {0, 5, 10, 15};
+    vec std_devs =  {0.5, 1.0, 0.1, 2.0};
     shared_ptr<AbstractEmission> ptr_emission(new DummyGaussianEmission(
             means, std_devs));
 
@@ -494,7 +491,7 @@ int main() {
     dhsmm.setDuration(durations);
 
     // Resetting emission parameters.
-    vec new_means = {0.1, 0.2, 0.3, 0.4}; //ones<vec>(nstates) * 10;
+    vec new_means = {0.1, 0.2, 0.3, 0.4};
     vec new_std_devs = ones<vec>(nstates) * 10;
     shared_ptr<AbstractEmission> init_emission(new DummyGaussianEmission(
             new_means, new_std_devs));
@@ -510,7 +507,7 @@ int main() {
     cout << prueba << endl;
 
     // Testing the learning algorithm.
-    dhsmm.fit(samples, 20, 1e-10);
+    dhsmm.fit(samples, 100, 1e-10);
     cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
 
