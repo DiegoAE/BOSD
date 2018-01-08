@@ -43,12 +43,21 @@ class AbstractEmission {
 
         virtual AbstractEmission* clone() const = 0;
 
-        virtual double likelihood(int state, const mat& obs) const = 0;
+        double likelihood(int state, const mat& obs) const {
+            return exp(loglikelihood(state, obs));
+        }
+
+        virtual double loglikelihood(int state, const mat& obs) const = 0;
+
+        cube likelihoodCube(int min_duration, int ndurations,
+                const mat &obs) const {
+            return exp(loglikelihoodCube(min_duration, ndurations, obs));
+        }
 
         // This should return a cube of dimensions (nstates, nobs, ndurations)
-        // where the entry (i, j, k) is the likelihood of the observations in
-        // the interval [j, min_duration + k - 1] being produced by state i.
-        virtual cube likelihoodCube(int min_duration, int ndurations,
+        // where the entry (i, j, k) is the log-likelihood of the observations
+        // in the interval [j, min_duration + k - 1] being produced by state i.
+        virtual cube loglikelihoodCube(int min_duration, int ndurations,
                 const mat& obs) const {
             int nobs = obs.n_cols;
             cube pdf(getNumberStates(), nobs, ndurations, fill::zeros);
@@ -58,7 +67,7 @@ class AbstractEmission {
                         if (t + min_duration + d > nobs)
                             break;
                         int end_idx = t + min_duration + d - 1;
-                        pdf(i, t, d) = likelihood(i, obs.cols(t, end_idx));
+                        pdf(i, t, d) = loglikelihood(i, obs.cols(t, end_idx));
                     }
             return pdf;
         }
@@ -93,10 +102,10 @@ class DummyGaussianEmission : public AbstractEmission {
             return new DummyGaussianEmission(*this);
         }
 
-        double likelihood(int state, const mat& obs) const {
-            double ret = 1.0;
+        double loglikelihood(int state, const mat& obs) const {
+            double ret = 0;
             for(int i = 0; i < obs.n_cols; i++)
-                ret *= gaussianpdf_(obs(0, i), means_(state),
+                ret += gaussianlogpdf_(obs(0, i), means_(state),
                         std_devs_(state));
             return ret;
         }
@@ -169,16 +178,18 @@ class DummyMultivariateGaussianEmission : public AbstractEmission {
             return new DummyMultivariateGaussianEmission(*this);
         }
 
-        double likelihood(int state, const mat& obs) const {
+        double loglikelihood(int state, const mat& obs) const {
             assert(obs.n_rows == getDimension());
             int size = obs.n_cols;
             mat copy_obs(obs);
             for(int i = 0; i < getDimension(); i++)
-                copy_obs.row(i) -= linspace<rowvec>(0.0, 1.0, size) + means_(state, i);
-            double ret = 1.0;
+                copy_obs.row(i) -= linspace<rowvec>(0.0, 1.0, size) +
+                        means_(state, i);
+            double ret = 0.0;
             for(int i = 0; i < getDimension(); i++)
                 for(int j = 0; j < size; j++)
-                    ret *= gaussianpdf_(copy_obs(i, j), 0, std_dev_output_noise_);
+                    ret += gaussianlogpdf_(copy_obs(i, j), 0,
+                            std_dev_output_noise_);
             return ret;
         }
 
