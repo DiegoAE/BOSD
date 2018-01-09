@@ -159,6 +159,8 @@ void logsFB(const arma::mat& transition,const arma::vec& pi,
     mat log_pi = log(pi);
     alpha.fill(-datum::inf);
     alpha_s.fill(-datum::inf);
+    beta.fill(-datum::inf);
+    beta_s.fill(-datum::inf);
     // Forward recursion.
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
@@ -186,12 +188,71 @@ void logsFB(const arma::mat& transition,const arma::vec& pi,
             alpha(j, t) = logsumexp(c_alpha);
         }
     }
-    cout << "My test" << endl;
+    // Backward pass base case.
     for(int i = 0; i < nstates; i++)
-        cout << exp(logsumexp(vectorise(alpha.row(i)))) << endl;
+        beta(i, nobs - 1) = beta_s(i, nobs - 1) = 0.0;
+    // Backward recursion.
+    for(int t = nobs - min_duration - 1; t >= 0; t--) {
+        for(int j = 0; j < nstates; j++) {
+            vec c_beta(nstates);
+            c_beta.fill(-datum::inf);
+            for(int i = 0; i < nstates; i++) {
+                vec c_beta_s(duration_steps);
+                c_beta_s.fill(-datum::inf);
+                for(int d = 0; d < duration_steps; d++) {
+                    int first_idx_seg = t + 1;
+                    int last_idx_seg = t + min_duration + d;
+                    if (last_idx_seg >= nobs)
+                        break;
+                    // Debug('b', first_idx_seg, last_idx_seg, last_idx_seg);
+                    double e_lh = log_pdf(i, first_idx_seg, d) +
+                            log_duration(i, d);
+                    c_beta_s(d) = e_lh + beta(i, last_idx_seg);
+                }
+                beta_s(i, t) = logsumexp(c_beta_s);
+                c_beta(i) = log_transition(j, i) + beta_s(i, t);
+            }
+            beta(j, t) = logsumexp(c_beta);
+        }
+    }
 
-    for(int i = 0; i < nstates; i++)
-        cout << exp(logsumexp(vectorise(alpha_s.row(i)))) << endl;
+    // Computing beta*_0(j) required to estimate pi.
+    beta_s_0 = zeros<vec>(nstates);
+    beta_s_0.fill(-datum::inf);
+    for(int j = 0; j < nstates; j++) {
+        vec c_beta_s_0(duration_steps);
+        c_beta_s_0.fill(-datum::inf);
+        for(int d = 0; d < duration_steps; d++) {
+            int first_idx_seg = 0;
+            int last_idx_seg = min_duration + d - 1;
+            if (last_idx_seg >= nobs)
+                break;
+            double e_lh = log_pdf(j, first_idx_seg, d) +
+                    log_duration(j, d);
+            c_beta_s_0(d) = e_lh + beta(j, last_idx_seg);
+        }
+        beta_s_0(j) = logsumexp(c_beta_s_0);
+    }
+
+    // Computing eta(j, d, t). The expected value of state j generating a
+    // segment of length min_duration + d ending at time t (non-normalized).
+    eta = zeros<cube>(nstates, duration_steps, nobs);
+    eta.fill(-datum::inf);
+    for(int t = min_duration - 1; t < nobs; t++) {
+        for(int j = 0; j < nstates; j++) {
+            for(int d = 0; d < duration_steps; d++) {
+                int first_idx_seg = t - min_duration - d + 1;
+                if (first_idx_seg < 0)
+                    break;
+                double e_lh = log_pdf(j, first_idx_seg, d) +
+                        log_duration(j, d);
+                double left_side = (first_idx_seg == 0) ?
+                        log_pi(j) : alpha_s(j, first_idx_seg - 1);
+                double right_side = beta(j, t);
+                eta(j, d, t) = left_side + e_lh + right_side;
+            }
+        }
+    }
 }
 
 void Viterbi(const mat& transition,const vec& pi, const mat& duration,

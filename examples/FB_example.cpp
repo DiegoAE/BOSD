@@ -460,25 +460,36 @@ int main() {
     cube logpdf = dhsmm.computeEmissionsLogLikelihood(samples);
     logsFB(transition, pi, durations, logpdf, alpha, beta, alpha_s, beta_s,
             beta_s_0, eta, min_duration, nobs);
+    mat compare_alpha = exp(alpha);
+    mat compare_alpha_s = exp(alpha_s);
+    mat compare_beta = exp(beta);
+    mat compare_beta_s = exp(beta_s);
+    cube compare_eta = exp(eta);
+    mat compare_beta_s_0 = exp(beta_s_0);
     cube pdf = dhsmm.computeEmissionsLikelihood(samples);
     FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s, beta_s_0,
             eta, min_duration, nobs);
-    cout << "Alpha" << endl;
-    // cout << alpha << endl;
-    cout << "Beta" << endl;
-    // cout << beta << endl;
-    cout << "Alpha normalized" << endl;
-    mat alpha_normalized(alpha);
-    for(int i = 0; i < alpha.n_rows; i++)
-        alpha_normalized.row(i) /= sum(alpha, 0);
-    // cout << alpha_normalized << endl;
-    cout << "Sums columns" << endl;
-    // cout << sum(alpha, 0) << endl;
-    // cout << sum(beta, 0) << endl;
+
+    cout << "TEST" << endl;
+    mat a = compare_beta - beta;
+    mat b = compare_beta_s - beta_s;
+    cube c = compare_eta - eta;
+    mat d = compare_beta_s_0 - beta_s_0;
+    mat e = compare_alpha - alpha;
+    mat f = compare_alpha_s - alpha_s;
+    cout << a.min() << " " << a.max() << endl;
+    cout << b.min() << " " << b.max() << endl;
+    cout << c.min() << " " << c.max() << endl;
+    cout << d.min() << " " << d.max() << endl;
+    cout << e.min() << " " << e.max() << endl;
+    cout << f.min() << " " << f.max() << endl;
+
     cout << "Sums rows" << endl;
     cout << sum(alpha, 1) << endl;
     cout << sum(alpha_s, 1) << endl;
     cout << sum(beta, 1) << endl;
+    cout << sum(beta_s, 1) << endl;
+
     imat psi_duration(nstates, nobs, fill::zeros);
     imat psi_state(nstates, nobs, fill::zeros);
     mat delta(nstates, nobs, fill::zeros);
