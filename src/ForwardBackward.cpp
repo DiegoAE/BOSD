@@ -9,6 +9,20 @@ bool equal(double a, double b) {
     return fabs(a - b) < EPS;
 }
 
+double logsumexp(vec c) {
+    // computes log(sum_ i(exp(x_i))) with the so called log-sum-exp trick.
+    double maxv = c.max();
+
+    // Handling the special case of all being -inf.
+    if (maxv == -datum::inf)
+        return maxv;
+
+    double sum = 0.0;
+    for(int i = 0; i < c.n_elem; i++)
+        sum += exp(c(i) - maxv);
+    return maxv + log(sum);
+}
+
 void safety_checks(const mat& transition,const vec& pi, const mat& duration,
         const cube& pdf, const mat& alpha, const mat& beta,
         const mat& alpha_s, const mat& beta_s, const int min_duration,
@@ -129,6 +143,55 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
             }
         }
     }
+}
+
+void logsFB(const arma::mat& transition,const arma::vec& pi,
+        const arma::mat& duration, const arma::cube& log_pdf, arma::mat& alpha,
+        arma::mat& beta, arma::mat& alpha_s, arma::mat& beta_s,
+        arma::vec& beta_s_0, arma::cube& eta, const int min_duration,
+        const int nobs) {
+    safety_checks(transition, pi, duration, log_pdf, alpha, beta, alpha_s,
+            beta_s, min_duration, nobs);
+    int nstates = transition.n_rows;
+    int duration_steps = duration.n_cols;
+    mat log_transition = log(transition);
+    mat log_duration = log(duration);
+    mat log_pi = log(pi);
+    alpha.fill(-datum::inf);
+    alpha_s.fill(-datum::inf);
+    // Forward recursion.
+    for(int t = min_duration - 1; t < nobs; t++) {
+        for(int j = 0; j < nstates; j++) {
+            vec c_alpha(duration_steps);
+            c_alpha.fill(-datum::inf);
+            for(int d = 0; d < duration_steps; d++) {
+                int first_idx_seg = t - min_duration - d + 1;
+                if (first_idx_seg < 0)
+                    break;
+                // Debug('f', first_idx_seg, t, first_idx_seg - 1);
+                double e_lh = log_pdf(j, first_idx_seg, d) +
+                        log_duration(j, d);
+                vec c_alpha_s;
+                if (first_idx_seg == 0)
+                    c_alpha_s = log_pi(j);
+                else {
+                    c_alpha_s = zeros<vec>(nstates);
+                    for(int i = 0; i < nstates; i++)
+                        c_alpha_s(i) = log_transition(i, j) +
+                                alpha(i, first_idx_seg - 1);
+                    alpha_s(j, first_idx_seg - 1) = logsumexp(c_alpha_s);
+                }
+                c_alpha(d) = e_lh + logsumexp(c_alpha_s);
+            }
+            alpha(j, t) = logsumexp(c_alpha);
+        }
+    }
+    cout << "My test" << endl;
+    for(int i = 0; i < nstates; i++)
+        cout << exp(logsumexp(vectorise(alpha.row(i)))) << endl;
+
+    for(int i = 0; i < nstates; i++)
+        cout << exp(logsumexp(vectorise(alpha_s.row(i)))) << endl;
 }
 
 void Viterbi(const mat& transition,const vec& pi, const mat& duration,

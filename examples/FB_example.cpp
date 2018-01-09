@@ -43,10 +43,6 @@ class AbstractEmission {
 
         virtual AbstractEmission* clone() const = 0;
 
-        double likelihood(int state, const mat& obs) const {
-            return exp(loglikelihood(state, obs));
-        }
-
         virtual double loglikelihood(int state, const mat& obs) const = 0;
 
         cube likelihoodCube(int min_duration, int ndurations,
@@ -60,7 +56,8 @@ class AbstractEmission {
         virtual cube loglikelihoodCube(int min_duration, int ndurations,
                 const mat& obs) const {
             int nobs = obs.n_cols;
-            cube pdf(getNumberStates(), nobs, ndurations, fill::zeros);
+            cube pdf(getNumberStates(), nobs, ndurations);
+            pdf.fill(-datum::inf);
             for(int i = 0; i < getNumberStates(); i++)
                 for(int t = 0; t < nobs; t++)
                     for(int d = 0; d < ndurations; d++) {
@@ -366,6 +363,12 @@ class HSMM {
             return emission_->likelihoodCube(min_duration_, ndurations_, obs);
         }
 
+        // Computes the loglikelihoods w.r.t. the emission model.
+        cube computeEmissionsLogLikelihood(const mat obs) {
+            return emission_->loglikelihoodCube(min_duration_, ndurations_,
+                obs);
+        }
+
         mat transition_;
         vec pi_;
         mat duration_;
@@ -442,7 +445,7 @@ int main() {
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_cols;
-    cube pdf = dhsmm.computeEmissionsLikelihood(samples);
+
     cout << "Generated samples" << endl;
     // cout << samples << endl;
     cout << "Generated states and durations" << endl;
@@ -454,6 +457,10 @@ int main() {
     mat beta_s(nstates, nobs, fill::zeros);
     vec beta_s_0(nstates, fill::zeros);
     cube eta(nstates, ndurations, nobs, fill::zeros);
+    cube logpdf = dhsmm.computeEmissionsLogLikelihood(samples);
+    logsFB(transition, pi, durations, logpdf, alpha, beta, alpha_s, beta_s,
+            beta_s_0, eta, min_duration, nobs);
+    cube pdf = dhsmm.computeEmissionsLikelihood(samples);
     FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s, beta_s_0,
             eta, min_duration, nobs);
     cout << "Alpha" << endl;
@@ -470,6 +477,7 @@ int main() {
     // cout << sum(beta, 0) << endl;
     cout << "Sums rows" << endl;
     cout << sum(alpha, 1) << endl;
+    cout << sum(alpha_s, 1) << endl;
     cout << sum(beta, 1) << endl;
     imat psi_duration(nstates, nobs, fill::zeros);
     imat psi_state(nstates, nobs, fill::zeros);
