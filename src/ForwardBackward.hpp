@@ -1,5 +1,7 @@
 #include <armadillo>
 
+double logsumexp(arma::vec c);
+
 void FB(const arma::mat& transition,const arma::vec& pi,
         const arma::mat& duration, const arma::cube& pdf, arma::mat& alpha,
         arma::mat& beta, arma::mat& alpha_s, arma::mat& beta_s,

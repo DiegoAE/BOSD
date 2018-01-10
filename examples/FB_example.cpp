@@ -295,17 +295,22 @@ class HSMM {
             bool convergence_reached = false;
             for(int i = 0; i < max_iter && !convergence_reached; i++) {
                 // Recomputing the emission likelihoods.
-                cube pdf = computeEmissionsLikelihood(obs);
+                cube logpdf = computeEmissionsLogLikelihood(obs);
 
-                FB(estimated_transition, estimated_pi, estimated_duration, pdf,
-                        alpha, beta, alpha_s, beta_s, beta_s_0, eta,
+                logsFB(estimated_transition, estimated_pi, estimated_duration,
+                        logpdf, alpha, beta, alpha_s, beta_s, beta_s_0, eta,
                         min_duration_, nobs);
 
                 // Computing the marginal likelihood (aka observation likelihood).
-                double current_llikelihood = 0.0;
-                for(int j = 0; j < nstates_; j++)
-                    current_llikelihood += alpha(j, nobs - 1);
-                current_llikelihood = log(current_llikelihood);
+                double current_llikelihood = logsumexp(alpha.col(nobs - 1));
+
+                alpha = exp(alpha);
+                beta_s = exp(beta_s);
+                beta = exp(beta);
+                alpha_s = exp(alpha_s);
+                beta_s_0 = exp(beta_s_0);
+                eta = exp(eta);
+
                 cout << "EM iteration " << i << " marginal log-likelihood: " <<
                         current_llikelihood << ". Diff: " <<
                         current_llikelihood - marginal_llikelihood << endl;
@@ -319,16 +324,25 @@ class HSMM {
 
                 // Reestimating transitions.
                 mat tmp_transition(size(transition_), fill::zeros);
-                for(int t = 0; t < nobs - 1; t++)
-                    for(int i = 0; i < nstates_; i++)
-                        for(int j = 0; j < nstates_; j++)
-                            tmp_transition(i, j) += alpha(i, t) *
-                                    estimated_transition(i, j) * beta_s(j, t);
-                vec row_sums = sum(tmp_transition, 1);
-                for(int r = 0; r < nstates_; r++)
-                    tmp_transition.row(r) /= row_sums(r);
+                for(int i = 0; i < nstates_; i++) {
+                    vector<double> den;
+                    for(int j = 0; j < nstates_; j++) {
+                        vec num(nobs - 1);
+                        for(int t = 0; t < nobs - 1; t++) {
+                            double tmp_entry = alpha(i, t) *
+                                    estimated_transition(i, j) *
+                                    beta_s(j, t);
+                            num(t) = tmp_entry;
+                            den.push_back(tmp_entry);
+                        }
+                        tmp_transition(i, j) = sum(num); //logsumexp(num);
+                    }
+                    vec den_v(den);
+                    double denominator = sum(den_v);
+                    for(int j = 0; j < nstates_; j++)
+                        tmp_transition(i, j) /= denominator;
+                }
                 estimated_transition = tmp_transition;
-
                 // Reestimating the initial state pmf.
                 estimated_pi = beta_s_0 % estimated_pi;
                 // double mllh = log(sum(estimated_pi));
