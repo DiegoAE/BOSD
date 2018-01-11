@@ -52,6 +52,14 @@ void safety_checks(const mat& transition,const vec& pi, const mat& duration,
     assert(equal(norm(sum(duration, 1) - ones<vec>(nstates)), 0));
 }
 
+void log_safety_checks(const mat& log_transition,const vec& log_pi,
+        const mat& log_duration, const cube& pdf, const mat& alpha,
+        const mat& beta, const mat& alpha_s, const mat& beta_s,
+        const int min_duration, const int nobs) {
+    safety_checks(exp(log_transition), exp(log_pi), exp(log_duration), pdf,
+            alpha, beta, alpha_s, beta_s, min_duration, nobs);
+}
+
 void Debug(char c, int a, int b, int d) {
     cout << c << "[" << a << "," << b << "]" << " " << d << endl;
 }
@@ -145,18 +153,15 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
     }
 }
 
-void logsFB(const arma::mat& transition,const arma::vec& pi,
-        const arma::mat& duration, const arma::cube& log_pdf, arma::mat& alpha,
+void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
+        const arma::mat& log_duration, const arma::cube& log_pdf, arma::mat& alpha,
         arma::mat& beta, arma::mat& alpha_s, arma::mat& beta_s,
         arma::vec& beta_s_0, arma::cube& eta, const int min_duration,
         const int nobs) {
-    safety_checks(transition, pi, duration, log_pdf, alpha, beta, alpha_s,
-            beta_s, min_duration, nobs);
-    int nstates = transition.n_rows;
-    int duration_steps = duration.n_cols;
-    mat log_transition = log(transition);
-    mat log_duration = log(duration);
-    mat log_pi = log(pi);
+    log_safety_checks(log_transition, log_pi, log_duration, log_pdf, alpha,
+            beta, alpha_s, beta_s, min_duration, nobs);
+    int nstates = log_transition.n_rows;
+    int duration_steps = log_duration.n_cols;
     alpha.fill(-datum::inf);
     alpha_s.fill(-datum::inf);
     beta.fill(-datum::inf);

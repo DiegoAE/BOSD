@@ -118,8 +118,8 @@ class DummyGaussianEmission : public AbstractEmission {
             for(int i = 0; i < getNumberStates(); i++) {
 
                 // Reestimating the mean.
-                double new_mean_num = 0;
-                double new_common_den = 0;
+                vector<double> num_mult;
+                vector<double> num_obs;
                 for(int t = min_duration - 1; t < nobs; t++) {
                     for(int d = 0; d < ndurations; d++) {
                         int first_idx_seg = t - min_duration - d + 1;
@@ -128,15 +128,19 @@ class DummyGaussianEmission : public AbstractEmission {
 
                         // Since the observations factorize given t, d and i.
                         for(int s = first_idx_seg; s <= t; s++) {
-                            new_common_den += eta(i, d, t);
-                            new_mean_num += eta(i, d, t) * obs(0, s);
+                            num_mult.push_back(eta(i, d, t));
+                            num_obs.push_back(obs(0, s));
                         }
                     }
                 }
-                double new_mean = new_mean_num / new_common_den;
+                vec num_mult_v(num_mult);
+                vec num_obs_v(num_obs);
+                num_mult_v = num_mult_v - logsumexp(num_mult_v);
+                num_mult_v = exp(num_mult_v);
+                double new_mean = dot(num_mult_v, num_obs_v);
 
                 // Reestimating the variance.
-                double new_var_num = 0;
+                vector<double> num_obs_var;
                 for(int t = min_duration - 1; t < nobs; t++) {
                     for(int d = 0; d < ndurations; d++) {
                         int first_idx_seg = t - min_duration - d + 1;
@@ -146,13 +150,15 @@ class DummyGaussianEmission : public AbstractEmission {
                         // Since the observations factorize given t, d and i.
                         for(int s = first_idx_seg; s <= t; s++) {
                             double diff = (obs(0, s) - new_mean);
-                            new_var_num += eta(i, d, t) * diff * diff;
+                            num_obs_var.push_back(diff * diff);
                         }
                     }
                 }
+                vec num_obs_var_v(num_obs_var);
+                double new_variance = dot(num_mult_v, num_obs_var_v);
 
                 means_(i) = new_mean;
-                std_devs_(i) = sqrt(new_var_num / new_common_den);
+                std_devs_(i) = sqrt(new_variance);
             }
         }
 
@@ -288,28 +294,21 @@ class HSMM {
             mat beta_s(nstates_, nobs, fill::zeros);
             vec beta_s_0(nstates_, fill::zeros);
             cube eta(nstates_, ndurations_, nobs, fill::zeros);
-            mat estimated_transition(transition_);
-            vec estimated_pi(pi_);
-            mat estimated_duration(duration_);
+            mat log_estimated_transition = log(transition_);
+            vec log_estimated_pi = log(pi_);
+            mat log_estimated_duration = log(duration_);
             double marginal_llikelihood = -datum::inf;
             bool convergence_reached = false;
             for(int i = 0; i < max_iter && !convergence_reached; i++) {
                 // Recomputing the emission likelihoods.
                 cube logpdf = computeEmissionsLogLikelihood(obs);
 
-                logsFB(estimated_transition, estimated_pi, estimated_duration,
-                        logpdf, alpha, beta, alpha_s, beta_s, beta_s_0, eta,
-                        min_duration_, nobs);
+                logsFB(log_estimated_transition, log_estimated_pi,
+                        log_estimated_duration, logpdf, alpha, beta, alpha_s,
+                        beta_s, beta_s_0, eta, min_duration_, nobs);
 
                 // Computing the marginal likelihood (aka observation likelihood).
                 double current_llikelihood = logsumexp(alpha.col(nobs - 1));
-
-                alpha = exp(alpha);
-                beta_s = exp(beta_s);
-                beta = exp(beta);
-                alpha_s = exp(alpha_s);
-                beta_s_0 = exp(beta_s_0);
-                eta = exp(eta);
 
                 cout << "EM iteration " << i << " marginal log-likelihood: " <<
                         current_llikelihood << ". Diff: " <<
@@ -329,33 +328,46 @@ class HSMM {
                     for(int j = 0; j < nstates_; j++) {
                         vec num(nobs - 1);
                         for(int t = 0; t < nobs - 1; t++) {
-                            double tmp_entry = alpha(i, t) *
-                                    estimated_transition(i, j) *
+                            double tmp_entry = alpha(i, t) +
+                                    log_estimated_transition(i, j) +
                                     beta_s(j, t);
                             num(t) = tmp_entry;
                             den.push_back(tmp_entry);
                         }
-                        tmp_transition(i, j) = sum(num); //logsumexp(num);
+                        tmp_transition(i, j) = logsumexp(num);
                     }
                     vec den_v(den);
-                    double denominator = sum(den_v);
+                    double denominator = logsumexp(den_v);
                     for(int j = 0; j < nstates_; j++)
-                        tmp_transition(i, j) /= denominator;
+                        tmp_transition(i, j) -= denominator;
                 }
-                estimated_transition = tmp_transition;
+                log_estimated_transition = tmp_transition;
                 // Reestimating the initial state pmf.
-                estimated_pi = beta_s_0 % estimated_pi;
+                log_estimated_pi = beta_s_0 + log_estimated_pi;
                 // double mllh = log(sum(estimated_pi));
-                estimated_pi = estimated_pi / sum(estimated_pi);
+                log_estimated_pi = log_estimated_pi -
+                        logsumexp(log_estimated_pi);
 
                 // Reestimating durations.
                 // D(j, d) represents the expected number of times that state
                 // j is visited with duration d (non-normalized).
-                mat D = sum(eta, 2);
-                vec D_sums = sum(D, 1);
-                for(int r = 0; r < nstates_; r++)
-                    D.row(r) /= D_sums(r);
-                estimated_duration = D;
+                mat D(size(duration_), fill::zeros);
+                for(int i = 0; i < nstates_; i++) {
+                    vector<double> den;
+                    for(int d = 0; d < ndurations_; d++) {
+                        vec ts(nobs);
+                        for(int t = 0; t < nobs; t++) {
+                            ts(t) = eta(i, d, t);
+                            den.push_back(eta(i, d, t));
+                        }
+                        D(i, d) = logsumexp(ts);
+                    }
+                    vec den_v(den);
+                    double denominator = logsumexp(den_v);
+                    for(int d = 0; d < ndurations_; d++)
+                        D(i, d) -= denominator;
+                }
+                log_estimated_duration = D;
 
                 // Reestimating emissions.
                 // NOTE: the rest of the HSMM parameters are updated out of
@@ -367,9 +379,9 @@ class HSMM {
                     "convergence." : "max iter.") << endl;
 
             // Updating the model parameters.
-           setTransition(estimated_transition);
-           setPi(estimated_pi);
-           setDuration(estimated_duration);
+           setTransition(exp(log_estimated_transition));
+           setPi(exp(log_estimated_pi));
+           setDuration(exp(log_estimated_duration));
         }
 
         // Computes the likelihoods w.r.t. the emission model.
@@ -455,7 +467,7 @@ int main() {
     HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
 
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 35;
+    int nSampledSegments = 50;
     mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_cols;
@@ -472,8 +484,8 @@ int main() {
     vec beta_s_0(nstates, fill::zeros);
     cube eta(nstates, ndurations, nobs, fill::zeros);
     cube logpdf = dhsmm.computeEmissionsLogLikelihood(samples);
-    logsFB(transition, pi, durations, logpdf, alpha, beta, alpha_s, beta_s,
-            beta_s_0, eta, min_duration, nobs);
+    logsFB(log(transition), log(pi), log(durations), logpdf, alpha, beta,
+            alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
     mat compare_alpha = exp(alpha);
     mat compare_alpha_s = exp(alpha_s);
     mat compare_beta = exp(beta);
@@ -539,7 +551,7 @@ int main() {
     dhsmm.setDuration(durations);
 
     // Resetting emission parameters.
-    vec new_means = {0.1, 0.2, 0.3, 0.4};
+    vec new_means = {0.1, 0.2, 0.3, 30};
     vec new_std_devs = ones<vec>(nstates) * 10;
     shared_ptr<AbstractEmission> init_emission(new DummyGaussianEmission(
             new_means, new_std_devs));
