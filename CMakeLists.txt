@@ -1,18 +1,18 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(hsmm_inference)
+project(hidden_semi_markov_models)
 
 set(CMAKE_CXX_STANDARD 11)
 
 find_package(Armadillo REQUIRED)
 
-include_directories(src)
+include_directories(include)
 
-set(SOURCE_FILES
+add_library(${PROJECT_NAME}
     src/ForwardBackward.cpp
-    examples/FB_example.cpp
-    )
+    src/HSMM.cpp
+  )
 
-add_executable(FB_example ${SOURCE_FILES})
+add_executable(hsmm_example examples/dummy_hsmm_example.cpp)
 
-target_link_libraries(FB_example ${ARMADILLO_LIBRARIES})
+target_link_libraries(hsmm_example ${ARMADILLO_LIBRARIES} ${PROJECT_NAME})
