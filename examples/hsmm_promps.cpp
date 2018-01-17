@@ -2,12 +2,16 @@
 #include <HSMM.hpp>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <robotics.hpp>
 
 using namespace arma;
 using namespace hsmm;
 using namespace robotics;
 using namespace std;
+
+// Pseudo-random number generation.
+mt19937 rand_generator;
 
 class ProMPsEmission : public AbstractEmission {
     public:
@@ -35,8 +39,27 @@ class ProMPsEmission : public AbstractEmission {
         }
 
         mat sampleFromState(int state, int size) const {
-            // TODO
-            return zeros<mat>(10, 10);
+            const ProMP& model = promps_.at(state).get_model();
+            vector<vec> w_samples = random::sample_multivariate_normal(
+                    rand_generator, {model.get_mu_w(), model.get_Sigma_w()}, 1);
+            vec w = w_samples.back();
+
+            vec noise_mean = zeros<vec>(getDimension());
+            vector<vec> output_noise = random::sample_multivariate_normal(
+                    rand_generator, {noise_mean, model.get_Sigma_y()}, size);
+
+            mat ret(getDimension(), size);
+
+            // The samples are assumed to be equally spaced.
+            vec sample_locations = linspace<vec>(0, 1.0, size);
+            for(int i = 0; i < size; i++) {
+                double z = sample_locations(i);
+
+                // TODO: make sure this is added to the FullProMP API.
+                mat phi_z = promps_.at(state).get_phi_t(z);
+                ret.col(i) = phi_z * w + output_noise.at(i);
+            }
+            return ret;
         }
 
     private:
@@ -68,10 +91,11 @@ int main() {
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
-        vec mu_w(n_basis_functions);
+        vec mu_w(n_basis_functions * njoints);
         mu_w.fill(i);
-        mat Sigma_w = 100*eye<mat>(n_basis_functions, n_basis_functions);
-        mat Sigma_y = 0.0001*eye<mat>(njoints + 1, njoints + 1);
+        mat Sigma_w = 100*eye<mat>(n_basis_functions * njoints,
+                    n_basis_functions * njoints);
+        mat Sigma_y = 0.0001*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP poly(kernel, promp, njoints);
         promps.push_back(poly);
@@ -81,8 +105,7 @@ int main() {
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
-    for(int i = 0; i < nstates; i++)
-        cout << promps[i].get_model().get_mu_w() << endl;
+    cout << ptr_emission->sampleFromState(0, 10) << endl;
 
     return 0;
 }
