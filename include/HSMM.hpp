@@ -1,5 +1,7 @@
+#ifndef HSMM_H
+#define HSMM_H
+
 #include <armadillo>
-#include <ForwardBackward.hpp>
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -129,3 +131,5 @@ namespace hsmm {
             arma::ivec& hiddenDurations);
 
 };
+
+#endif
