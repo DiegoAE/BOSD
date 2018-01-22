@@ -52,6 +52,15 @@ class ProMPsEmission : public AbstractEmission {
             return ret;
         }
 
+        double loglikelihoodBatchVersion(int state, const arma::mat& obs) const {
+            int dimension = obs.n_rows;
+            assert(dimension == getDimension());
+            random::NormalDist dist = getNormalDistForMultipleTimeSteps(state,
+                    obs.n_cols);
+            vec stacked_obs = vectorise(obs);
+            return random::log_normal_density(dist, stacked_obs);
+        }
+
         void reestimate(int min_duration, const arma::cube& eta,
                 const arma::mat& obs) {
             // TODO
@@ -83,6 +92,40 @@ class ProMPsEmission : public AbstractEmission {
         }
 
     private:
+
+        // Returns the marginal distribution of a particular state (ProMP) and
+        // duration. Keep in mind that the covariance matrix grows quadratically
+        // with respect to the duration. This could be cached for efficiency
+        // but is mostly intended for debugging.
+        random::NormalDist getNormalDistForMultipleTimeSteps(int state, int duration) const {
+
+            // The samples are assumed to be equally spaced.
+            vec sample_locations = linspace<vec>(0, 1.0, duration);
+
+            const FullProMP& promp = promps_.at(state);
+            mat tmp = promp.get_phi_t(0);
+            int ncols = tmp.n_cols;
+            int nrows = tmp.n_rows;
+            mat stacked_Phi(nrows * duration, ncols, fill::zeros);
+            for(int i = 0; i < duration; i++) {
+
+                // Stacking vertically multiple Phis for different time steps.
+                stacked_Phi.rows(i * nrows, (i + 1) * nrows - 1) =
+                        promp.get_phi_t(sample_locations(i));
+            }
+            vec mean = stacked_Phi * promp.get_model().get_mu_w();
+            mat cov = stacked_Phi * promp.get_model().get_Sigma_w() *
+                    stacked_Phi.t();
+
+            // Adding the noise variance.
+            mat noise_cov(size(cov), fill::zeros);
+            for(int i = 0; i < duration; i++)
+                noise_cov.submat(i * nrows, i * nrows, (i + 1) * nrows - 1,
+                        (i + 1) * nrows - 1) = promp.get_model().get_Sigma_y();
+
+            cov = cov + noise_cov;
+            return random::NormalDist(mean, cov);
+        }
 
         vector<FullProMP> promps_;
 };
@@ -126,7 +169,6 @@ int main() {
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
-    cout << ptr_emission->sampleFromState(0, 10) << endl;
 
     int nsegments = 7;
     ivec hidden_states, hidden_durations;
