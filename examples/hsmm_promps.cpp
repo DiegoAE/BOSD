@@ -1,4 +1,5 @@
 #include <armadillo>
+#include <ForwardBackward.hpp>
 #include <HSMM.hpp>
 #include <iostream>
 #include <memory>
@@ -170,23 +171,26 @@ int main() {
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
 
-    int nsegments = 7;
+    int nsegments = 10;
     ivec hidden_states, hidden_durations;
     mat toy_obs = promp_hsmm.sampleSegments(nsegments, hidden_states,
             hidden_durations);
     cout << "Generated states and durations" << endl;
     cout << join_horiz(hidden_states, hidden_durations) << endl;
 
-    int current_time = 0;
-    for(int j = 0; j < hidden_states.n_rows; j++) {
-        mat current_obs = toy_obs.cols(current_time,
-                current_time + hidden_durations(j) - 1);
-        current_time += hidden_durations(j);
+    // Running the Viterbi algorithm.
+    imat psi_duration(nstates, toy_obs.n_cols, fill::zeros);
+    imat psi_state(nstates, toy_obs.n_cols, fill::zeros);
+    mat delta(nstates, toy_obs.n_cols, fill::zeros);
+    cube pdf = promp_hsmm.computeEmissionsLikelihood(toy_obs);
+    Viterbi(transition, pi, durations, pdf, delta, psi_duration, psi_state,
+            min_duration, toy_obs.n_cols);
+    ivec viterbiStates, viterbiDurations;
+    viterbiPath(psi_duration, psi_state, delta, viterbiStates,
+            viterbiDurations);
 
-        cout << "====" << endl;
-        for(int i = 0; i < nstates; i++)
-            cout << ptr_emission->loglikelihood(i, current_obs) << endl;
-    }
+    cout << "Viterbi states and durations" << endl;
+    cout << join_horiz(viterbiStates, viterbiDurations) << endl;
 
     return 0;
 }
