@@ -2,6 +2,7 @@
 #include <ForwardBackward.hpp>
 #include <HSMM.hpp>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <random>
 #include <robotics.hpp>
@@ -53,7 +54,7 @@ class ProMPsEmission : public AbstractEmission {
             return ret;
         }
 
-        double loglikelihoodBatchVersion(int state, const arma::mat& obs) const {
+        double loglikelihoodBatchVersion(int state, const arma::mat& obs) {
             int dimension = obs.n_rows;
             assert(dimension == getDimension());
             random::NormalDist dist = getNormalDistForMultipleTimeSteps(state,
@@ -98,7 +99,7 @@ class ProMPsEmission : public AbstractEmission {
         // duration. Keep in mind that the covariance matrix grows quadratically
         // with respect to the duration. This could be cached for efficiency
         // but is mostly intended for debugging.
-        random::NormalDist getNormalDistForMultipleTimeSteps(int state, int duration) const {
+        random::NormalDist getNormalDistForMultipleTimeSteps(int state, int duration) {
             int nrows = getDimension();
             const FullProMP& promp = promps_.at(state);
             mat stacked_Phi = getStackedPhi(state, duration);
@@ -116,7 +117,10 @@ class ProMPsEmission : public AbstractEmission {
             return random::NormalDist(mean, cov);
         }
 
-        mat getStackedPhi(int state, int duration) const {
+        mat getStackedPhi(int state, int duration) {
+            pair<int, int> p = make_pair(state, duration);
+            if (cachePhis_.find(p) != cachePhis_.end())
+                return cachePhis_[p];
             const FullProMP& promp = promps_.at(state);
 
             // The samples are assumed to be equally spaced.
@@ -131,9 +135,11 @@ class ProMPsEmission : public AbstractEmission {
                 stacked_Phi.rows(i * nrows, (i + 1) * nrows - 1) =
                         promp.get_phi_t(sample_locations(i));
             }
+            cachePhis_[p] = stacked_Phi;
             return stacked_Phi;
         }
 
+        map<pair<int, int>, mat> cachePhis_;
         vector<FullProMP> promps_;
 };
 
@@ -197,6 +203,5 @@ int main() {
 
     cout << "Viterbi states and durations" << endl;
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
-
     return 0;
 }
