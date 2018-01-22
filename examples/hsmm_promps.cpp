@@ -99,21 +99,9 @@ class ProMPsEmission : public AbstractEmission {
         // with respect to the duration. This could be cached for efficiency
         // but is mostly intended for debugging.
         random::NormalDist getNormalDistForMultipleTimeSteps(int state, int duration) const {
-
-            // The samples are assumed to be equally spaced.
-            vec sample_locations = linspace<vec>(0, 1.0, duration);
-
+            int nrows = getDimension();
             const FullProMP& promp = promps_.at(state);
-            mat tmp = promp.get_phi_t(0);
-            int ncols = tmp.n_cols;
-            int nrows = tmp.n_rows;
-            mat stacked_Phi(nrows * duration, ncols, fill::zeros);
-            for(int i = 0; i < duration; i++) {
-
-                // Stacking vertically multiple Phis for different time steps.
-                stacked_Phi.rows(i * nrows, (i + 1) * nrows - 1) =
-                        promp.get_phi_t(sample_locations(i));
-            }
+            mat stacked_Phi = getStackedPhi(state, duration);
             vec mean = stacked_Phi * promp.get_model().get_mu_w();
             mat cov = stacked_Phi * promp.get_model().get_Sigma_w() *
                     stacked_Phi.t();
@@ -126,6 +114,24 @@ class ProMPsEmission : public AbstractEmission {
 
             cov = cov + noise_cov;
             return random::NormalDist(mean, cov);
+        }
+
+        mat getStackedPhi(int state, int duration) const {
+            const FullProMP& promp = promps_.at(state);
+
+            // The samples are assumed to be equally spaced.
+            vec sample_locations = linspace<vec>(0, 1.0, duration);
+            mat tmp = promp.get_phi_t(0);
+            int ncols = tmp.n_cols;
+            int nrows = tmp.n_rows;
+            mat stacked_Phi(nrows * duration, ncols, fill::zeros);
+            for(int i = 0; i < duration; i++) {
+
+                // Stacking vertically multiple Phis for different time steps.
+                stacked_Phi.rows(i * nrows, (i + 1) * nrows - 1) =
+                        promp.get_phi_t(sample_locations(i));
+            }
+            return stacked_Phi;
         }
 
         vector<FullProMP> promps_;
