@@ -18,7 +18,6 @@ class ProMPsEmission : public AbstractEmission {
         ProMPsEmission(vector<FullProMP> promps) : AbstractEmission(
                 promps.size(), promps.at(0).get_num_joints()),
                 promps_(promps) {
-            // TODO
             for(int i = 0; i < getNumberStates(); i++)
                 assert(promps_.at(i).get_num_joints() == getDimension());
         }
@@ -28,8 +27,29 @@ class ProMPsEmission : public AbstractEmission {
         }
 
         double loglikelihood(int state, const arma::mat& obs) const {
-            // TODO.
-            return 0.0;
+            const FullProMP& promp = promps_.at(state);
+
+            // The samples are assumed to be equally spaced.
+            vec sample_locations = linspace<vec>(0, 1.0, obs.n_cols);
+
+            vec mu(promp.get_model().get_mu_w());
+            mat Sigma(promp.get_model().get_Sigma_w());
+            mat Sigma_y(promp.get_model().get_Sigma_y());
+            double ret = 0;
+            for(int i = 0; i < obs.n_cols; i++) {
+                mat Phi = promp.get_phi_t(sample_locations(i));
+                mat S = Phi * Sigma * Phi.t() + Sigma_y;
+
+                // Required for the marginal likelihood p(y_t | y_{1:t-1}).
+                random::NormalDist dist = random::NormalDist(Phi * mu, S);
+                ret = ret + log_normal_density(dist, obs.col(i));
+
+                // Using the kalman updating step to compute this efficiently.
+                mat K = Sigma * Phi.t() * inv(S);
+                mu = mu + K * (obs.col(i) - Phi * mu);
+                Sigma = Sigma - K * S * K.t();
+            }
+            return ret;
         }
 
         void reestimate(int min_duration, const arma::cube& eta,
@@ -63,12 +83,13 @@ class ProMPsEmission : public AbstractEmission {
         }
 
     private:
+
         vector<FullProMP> promps_;
 };
 
 int main() {
     int ndurations = 4;
-    int min_duration = 4;
+    int min_duration = 10;
     mat transition = {{0.0, 0.1, 0.4, 0.5},
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
@@ -92,7 +113,7 @@ int main() {
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
-        mu_w.fill(i);
+        mu_w.fill(i * 10);
         mat Sigma_w = 100*eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
         mat Sigma_y = 0.0001*eye<mat>(njoints, njoints);
@@ -106,6 +127,24 @@ int main() {
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
     cout << ptr_emission->sampleFromState(0, 10) << endl;
+
+    int nsegments = 7;
+    ivec hidden_states, hidden_durations;
+    mat toy_obs = promp_hsmm.sampleSegments(nsegments, hidden_states,
+            hidden_durations);
+    cout << "Generated states and durations" << endl;
+    cout << join_horiz(hidden_states, hidden_durations) << endl;
+
+    int current_time = 0;
+    for(int j = 0; j < hidden_states.n_rows; j++) {
+        mat current_obs = toy_obs.cols(current_time,
+                current_time + hidden_durations(j) - 1);
+        current_time += hidden_durations(j);
+
+        cout << "====" << endl;
+        for(int i = 0; i < nstates; i++)
+            cout << ptr_emission->loglikelihood(i, current_obs) << endl;
+    }
 
     return 0;
 }
