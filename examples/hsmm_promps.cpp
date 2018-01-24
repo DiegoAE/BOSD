@@ -65,7 +65,78 @@ class ProMPsEmission : public AbstractEmission {
 
         void reestimate(int min_duration, const arma::cube& eta,
                 const arma::mat& obs) {
+            int nobs = obs.n_cols;
+            int ndurations = eta.n_cols;
 
+            for(int i = 0; i < getNumberStates(); i++) {
+                vector<double> mult_c;
+                for(int t = min_duration - 1; t < nobs; t++) {
+                    for(int d = 0; d < ndurations; d++) {
+                        int first_idx_seg = t - min_duration - d + 1;
+                        if (first_idx_seg < 0)
+                            break;
+                        mult_c.push_back(eta(i, d, t));
+                    }
+                }
+                vec mult_c_normalized(mult_c);
+                mult_c_normalized -= logsumexp(mult_c_normalized);
+                mult_c_normalized = exp(mult_c_normalized);
+
+                ProMP promp = promps_.at(i).get_model();
+                const mat inv_Sigma_w = inv_sympd(promp.get_Sigma_w());
+                const mat inv_Sigma_y = inv_sympd(promp.get_Sigma_y());
+                const vec mu_w = promp.get_mu_w();
+
+                // EM for ProMPs.
+                vec new_mu_w(size(mu_w), fill::zeros);
+                mat new_Sigma_w(size(inv_Sigma_w), fill::zeros);
+                mat new_Sigma_y(size(inv_Sigma_y), fill::zeros);
+                int idx_mult_c = 0;
+                for(int t = min_duration - 1; t < nobs; t++) {
+                    for(int d = 0; d < ndurations; d++) {
+                        int first_idx_seg = t - min_duration - d + 1;
+                        if (first_idx_seg < 0)
+                            break;
+                        const int current_duration = min_duration + d;
+                        const cube& Phis = getPhiCube(i, current_duration);
+
+                        // E step for the emission hidden variables (Ws).
+                        // Computing the posterior of W given Y and Theta.
+
+                        // Computing the posterior covariance of the hidden
+                        // variable w for this segment.
+                        mat posterior_cov(size(inv_Sigma_w), fill::zeros);
+                        for(int step = 0; step < current_duration; step++) {
+                            posterior_cov += Phis.slice(step).t() *
+                                    inv_Sigma_y * Phis.slice(step);
+                        }
+                        posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+                        posterior_cov = posterior_cov + inv_Sigma_w;
+                        posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+                        posterior_cov = inv_sympd(posterior_cov);
+                        posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+
+                        // Computing the posterior mean of the hidden
+                        // variable w for this segment.
+                        vec posterior_mean(size(mu_w), fill::zeros);
+                        for(int step = 0; step < current_duration; step++) {
+                            int obs_idx = first_idx_seg + step;
+                            posterior_mean += Phis.slice(step).t() *
+                                    inv_Sigma_y * obs.col(obs_idx);
+                        }
+                        posterior_mean = inv_Sigma_w * mu_w + posterior_mean;
+                        posterior_mean = posterior_cov * posterior_mean;
+
+                        // M step for the emission variables.
+                        new_mu_w += mult_c_normalized(idx_mult_c++) * posterior_mean;
+                        // TODO: both Sigmas.
+                    }
+                }
+
+                // Setting the new parameters.
+                promp.set_mu_w(new_mu_w);
+                promps_.at(i).set_model(promp);
+            }
         }
 
         mat sampleFromState(int state, int size) const {
@@ -90,6 +161,15 @@ class ProMPsEmission : public AbstractEmission {
                 ret.col(i) = phi_z * w + output_noise.at(i);
             }
             return ret;
+        }
+
+        void printParameters() const {
+            cout << "Means:" << endl;
+            for(int i = 0; i < getNumberStates(); i++) {
+                cout << "State " << i << ":" << endl <<
+                        promps_.at(i).get_model().get_mu_w() << endl;
+            }
+            // TODO: print the rest of the parameters.
         }
 
     private:
@@ -169,7 +249,7 @@ void PrintBestWeCanAimFor(int nstates, int ndurations, int min_duration,
     cout << emp_durations << endl;
 }
 
-void reset(HSMM& hsmm) {
+void reset(HSMM& hsmm, vector<FullProMP> promps) {
     int nstates = hsmm.nstates_;
     int ndurations = hsmm.ndurations_;
     mat transition(hsmm.transition_);
@@ -182,6 +262,16 @@ void reset(HSMM& hsmm) {
     mat durations(hsmm.duration_);
     durations.fill(1.0/ndurations);
     hsmm.setDuration(durations);
+
+    // Resetting emission. TODO: only resetting the mean.
+    for(int i = 0; i < nstates; i++) {
+        ProMP new_model = promps[i].get_model();
+        vec new_mean = randn(size(new_model.get_mu_w()));
+        new_model.set_mu_w(new_mean);
+        promps[i].set_model(new_model);
+    }
+    shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
+    hsmm.setEmission(ptr_emission);
 }
 
 int main() {
@@ -224,7 +314,7 @@ int main() {
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
 
-    int nsegments = 10;
+    int nsegments = 100;
     ivec hidden_states, hidden_durations;
     mat toy_obs = promp_hsmm.sampleSegments(nsegments, hidden_states,
             hidden_durations);
@@ -249,22 +339,9 @@ int main() {
             hidden_durations);
 
     // Learning the model from data.
-    reset(promp_hsmm);
+    reset(promp_hsmm, promps);
+    promp_hsmm.emission_->printParameters();
     promp_hsmm.fit(toy_obs, 100, 1e-10);
-
-    // Testing the likelihood evaluations. TODO: remove at some point.
-    int current_time = 0;
-    ProMPsEmission test(promps);
-    for(int j = 0; j < hidden_states.n_rows; j++) {
-        mat current_obs = toy_obs.cols(current_time,
-                current_time + hidden_durations(j) - 1);
-        current_time += hidden_durations(j);
-
-        cout << "====" << endl;
-        for(int i = 0; i < nstates; i++) {
-            cout << ptr_emission->loglikelihood(i, current_obs) << " ";
-            cout << test.loglikelihoodBatchVersion(i, current_obs) << endl;
-        }
-    }
+    promp_hsmm.emission_->printParameters();
     return 0;
 }
