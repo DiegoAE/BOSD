@@ -147,6 +147,43 @@ class ProMPsEmission : public AbstractEmission {
         vector<FullProMP> promps_;
 };
 
+
+void PrintBestWeCanAimFor(int nstates, int ndurations, int min_duration,
+        ivec hiddenStates, ivec hiddenDurations) {
+    cout << "Best transition matrix we can aim at:" << endl;
+    mat prueba(nstates, nstates, fill::zeros);
+    for(int i = 0; i < hiddenStates.n_elem - 1; i++)
+        prueba(hiddenStates(i), hiddenStates(i + 1))++;
+    mat pruebasum = sum(prueba, 1);
+    for(int i = 0; i < nstates; i++)
+        prueba.row(i) /= pruebasum(i);
+    cout << prueba << endl;
+
+    cout << "Best duration matrix we can aim at:" << endl;
+    mat emp_durations(nstates, ndurations, fill::zeros);
+    for(int i = 0; i < hiddenStates.n_elem; i++)
+        emp_durations(hiddenStates(i), hiddenDurations(i) - min_duration)++;
+    mat emp_durations_sum = sum(emp_durations, 1);
+    for(int i = 0; i < nstates; i++)
+        emp_durations.row(i) /= emp_durations_sum(i);
+    cout << emp_durations << endl;
+}
+
+void reset(HSMM& hsmm) {
+    int nstates = hsmm.nstates_;
+    int ndurations = hsmm.ndurations_;
+    mat transition(hsmm.transition_);
+    transition.fill(1.0/(nstates-1));
+    transition.diag().zeros();  // No self-loops.
+    hsmm.setTransition(transition);
+    vec pi(hsmm.pi_);
+    pi.fill(1.0/nstates);
+    hsmm.setPi(pi);
+    mat durations(hsmm.duration_);
+    durations.fill(1.0/ndurations);
+    hsmm.setDuration(durations);
+}
+
 int main() {
     int ndurations = 4;
     int min_duration = 10;
@@ -207,6 +244,13 @@ int main() {
 
     cout << "Viterbi states and durations" << endl;
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
+
+    PrintBestWeCanAimFor(nstates, ndurations, min_duration, hidden_states,
+            hidden_durations);
+
+    // Learning the model from data.
+    reset(promp_hsmm);
+    promp_hsmm.fit(toy_obs, 100, 1e-10);
 
     // Testing the likelihood evaluations. TODO: remove at some point.
     int current_time = 0;
