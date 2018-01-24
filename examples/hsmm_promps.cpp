@@ -65,8 +65,7 @@ class ProMPsEmission : public AbstractEmission {
 
         void reestimate(int min_duration, const arma::cube& eta,
                 const arma::mat& obs) {
-            // TODO
-            return;
+
         }
 
         mat sampleFromState(int state, int size) const {
@@ -102,7 +101,7 @@ class ProMPsEmission : public AbstractEmission {
         random::NormalDist getNormalDistForMultipleTimeSteps(int state, int duration) {
             int nrows = getDimension();
             const FullProMP& promp = promps_.at(state);
-            mat stacked_Phi = getStackedPhi(state, duration);
+            const mat stacked_Phi = getPhiStacked(state, duration);
             vec mean = stacked_Phi * promp.get_model().get_mu_w();
             mat cov = stacked_Phi * promp.get_model().get_Sigma_w() *
                     stacked_Phi.t();
@@ -117,7 +116,16 @@ class ProMPsEmission : public AbstractEmission {
             return random::NormalDist(mean, cov);
         }
 
-        mat getStackedPhi(int state, int duration) {
+        mat getPhiStacked(int state, int duration) {
+            cube Phis = getPhiCube(state, duration);
+            mat PhiStacked(Phis.n_rows * Phis.n_slices, Phis.n_cols);
+            for(int d = 0; d < duration; d++)
+                PhiStacked.rows(d * Phis.n_rows, (d + 1) * Phis.n_rows - 1) =
+                        Phis.slice(d);
+            return PhiStacked;
+        }
+
+        cube getPhiCube(int state, int duration) {
             pair<int, int> p = make_pair(state, duration);
             if (cachePhis_.find(p) != cachePhis_.end())
                 return cachePhis_[p];
@@ -128,18 +136,14 @@ class ProMPsEmission : public AbstractEmission {
             mat tmp = promp.get_phi_t(0);
             int ncols = tmp.n_cols;
             int nrows = tmp.n_rows;
-            mat stacked_Phi(nrows * duration, ncols, fill::zeros);
-            for(int i = 0; i < duration; i++) {
-
-                // Stacking vertically multiple Phis for different time steps.
-                stacked_Phi.rows(i * nrows, (i + 1) * nrows - 1) =
-                        promp.get_phi_t(sample_locations(i));
-            }
+            cube stacked_Phi(nrows, ncols, duration, fill::zeros);
+            for(int i = 0; i < duration; i++)
+                stacked_Phi.slice(i) = promp.get_phi_t(sample_locations(i));
             cachePhis_[p] = stacked_Phi;
             return stacked_Phi;
         }
 
-        map<pair<int, int>, mat> cachePhis_;
+        map<pair<int, int>, cube> cachePhis_;
         vector<FullProMP> promps_;
 };
 
@@ -203,5 +207,20 @@ int main() {
 
     cout << "Viterbi states and durations" << endl;
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
+
+    // Testing the likelihood evaluations. TODO: remove at some point.
+    int current_time = 0;
+    ProMPsEmission test(promps);
+    for(int j = 0; j < hidden_states.n_rows; j++) {
+        mat current_obs = toy_obs.cols(current_time,
+                current_time + hidden_durations(j) - 1);
+        current_time += hidden_durations(j);
+
+        cout << "====" << endl;
+        for(int i = 0; i < nstates; i++) {
+            cout << ptr_emission->loglikelihood(i, current_obs) << " ";
+            cout << test.loglikelihoodBatchVersion(i, current_obs) << endl;
+        }
+    }
     return 0;
 }
