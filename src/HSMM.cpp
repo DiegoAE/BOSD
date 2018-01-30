@@ -302,7 +302,9 @@ namespace hsmm {
             cout << "EM iteration " << i << " marginal log-likelihood: " <<
                     current_llikelihood << ". Diff: " <<
                     current_llikelihood - marginal_llikelihood << endl;
-            assert(!(current_llikelihood < marginal_llikelihood));
+            if (current_llikelihood < marginal_llikelihood)
+                cout << "Warning: The log-likelihood decreased probably due" <<
+                        " to numerical errors." << endl;
             if (current_llikelihood - marginal_llikelihood < tol) {
                 convergence_reached = true;
                 marginal_llikelihood = current_llikelihood;
