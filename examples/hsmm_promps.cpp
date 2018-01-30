@@ -88,9 +88,10 @@ class ProMPsEmission : public AbstractEmission {
                 const vec mu_w = promp.get_mu_w();
 
                 // EM for ProMPs.
-                vec new_mu_w(size(mu_w), fill::zeros);
-                mat new_Sigma_w(size(inv_Sigma_w), fill::zeros);
-                mat new_Sigma_y(size(inv_Sigma_y), fill::zeros);
+                vec weighted_sum_post_mean(size(mu_w), fill::zeros);
+                mat weighted_sum_post_cov(size(inv_Sigma_w), fill::zeros);
+                mat weighted_sum_post_mean_mean_T(size(inv_Sigma_w),
+                        fill::zeros);
                 int idx_mult_c = 0;
                 for(int t = min_duration - 1; t < nobs; t++) {
                     for(int d = 0; d < ndurations; d++) {
@@ -127,14 +128,29 @@ class ProMPsEmission : public AbstractEmission {
                         posterior_mean = inv_Sigma_w * mu_w + posterior_mean;
                         posterior_mean = posterior_cov * posterior_mean;
 
-                        // M step for the emission variables.
-                        new_mu_w += mult_c_normalized(idx_mult_c++) * posterior_mean;
-                        // TODO: both Sigmas.
+                        double mult_constant = mult_c_normalized(idx_mult_c++);
+                        weighted_sum_post_mean += mult_constant * posterior_mean;
+                        weighted_sum_post_cov += mult_constant  * posterior_cov;
+                        weighted_sum_post_mean_mean_T += mult_constant *
+                                posterior_mean * posterior_mean.t();
+                        // TODO: Sigma_y.
                     }
                 }
 
+                // M step for the emission variables.
+                vec new_mu_w(weighted_sum_post_mean);
+
+                mat term = new_mu_w * weighted_sum_post_mean.t();
+                mat new_Sigma_w = weighted_sum_post_cov +
+                        weighted_sum_post_mean_mean_T - term - term.t() +
+                        new_mu_w * new_mu_w.t();
+
+                // TODO.
+                mat new_Sigma_y(size(inv_Sigma_y), fill::zeros);
+
                 // Setting the new parameters.
                 promp.set_mu_w(new_mu_w);
+                promp.set_Sigma_w(new_Sigma_w);
                 promps_.at(i).set_model(promp);
             }
         }
@@ -166,10 +182,11 @@ class ProMPsEmission : public AbstractEmission {
         void printParameters() const {
             cout << "Means:" << endl;
             for(int i = 0; i < getNumberStates(); i++) {
-                cout << "State " << i << ":" << endl <<
-                        promps_.at(i).get_model().get_mu_w() << endl;
+                cout << "State " << i << ":" << endl << "Mean:" << endl <<
+                        promps_.at(i).get_model().get_mu_w() << endl << "Cov"
+                        << endl << promps_.at(i).get_model().get_Sigma_w() <<
+                        endl;
             }
-            // TODO: print the rest of the parameters.
         }
 
     private:
@@ -263,11 +280,14 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
     durations.fill(1.0/ndurations);
     hsmm.setDuration(durations);
 
-    // Resetting emission. TODO: only resetting the mean.
+    // Resetting emission.
     for(int i = 0; i < nstates; i++) {
         ProMP new_model = promps[i].get_model();
         vec new_mean = randn(size(new_model.get_mu_w()));
+        mat new_Sigma_w(size(new_model.get_Sigma_w()), fill::eye);
+        new_Sigma_w *= 100;
         new_model.set_mu_w(new_mean);
+        new_model.set_Sigma_w(new_Sigma_w);
         promps[i].set_model(new_model);
     }
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
@@ -301,7 +321,7 @@ int main() {
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
         mu_w.fill(i * 10);
-        mat Sigma_w = 100*eye<mat>(n_basis_functions * njoints,
+        mat Sigma_w = (i + 1)* 5 * eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
         mat Sigma_y = 0.0001*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
