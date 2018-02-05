@@ -70,22 +70,36 @@ class ProMPsEmission : public AbstractEmission {
 
             for(int i = 0; i < getNumberStates(); i++) {
                 vector<double> mult_c;
+                vector<double> denominator_Sigma_y;
                 for(int t = min_duration - 1; t < nobs; t++) {
                     for(int d = 0; d < ndurations; d++) {
                         int first_idx_seg = t - min_duration - d + 1;
                         if (first_idx_seg < 0)
                             break;
                         mult_c.push_back(eta(i, d, t));
+                        denominator_Sigma_y.push_back(eta(i, d, t) +
+                                log(min_duration + d));
                     }
                 }
+
+                // Computing the multiplicative constants for mu_w and Sigma_w.
                 vec mult_c_normalized(mult_c);
                 mult_c_normalized -= logsumexp(mult_c_normalized);
                 mult_c_normalized = exp(mult_c_normalized);
+
+                // Computing the multiplicative constants for Sigma_y since
+                // they have a different denominator.
+                vec mult_c_Sigma_y_normalized(mult_c);
+                vec den_Sigma_y(denominator_Sigma_y);
+                mult_c_Sigma_y_normalized -= logsumexp(den_Sigma_y);
+                mult_c_Sigma_y_normalized = exp(mult_c_Sigma_y_normalized);
 
                 ProMP promp = promps_.at(i).get_model();
                 const mat inv_Sigma_w = inv_sympd(promp.get_Sigma_w());
                 const mat inv_Sigma_y = inv_sympd(promp.get_Sigma_y());
                 const vec mu_w = promp.get_mu_w();
+
+                mat new_Sigma_y(size(promp.get_Sigma_y()), fill::zeros);
 
                 // EM for ProMPs.
                 vec weighted_sum_post_mean(size(mu_w), fill::zeros);
@@ -121,19 +135,33 @@ class ProMPsEmission : public AbstractEmission {
                         // variable w for this segment.
                         vec posterior_mean(size(mu_w), fill::zeros);
                         for(int step = 0; step < current_duration; step++) {
-                            int obs_idx = first_idx_seg + step;
+                            const vec& ob = obs.col(first_idx_seg + step);
                             posterior_mean += Phis.slice(step).t() *
-                                    inv_Sigma_y * obs.col(obs_idx);
+                                    inv_Sigma_y * ob;
                         }
                         posterior_mean = inv_Sigma_w * mu_w + posterior_mean;
                         posterior_mean = posterior_cov * posterior_mean;
 
-                        double mult_constant = mult_c_normalized(idx_mult_c++);
+                        // Getting the multiplicative constants.
+                        double mult_constant = mult_c_normalized(idx_mult_c);
+                        double mult_constant_Sigma_y = mult_c_Sigma_y_normalized(idx_mult_c);
+                        idx_mult_c++;
+
                         weighted_sum_post_mean += mult_constant * posterior_mean;
                         weighted_sum_post_cov += mult_constant  * posterior_cov;
                         weighted_sum_post_mean_mean_T += mult_constant *
                                 posterior_mean * posterior_mean.t();
-                        // TODO: Sigma_y.
+
+                        // Computing the new output noise covariance: Sigma_y.
+                        mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
+                        for(int step = 0; step < current_duration; step++) {
+                            const mat& phi = Phis.slice(step);
+                            const vec& diff_y = obs.col(first_idx_seg + step) -
+                                    phi * posterior_mean;
+                            Sigma_y_term += diff_y * diff_y.t() +
+                                    phi * posterior_cov * phi.t();
+                        }
+                        new_Sigma_y += mult_constant_Sigma_y * Sigma_y_term;
                     }
                 }
 
@@ -145,12 +173,10 @@ class ProMPsEmission : public AbstractEmission {
                         weighted_sum_post_mean_mean_T - term - term.t() +
                         new_mu_w * new_mu_w.t();
 
-                // TODO.
-                mat new_Sigma_y(size(inv_Sigma_y), fill::zeros);
-
                 // Setting the new parameters.
                 promp.set_mu_w(new_mu_w);
                 promp.set_Sigma_w(new_Sigma_w);
+                promp.set_Sigma_y(new_Sigma_y);
                 promps_.at(i).set_model(promp);
             }
         }
@@ -180,12 +206,12 @@ class ProMPsEmission : public AbstractEmission {
         }
 
         void printParameters() const {
-            cout << "Means:" << endl;
             for(int i = 0; i < getNumberStates(); i++) {
                 cout << "State " << i << ":" << endl << "Mean:" << endl <<
                         promps_.at(i).get_model().get_mu_w() << endl << "Cov"
                         << endl << promps_.at(i).get_model().get_Sigma_w() <<
-                        endl;
+                        endl << "Output cov:" << endl <<
+                        promps_.at(i).get_model().get_Sigma_y() << endl;
             }
         }
 
@@ -296,7 +322,7 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
 
 int main() {
     int ndurations = 4;
-    int min_duration = 10;
+    int min_duration = 50;
     mat transition = {{0.0, 0.1, 0.4, 0.5},
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
@@ -334,7 +360,7 @@ int main() {
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
 
-    int nsegments = 100;
+    int nsegments = 50;
     ivec hidden_states, hidden_durations;
     mat toy_obs = promp_hsmm.sampleSegments(nsegments, hidden_states,
             hidden_durations);
