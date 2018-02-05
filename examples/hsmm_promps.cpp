@@ -14,6 +14,22 @@ using namespace std;
 
 // Pseudo-random number generation.
 mt19937 rand_generator;
+vector<vec> prueba;
+
+void hs_prueba() {
+    vec mean(prueba[0].n_elem, fill::zeros);
+    for(vec& v: prueba)
+        mean += v;
+    mean *= 1.0 / prueba.size();
+
+    mat cov(mean.n_elem, mean.n_elem, fill::zeros);
+    for(vec& v: prueba)
+        cov += (v - mean) * (v - mean).t();
+    cov *= 1.0 / prueba.size();
+
+    cout<< "Prueba" << endl << "mean" << endl << mean << endl << "cov"
+            << endl << cov << endl;
+}
 
 class ProMPsEmission : public AbstractEmission {
     public:
@@ -186,6 +202,7 @@ class ProMPsEmission : public AbstractEmission {
             vector<vec> w_samples = random::sample_multivariate_normal(
                     rand_generator, {model.get_mu_w(), model.get_Sigma_w()}, 1);
             vec w = w_samples.back();
+            prueba.push_back(w);
 
             vec noise_mean = zeros<vec>(getDimension());
             vector<vec> output_noise = random::sample_multivariate_normal(
@@ -296,8 +313,12 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
     int nstates = hsmm.nstates_;
     int ndurations = hsmm.ndurations_;
     mat transition(hsmm.transition_);
-    transition.fill(1.0/(nstates-1));
-    transition.diag().zeros();  // No self-loops.
+    if (nstates == 1)
+        transition.fill(1.0);  // Self-loops allowed in this case.
+    else {
+        transition.fill(1.0/(nstates-1));
+        transition.diag().zeros();  // No self-loops.
+    }
     hsmm.setTransition(transition);
     vec pi(hsmm.pi_);
     pi.fill(1.0/nstates);
@@ -312,8 +333,11 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
         vec new_mean = randn(size(new_model.get_mu_w()));
         mat new_Sigma_w(size(new_model.get_Sigma_w()), fill::eye);
         new_Sigma_w *= 100;
+        mat new_Sigma_y(size(new_model.get_Sigma_y()), fill::eye);
+        new_Sigma_y *= 10;
         new_model.set_mu_w(new_mean);
         new_model.set_Sigma_w(new_Sigma_w);
+        new_model.set_Sigma_y(new_Sigma_y);
         promps[i].set_model(new_model);
     }
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
@@ -321,12 +345,13 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
 }
 
 int main() {
-    int ndurations = 4;
+    int ndurations = 1;
     int min_duration = 50;
     mat transition = {{0.0, 0.1, 0.4, 0.5},
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
                       {0.4, 0.4, 0.2, 0.0}};
+    transition = ones<mat>(1, 1);
     int nstates = transition.n_rows;
     vec pi(nstates, fill::eye);
     pi.fill(1.0/nstates);
@@ -335,6 +360,7 @@ int main() {
                       {0.3, 0.0, 0.6, 0.1},
                       {0.2, 0.2, 0.0, 0.6},
                       {0.4, 0.4, 0.2, 0.0}};
+    durations = ones<mat>(1, 1);
     int n_basis_functions = 4;
     int njoints = 1;
 
@@ -360,7 +386,7 @@ int main() {
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
 
-    int nsegments = 50;
+    int nsegments = 250;
     ivec hidden_states, hidden_durations;
     mat toy_obs = promp_hsmm.sampleSegments(nsegments, hidden_states,
             hidden_durations);
@@ -389,5 +415,6 @@ int main() {
     promp_hsmm.emission_->printParameters();
     promp_hsmm.fit(toy_obs, 100, 1e-10);
     promp_hsmm.emission_->printParameters();
+    hs_prueba();
     return 0;
 }
