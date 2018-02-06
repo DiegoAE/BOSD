@@ -316,7 +316,7 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
         ProMP new_model = promps[i].get_model();
         vec new_mean = randn(size(new_model.get_mu_w()));
         mat new_Sigma_w(size(new_model.get_Sigma_w()), fill::eye);
-        new_Sigma_w *= 100;
+        new_Sigma_w *= 10 * (i + 1);
         mat new_Sigma_y(size(new_model.get_Sigma_y()), fill::eye);
         new_Sigma_y *= 10;
         new_model.set_mu_w(new_mean);
@@ -355,7 +355,7 @@ int main() {
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
         mu_w.fill(i * 10);
-        mat Sigma_w = (i + 1)* 5 * eye<mat>(n_basis_functions * njoints,
+        mat Sigma_w = (i + 1) * eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
         mat Sigma_y = 0.0001*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
@@ -375,6 +375,15 @@ int main() {
     cout << "Generated states and durations" << endl;
     cout << join_horiz(hidden_states, hidden_durations) << endl;
 
+    PrintBestWeCanAimFor(nstates, ndurations, min_duration, hidden_states,
+            hidden_durations);
+
+    // Learning the model from data.
+    reset(promp_hsmm, promps);
+    promp_hsmm.emission_->printParameters();
+    promp_hsmm.fit(toy_obs, 100, 1e-10);
+    promp_hsmm.emission_->printParameters();
+
     // Running the Viterbi algorithm.
     imat psi_duration(nstates, toy_obs.n_cols, fill::zeros);
     imat psi_state(nstates, toy_obs.n_cols, fill::zeros);
@@ -388,14 +397,9 @@ int main() {
 
     cout << "Viterbi states and durations" << endl;
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
-
-    PrintBestWeCanAimFor(nstates, ndurations, min_duration, hidden_states,
-            hidden_durations);
-
-    // Learning the model from data.
-    reset(promp_hsmm, promps);
-    promp_hsmm.emission_->printParameters();
-    promp_hsmm.fit(toy_obs, 100, 1e-10);
-    promp_hsmm.emission_->printParameters();
+    int dur_diff = 0;
+    for(int i = 0; i < viterbiDurations.n_elem; i++)
+        dur_diff += (viterbiDurations[i] != hidden_durations[i]);
+    cout << "The number of mismatches in duration is " << dur_diff << endl;
     return 0;
 }
