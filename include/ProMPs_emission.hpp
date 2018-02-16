@@ -4,6 +4,7 @@
 #include <armadillo>
 #include <HSMM.hpp>
 #include <iostream>
+#include <ForwardBackward.hpp>
 #include <map>
 #include <memory>
 #include <random>
