@@ -1,3 +1,6 @@
+#ifndef PROMP_EMISSION_H
+#define PROMP_EMISSION_H
+
 #include <armadillo>
 #include <HSMM.hpp>
 #include <iostream>
@@ -273,3 +276,5 @@ class ProMPsEmission : public AbstractEmission {
 };
 
 };
+
+#endif
