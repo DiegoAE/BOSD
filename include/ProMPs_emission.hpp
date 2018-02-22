@@ -174,15 +174,15 @@ class ProMPsEmission : public AbstractEmission {
 
                 // M step for the emission variables.
                 vec new_mu_w(weighted_sum_post_mean);
-
                 mat term = new_mu_w * weighted_sum_post_mean.t();
-                mat new_Sigma_w = weighted_sum_post_cov +
+                mat new_Sigma_w_MLE = weighted_sum_post_cov +
                         weighted_sum_post_mean_mean_T - term - term.t() +
                         new_mu_w * new_mu_w.t();
+                mat new_Sigma_w_MAP = getSigma_w_MAP(new_Sigma_w_MLE);
 
                 // Setting the new parameters.
                 promp.set_mu_w(new_mu_w);
-                promp.set_Sigma_w(new_Sigma_w);
+                promp.set_Sigma_w(new_Sigma_w_MAP);
                 promp.set_Sigma_y(new_Sigma_y);
                 promps_.at(i).set_model(promp);
             }
@@ -226,6 +226,7 @@ class ProMPsEmission : public AbstractEmission {
             return ret;
         }
 
+
     private:
 
         // Returns the marginal distribution of a particular state (ProMP) and
@@ -248,6 +249,32 @@ class ProMPsEmission : public AbstractEmission {
 
             cov = cov + noise_cov;
             return random::NormalDist(mean, cov);
+        }
+
+        mat getSigma_w_MAP(const mat& Sigma_w_MLE) const {
+            int D = Sigma_w_MLE.n_rows;
+            int v0 = Sigma_w_MLE.n_rows;  // Number of basis functions + dofs.
+            double c = (v0 + D + 1);
+            mat ret = getCovarianceIndependentJoints(Sigma_w_MLE) * c +
+                    Sigma_w_MLE;
+            ret *= 1.0 / (c + 1);  // In this case N equals 1.
+            return ret;
+        }
+
+        // Takes the covariance matrix for omega and returns it as if the
+        // joints were independent (blockdiag operator in Sebastian's paper).
+        mat getCovarianceIndependentJoints(const mat& cov) const {
+            mat ret(size(cov), fill::zeros);
+            assert(cov.n_rows == cov.n_cols);
+            int dim = cov.n_rows;
+            assert(dim % getDimension() == 0);
+            int blocklen = dim / getDimension();
+            for(int i = 0; i < dim; i++)
+                for(int j = 0; j < dim; j++)
+                    if ((i/blocklen) == (j/blocklen))
+                        ret(i, j) = cov(i, j);
+            mat extra_term = eye<mat>(size(ret)) * 1e-4;
+            return ret + extra_term;
         }
 
         mat getPhiStacked(int state, int duration) {
