@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <json.hpp>
 #include <memory>
 #include <vector>
 
@@ -33,7 +34,7 @@ namespace hsmm {
             virtual arma::cube loglikelihoodCube(int min_duration,
                     int ndurations, const arma::mat& obs) const;
 
-            virtual void printParameters() const;
+            virtual nlohmann::json to_stream() const;
 
             // Reestimates in place the emission parameters using the
             // statistics provided by the HSMM E step. eta(j, d, t) represents
@@ -58,7 +59,7 @@ namespace hsmm {
 
             double loglikelihood(int state, const arma::mat& obs) const;
 
-            virtual void printParameters() const;
+            virtual nlohmann::json to_stream() const;
 
             void reestimate(int min_duration, const arma::cube& eta,
                     const arma::mat& obs);

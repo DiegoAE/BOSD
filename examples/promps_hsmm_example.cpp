@@ -2,12 +2,14 @@
 #include <ForwardBackward.hpp>
 #include <HSMM.hpp>
 #include <iostream>
+#include <json.hpp>
 #include <memory>
 #include <ProMPs_emission.hpp>
 
 using namespace arma;
 using namespace hsmm;
 using namespace std;
+using json = nlohmann::json;
 
 
 void PrintBestWeCanAimFor(int nstates, int ndurations, int min_duration,
@@ -118,9 +120,10 @@ int main() {
 
     // Learning the model from data.
     reset(promp_hsmm, promps);
-    promp_hsmm.emission_->printParameters();
+    promp_hsmm.emission_->to_stream();
     promp_hsmm.fit(toy_obs, 100, 1e-10);
-    promp_hsmm.emission_->printParameters();
+    json params = promp_hsmm.emission_->to_stream();
+    cout << params.dump(4) << endl;
 
     // Running the Viterbi algorithm.
     imat psi_duration(nstates, toy_obs.n_cols, fill::zeros);

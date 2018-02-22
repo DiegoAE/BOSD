@@ -50,6 +50,6 @@ int main(int argc, char *argv[]) {
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
     promp_hsmm.fit(obs, 100, 1e-10);
-    promp_hsmm.emission_->printParameters();
+    promp_hsmm.emission_->to_stream();
     return 0;
 }

@@ -3,12 +3,14 @@
 #include <HSMM.hpp>
 #include <cassert>
 #include <cmath>
+#include <json.hpp>
 #include <iostream>
 #include <memory>
 #include <vector>
 
 using namespace arma;
 using namespace std;
+using json = nlohmann::json;
 
 namespace hsmm {
 
@@ -70,8 +72,8 @@ namespace hsmm {
         return pdf;
     }
 
-    void AbstractEmission::printParameters() const {
-        return;
+    json AbstractEmission::to_stream() const {
+        return json::object();  // empty json object by default.
     }
 
 
@@ -96,9 +98,13 @@ namespace hsmm {
         return ret;
     }
 
-    void DummyGaussianEmission::printParameters() const {
-        cout << "means:" << endl << means_ << endl;
-        cout << "std_devs:" << endl << std_devs_ << endl;
+    json DummyGaussianEmission::to_stream() const {
+        vector<double> means = conv_to<vector<double>>::from(means_);
+        vector<double> std_devs = conv_to<vector<double>>::from(std_devs_);
+        json ret;
+        ret["means"] = means;
+        ret["std_devs"] = std_devs;
+        return ret;
     }
 
     void DummyGaussianEmission::reestimate(int min_duration, const cube& eta,
@@ -289,6 +295,7 @@ namespace hsmm {
         double marginal_llikelihood = -datum::inf;
         bool convergence_reached = false;
         for(int i = 0; i < max_iter && !convergence_reached; i++) {
+
             // Recomputing the emission likelihoods.
             cube logpdf = computeEmissionsLogLikelihood(obs);
 

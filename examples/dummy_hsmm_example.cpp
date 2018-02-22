@@ -1,4 +1,5 @@
 #include <armadillo>
+#include <json.hpp>
 #include <iostream>
 #include <ForwardBackward.hpp>
 #include <HSMM.hpp>
@@ -7,6 +8,7 @@
 using namespace arma;
 using namespace hsmm;
 using namespace std;
+using json = nlohmann::json;
 
 int main() {
     int ndurations = 4;
@@ -161,6 +163,7 @@ int main() {
     cout << dhsmm.pi_ << endl;
 
     cout << "Learnt emission parameters" << endl;
-    dhsmm.emission_->printParameters();
+    json params = dhsmm.emission_->to_stream();
+    cout << params.dump(4) << endl;
     return 0;
 }

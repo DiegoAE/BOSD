@@ -4,6 +4,7 @@
 #include <armadillo>
 #include <HSMM.hpp>
 #include <iostream>
+#include <json.hpp>
 #include <ForwardBackward.hpp>
 #include <map>
 #include <memory>
@@ -211,14 +212,18 @@ class ProMPsEmission : public AbstractEmission {
             return ret;
         }
 
-        void printParameters() const {
+        nlohmann::json to_stream() const {
+            vector<nlohmann::json> array_emission_params;
             for(int i = 0; i < getNumberStates(); i++) {
-                cout << "State " << i << ":" << endl << "Mean:" << endl <<
-                        promps_.at(i).get_model().get_mu_w() << endl << "Cov"
-                        << endl << promps_.at(i).get_model().get_Sigma_w() <<
-                        endl << "Output cov:" << endl <<
-                        promps_.at(i).get_model().get_Sigma_y() << endl;
+                const ProMP& promp = promps_.at(i).get_model();
+                nlohmann::json current_emission_params;
+                current_emission_params["mu_w"] = promp.get_mu_w();
+                current_emission_params["Sigma_w"] = promp.get_Sigma_w();
+                current_emission_params["Sigma_y"] = promp.get_Sigma_y();
+                array_emission_params.push_back(current_emission_params);
             }
+            nlohmann::json ret = array_emission_params;
+            return ret;
         }
 
     private:
