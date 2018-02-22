@@ -117,6 +117,9 @@ namespace hsmm {
             // Computes the loglikelihoods w.r.t. the emission model.
             arma::cube computeEmissionsLogLikelihood(const arma::mat obs);
 
+            // Returns a json representation of the model.
+            nlohmann::json to_stream() const;
+
             arma::mat transition_;
             arma::vec pi_;
             arma::mat duration_;

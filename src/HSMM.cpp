@@ -393,6 +393,27 @@ namespace hsmm {
             obs);
     }
 
+    // Returns a json representation of the model.
+    nlohmann::json HSMM::to_stream() const {
+        nlohmann::json ret;
+        ret["nstates"] = nstates_;
+        ret["min_duration"] = min_duration_;
+        ret["ndurations"] = ndurations_;
+        ret["initial_pmf"] = pi_;
+        ret["emission_params"] = emission_->to_stream();
+
+        // Taking care of the serialization of armadillo matrices.
+        vector<vector<double>> transition_v, duration_v;
+        for(int i = 0; i < nstates_; i++) {
+            transition_v.push_back(conv_to<vector<double>>::from(
+                    transition_.row(i)));
+            duration_v.push_back(conv_to<vector<double>>::from(
+                    duration_.row(i)));
+        }
+        ret["transition"] = transition_v;
+        ret["duration"] = duration_v;
+        return ret;
+    }
 
     /**
      * Viterbi path reconstruction implementation.

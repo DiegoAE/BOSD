@@ -162,8 +162,8 @@ int main() {
     cout << "Learnt pi:" << endl;
     cout << dhsmm.pi_ << endl;
 
-    cout << "Learnt emission parameters" << endl;
-    json params = dhsmm.emission_->to_stream();
+    cout << "Learnt parameters (json)" << endl;
+    json params = dhsmm.to_stream();
     cout << params.dump(4) << endl;
     return 0;
 }

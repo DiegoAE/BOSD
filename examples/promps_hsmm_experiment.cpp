@@ -8,8 +8,9 @@ using namespace robotics;
 using namespace std;
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        cout<<"Usage: "<< argv[0] <<" <filename>\n";
+    if (argc != 3) {
+        cout<<"Usage: "<< argv[0] <<
+                " <input_obs_filename> <output_json_params_filename>\n";
         return 1;
     }
     mat obs;
@@ -50,6 +51,9 @@ int main(int argc, char *argv[]) {
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
     promp_hsmm.fit(obs, 100, 1e-10);
-    promp_hsmm.emission_->to_stream();
+
+    // Saving the model in a json file.
+    std::ofstream output_params(argv[2]);
+    output_params << std::setw(4) << promp_hsmm.to_stream() << std::endl;
     return 0;
 }
