@@ -15,7 +15,7 @@ add_library(${PROJECT_NAME}
 
 add_executable(hsmm_dummy_gaussian examples/dummy_hsmm_example.cpp)
 
-target_link_libraries(hsmm_dummy_gaussian ${ARMADILLO_LIBRARIES} ${PROJECT_NAME})
+target_link_libraries(hsmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 
 find_library(ROB_LIB NAMES robotics)
 if (ROB_LIB)
@@ -23,8 +23,8 @@ if (ROB_LIB)
     include_directories(${ROB_INCLUDES})
     add_executable(promps_hsmm_example examples/promps_hsmm_example.cpp)
     add_executable(promps_hsmm_experiment examples/promps_hsmm_experiment.cpp)
-    target_link_libraries(promps_hsmm_example ${ARMADILLO_LIBRARIES} ${PROJECT_NAME} ${ROB_LIB})
-    target_link_libraries(promps_hsmm_experiment ${ARMADILLO_LIBRARIES} ${PROJECT_NAME} ${ROB_LIB})
+    target_link_libraries(promps_hsmm_example ${PROJECT_NAME} ${ROB_LIB} ${ARMADILLO_LIBRARIES})
+    target_link_libraries(promps_hsmm_experiment ${PROJECT_NAME} ${ROB_LIB} ${ARMADILLO_LIBRARIES})
 else()
     message(WARNING "librobotics was not found. Therefore ProMPs are not supported.")
 endif()
