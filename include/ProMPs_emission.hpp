@@ -216,11 +216,17 @@ class ProMPsEmission : public AbstractEmission {
             vector<nlohmann::json> array_emission_params;
             for(int i = 0; i < getNumberStates(); i++) {
                 const ProMP& promp = promps_.at(i).get_model();
-                nlohmann::json emission_params;
-                emission_params["mu_w"] = vec2json(promp.get_mu_w());
-                emission_params["Sigma_w"] = mat2json(promp.get_Sigma_w());
-                emission_params["Sigma_y"] = mat2json(promp.get_Sigma_y());
-                array_emission_params.push_back(emission_params);
+                nlohmann::json whole_thing;
+                nlohmann::json promp_params;
+                promp_params["mu_w"] = vec2json(promp.get_mu_w());
+                promp_params["Sigma_w"] = mat2json(promp.get_Sigma_w());
+                promp_params["Sigma_y"] = mat2json(promp.get_Sigma_y());
+                whole_thing["model"] = promp_params;
+                whole_thing["num_joints"] = getDimension();
+
+                // Note that the information about the basis functions is not
+                // serialized.
+                array_emission_params.push_back(whole_thing);
             }
             nlohmann::json ret = array_emission_params;
             return ret;
