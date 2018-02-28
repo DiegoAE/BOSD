@@ -22,4 +22,8 @@ void Viterbi(const arma::mat& transition,const arma::vec& pi,
         arma::imat& psi_duration, arma::imat& psi_state,
         const int min_duration, const int nobs);
 
+void viterbiPath(const arma::imat& psi_d, const arma::imat& psi_s,
+        const arma::mat& delta, arma::ivec& hiddenStates,
+        arma::ivec& hiddenDurations);
+
 #endif

@@ -134,11 +134,6 @@ namespace hsmm {
             std::shared_ptr<AbstractEmission> emission_;
     };
 
-    // TODO: incorporate this into the HSMM.
-    void viterbiPath(const arma::imat& psi_d, const arma::imat& psi_s,
-            const arma::mat& delta, arma::ivec& hiddenStates,
-            arma::ivec& hiddenDurations);
-
 };
 
 #endif

@@ -1,9 +1,12 @@
+#include <algorithm>
 #include <ForwardBackward.hpp>
 #include <cassert>
+#include <vector>
 
 #define EPS 1e-7
 
 using namespace arma;
+using namespace std;
 
 bool equal(double a, double b) {
     return fabs(a - b) < EPS;
@@ -306,4 +309,37 @@ void Viterbi(const mat& transition,const vec& pi, const mat& duration,
             psi_state(j, t) = best_state;
         }
     }
+}
+
+/**
+ * Viterbi path reconstruction implementation.
+ */
+void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
+        ivec& hiddenStates, ivec& hiddenDurations) {
+    int nstates = delta.n_rows;
+    int nobs = delta.n_cols;
+    int curr_state = 0;
+    int curr_obs_idx = nobs - 1;
+    for(int i = 0; i < nstates; i++)
+        if (delta(i, curr_obs_idx) > delta(curr_state, curr_obs_idx))
+            curr_state = i;
+    vector<int> statesSeq, durationSeq;
+    while(curr_obs_idx >= 0) {
+        int d = psi_d(curr_state, curr_obs_idx);
+        int next_state = psi_s(curr_state, curr_obs_idx);
+
+        // Making sure that the Viterbi algorithm ran correctly.
+        assert(d >= 1);
+
+        // current segment:
+        // [curr_obs_idx - d + 1, curr_obs_idx] -> curr_state.
+        statesSeq.push_back(curr_state);
+        durationSeq.push_back(d);
+        curr_obs_idx = curr_obs_idx - d;
+        curr_state = next_state;
+    }
+    reverse(statesSeq.begin(), statesSeq.end());
+    reverse(durationSeq.begin(), durationSeq.end());
+    hiddenStates = conv_to<ivec>::from(statesSeq);
+    hiddenDurations = conv_to<ivec>::from(durationSeq);
 }
