@@ -36,6 +36,8 @@ namespace hsmm {
 
             virtual nlohmann::json to_stream() const;
 
+            virtual void from_stream(const nlohmann::json &emission_params);
+
             // Reestimates in place the emission parameters using the
             // statistics provided by the HSMM E step. eta(j, d, t) represents
             // the expected value of state j generating a segment of length
@@ -119,6 +121,9 @@ namespace hsmm {
 
             // Returns a json representation of the model.
             nlohmann::json to_stream() const;
+
+            // Reads the parameters from a json file.
+            void from_stream(const nlohmann::json &params);
 
             arma::mat transition_;
             arma::vec pi_;

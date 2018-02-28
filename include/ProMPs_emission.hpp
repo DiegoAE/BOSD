@@ -232,6 +232,20 @@ class ProMPsEmission : public AbstractEmission {
             return ret;
         }
 
+        void from_stream(const nlohmann::json& emission_params) {
+            // Note that the given parameters need to be consistent with some
+            // of the preexisting settings. Moreover, part of the structure of
+            // this emission process is not read from the input json.
+            // (e.g. the used basis functions).
+            assert(emission_params.size() == getNumberStates());
+            for(int i = 0; i < getNumberStates(); i++) {
+                const nlohmann::json& params = emission_params.at(i);
+                promps_.at(i).set_model(json2basic_promp(params.at("model")));
+                assert(params.at("num_joints") == getDimension());
+            }
+            return;
+        }
+
 
     private:
 

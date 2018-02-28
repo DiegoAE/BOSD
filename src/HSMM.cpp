@@ -73,7 +73,15 @@ namespace hsmm {
     }
 
     json AbstractEmission::to_stream() const {
+        cout << "Warning: serialization of emission parameters not implemented"
+                << endl;
         return json::object();  // empty json object by default.
+    }
+
+    void AbstractEmission::from_stream(const json& emission_params) {
+        cout << "Warning: not updating the emission parameters from the stream"
+                << endl;
+        return;
     }
 
 
@@ -413,6 +421,30 @@ namespace hsmm {
         ret["transition"] = transition_v;
         ret["duration"] = duration_v;
         return ret;
+    }
+
+    // Reads the parameters from a json file.
+    void HSMM::from_stream(const nlohmann::json &params) {
+        nstates_ = params.at("nstates");
+        min_duration_ = params.at("min_duration");
+        ndurations_ = params.at("ndurations");
+        const nlohmann::json& emission_params = params.at("emission_params");
+        emission_->from_stream(emission_params);
+
+        // Parsing the armadillo matrices (transition, pi, duration).
+        vector<double> initial_pmf_v = params.at("initial_pmf");
+        vector<vector<double>> transition_v = params.at("transition");
+        vector<vector<double>> duration_v = params.at("duration");
+        vec pi = conv_to<vec>::from(initial_pmf_v);
+        mat transition = zeros<mat>(nstates_, nstates_);
+        mat duration = zeros<mat>(nstates_, ndurations_);
+        for(int i = 0; i < nstates_; i++) {
+            transition.row(i) = conv_to<rowvec>::from(transition_v.at(i));
+            duration.row(i) = conv_to<rowvec>::from(duration_v.at(i));
+        }
+        setPi(pi);
+        setTransition(transition);
+        setDuration(duration);
     }
 
     /**
