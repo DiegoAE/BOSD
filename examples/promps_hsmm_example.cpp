@@ -120,7 +120,6 @@ int main() {
 
     // Learning the model from data.
     reset(promp_hsmm, promps);
-    promp_hsmm.emission_->to_stream();
     promp_hsmm.fit(toy_obs, 100, 1e-10);
     json params = promp_hsmm.emission_->to_stream();
     cout << params.dump(4) << endl;
@@ -129,9 +128,11 @@ int main() {
     imat psi_duration(nstates, toy_obs.n_cols, fill::zeros);
     imat psi_state(nstates, toy_obs.n_cols, fill::zeros);
     mat delta(nstates, toy_obs.n_cols, fill::zeros);
-    cube pdf = promp_hsmm.computeEmissionsLikelihood(toy_obs);
-    Viterbi(transition, pi, durations, pdf, delta, psi_duration, psi_state,
+    cube log_pdf = promp_hsmm.computeEmissionsLogLikelihood(toy_obs);
+    Viterbi(transition, pi, durations, log_pdf, delta, psi_duration, psi_state,
             min_duration, toy_obs.n_cols);
+    cout << "Delta last column" << endl;
+    cout << delta.col(toy_obs.n_cols - 1) << endl;
     ivec viterbiStates, viterbiDurations;
     viterbiPath(psi_duration, psi_state, delta, viterbiStates,
             viterbiDurations);

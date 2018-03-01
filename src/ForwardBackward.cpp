@@ -263,40 +263,47 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
     }
 }
 
+/**
+ * Viterbi algorithm to find the most likely segmentation and hidden state
+ * correspondence. It's implemented with the log-scaled parameters for numerical
+ * stability.
+ */
 void Viterbi(const mat& transition,const vec& pi, const mat& duration,
-        const cube& pdf, mat& delta, imat& psi_duration, imat& psi_state,
+        const cube& log_pdf, mat& delta, imat& psi_duration, imat& psi_state,
         const int min_duration, const int nobs) {
-    // TODO: implement logs in the Viterbi algorithm.
-    safety_checks(transition, pi, duration, pdf, delta, delta,
-            conv_to<mat>::from(psi_duration), conv_to<mat>::from(psi_state),
-            min_duration, nobs);
+    mat log_transition = log(transition);
+    mat log_pi = log(pi);
+    mat log_duration = log(duration);
+    log_safety_checks(log_transition, log_pi, log_duration, log_pdf, delta,
+            delta, conv_to<mat>::from(psi_duration),
+            conv_to<mat>::from(psi_state), min_duration, nobs);
     int nstates = transition.n_rows;
     int duration_steps = duration.n_cols;
-    delta.fill(0.0);
+    delta.fill(-datum::inf);
     psi_duration.fill(-1);
     psi_state.fill(-1);
     for(int t = min_duration - 1; t < nobs; t++) {
         for(int j = 0; j < nstates; j++) {
-            delta(j, t) = 0.0;
+            delta(j, t) = -datum::inf;
             int best_duration = -1;
             int best_state = -1;
             for(int d = 0; d < duration_steps; d++) {
                 int first_idx_seg = t - min_duration - d + 1;
                 if (first_idx_seg < 0)
                     break;
-                double e_lh = pdf(j, first_idx_seg, d) * duration(j, d);
+                double e_lh =log_pdf(j, first_idx_seg, d) + log_duration(j, d);
                 if (first_idx_seg == 0) {
                     // Base case.
-                    if (e_lh * pi(j) > delta(j, t)) {
-                        delta(j, t) = e_lh * pi(j);
+                    if (e_lh + log_pi(j) > delta(j, t)) {
+                        delta(j, t) = e_lh + log_pi(j);
                         best_duration = min_duration + d;
                         best_state = -1;  // There isn't a previous state.
                     }
                 }
                 else {
                     for(int i = 0; i < nstates; i++) {
-                        double tmp = e_lh * transition(i, j);
-                        tmp *= delta(i, first_idx_seg - 1);
+                        double tmp = e_lh + log_transition(i, j);
+                        tmp += delta(i, first_idx_seg - 1);
                         if (tmp > delta(j, t)) {
                             delta(j, t) = tmp;
                             best_duration = min_duration + d;

@@ -96,7 +96,7 @@ int main() {
     imat psi_duration(nstates, nobs, fill::zeros);
     imat psi_state(nstates, nobs, fill::zeros);
     mat delta(nstates, nobs, fill::zeros);
-    Viterbi(transition, pi, durations, pdf, delta, psi_duration, psi_state,
+    Viterbi(transition, pi, durations, logpdf, delta, psi_duration, psi_state,
             min_duration, nobs);
     cout << "Delta last column" << endl;
     cout << delta.col(nobs - 1) << endl;
