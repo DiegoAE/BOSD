@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
     int min_duration = 45;
-    int nstates = 7;
+    int nstates = 10;
     int ndurations = 10;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
@@ -38,10 +38,10 @@ int main(int argc, char *argv[]) {
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
-        mu_w.fill(i * 10);
-        mat Sigma_w = (i + 1) * eye<mat>(n_basis_functions * njoints,
+        mu_w.randn();
+        mat Sigma_w = eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
-        mat Sigma_y = 0.0001*eye<mat>(njoints, njoints);
+        mat Sigma_y = 0.01*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP poly(kernel, promp, njoints);
         promps.push_back(poly);
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
     // Creating the ProMP emission.
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
-    promp_hsmm.fit(obs, 100, 1e-10);
+    promp_hsmm.fit(obs, 20, 1e-5);
 
     // Saving the model in a json file.
     std::ofstream output_params(argv[2]);
