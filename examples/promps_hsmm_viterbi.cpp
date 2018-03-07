@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
     ifstream input_params_file(argv[2]);
     json input_params;
-    cin >> input_params;
+    input_params_file >> input_params;
     promp_hsmm.from_stream(input_params);
 
     // Running the Viterbi algorithm.
