@@ -74,5 +74,10 @@ int main(int argc, char *argv[]) {
     viterbiPath(psi_duration, psi_state, delta, viterbiStates, viterbiDurations);
     cout << "Viterbi states and durations" << endl;
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
+    cout << "Python list representation" << endl;
+    cout << "[";
+    for(int i = 0; i < viterbiStates.n_elem; i++)
+        cout << viterbiStates[i] << ((i + 1 == viterbiStates.n_elem)? "]" : ",");
+    cout << endl;
     return 0;
 }
