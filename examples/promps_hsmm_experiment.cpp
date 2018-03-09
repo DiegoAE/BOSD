@@ -1,4 +1,5 @@
 #include <armadillo>
+#include <json.hpp>
 #include <HSMM.hpp>
 #include <ProMPs_emission.hpp>
 
@@ -8,9 +9,10 @@ using namespace robotics;
 using namespace std;
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
+    if (argc != 3 && argc != 4) {
         cout<<"Usage: "<< argv[0] <<
-                " <input_obs_filename> <output_json_params_filename>\n";
+                " <input_obs_filename> <output_json_params_filename>\n" <<
+                "[git_commit_id]\n";
         return 1;
     }
     mat obs;
@@ -38,7 +40,7 @@ int main(int argc, char *argv[]) {
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
-        mu_w.randn();
+        mu_w.rand();
         mat Sigma_w = eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
         mat Sigma_y = 0.01*eye<mat>(njoints, njoints);
@@ -50,10 +52,33 @@ int main(int argc, char *argv[]) {
     // Creating the ProMP emission.
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
-    promp_hsmm.fit(obs, 20, 1e-5);
 
     // Saving the model in a json file.
     std::ofstream output_params(argv[2]);
-    output_params << std::setw(4) << promp_hsmm.to_stream() << std::endl;
+    nlohmann::json initial_model = promp_hsmm.to_stream();
+    if (argc == 4)
+        initial_model["git_commit_id"] = argv[3];
+    output_params << std::setw(4) << initial_model << std::endl;
+    output_params.close();
+
+    for(int i = 0; i < 10; i++) {
+
+        // Reading the current parameters.
+        std::ifstream current_params_stream(argv[2]);
+        nlohmann::json current_params;
+        current_params_stream >> current_params;
+        promp_hsmm.from_stream(current_params);
+
+        bool convergence_reached = promp_hsmm.fit(obs, 10, 1e-5);
+
+        // Saving again the parameters after one training iteration.
+        output_params.open(argv[2]);
+        output_params << std::setw(4) << promp_hsmm.to_stream() << std::endl;
+        output_params.close();
+
+        if (convergence_reached)
+            break;
+
+    }
     return 0;
 }

@@ -287,7 +287,7 @@ namespace hsmm {
         return samples;
     }
 
-    void HSMM::fit(mat obs, int max_iter, double tol) {
+    bool HSMM::fit(mat obs, int max_iter, double tol) {
         // For now only the transition matrix is being learned.
         int nobs = obs.n_cols;
         assert(nobs >= 1);
@@ -388,6 +388,7 @@ namespace hsmm {
        setTransition(exp(log_estimated_transition));
        setPi(exp(log_estimated_pi));
        setDuration(exp(log_estimated_duration));
+       return convergence_reached;
     }
 
     // Computes the likelihoods w.r.t. the emission model.

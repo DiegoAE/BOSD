@@ -111,7 +111,9 @@ namespace hsmm {
             arma::mat sampleSegments(int nsegments, arma::ivec& hiddenStates,
                     arma::ivec& hiddenDurations);
 
-            void fit(arma::mat obs, int max_iter, double tol);
+            // Fits the model w.r.t. obs. Returns true if it reaches
+            // convergence.
+            bool fit(arma::mat obs, int max_iter, double tol);
 
             // Computes the likelihoods w.r.t. the emission model.
             arma::cube computeEmissionsLikelihood(const arma::mat obs);
