@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
     int min_duration = 45;
-    int nstates = 10;
+    int nstates = 11;
     int ndurations = 10;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
