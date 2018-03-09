@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
     int min_duration = 45;
-    int nstates = 11;
+    int nstates = 10;
     int ndurations = 10;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
-        mu_w.rand();
+        mu_w.randu();
         mat Sigma_w = eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
         mat Sigma_y = 0.01*eye<mat>(njoints, njoints);
