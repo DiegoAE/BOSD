@@ -280,10 +280,11 @@ namespace hsmm {
                 return;
             }
 
-            void set_Sigma_w_Prior(std::shared_ptr<InverseWishart> prior) {
+            void set_Sigma_w_Prior(InverseWishart prior) {
+                Sigma_w_prior_ = std::make_shared<InverseWishart>(
+                        std::move(prior));
                 int size_cov = promps_.at(0).get_model().get_Sigma_w().n_rows;
-                Sigma_w_prior_ = prior;
-                assert(size_cov == prior->getPhi().n_rows);
+                assert(size_cov == Sigma_w_prior_->getPhi().n_rows);
             }
 
 

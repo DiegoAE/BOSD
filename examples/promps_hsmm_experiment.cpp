@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
     int min_duration = 45;
-    int nstates = 12;
+    int nstates = 10;
     int ndurations = 10;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
@@ -50,8 +50,16 @@ int main(int argc, char *argv[]) {
     }
 
     // Creating the ProMP emission.
-    shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
-    HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
+    shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
+
+    // Creating a prior for Sigma_w.
+    mat Phi = eye<mat>(n_basis_functions * njoints,
+            n_basis_functions * njoints);
+    InverseWishart iw_prior(Phi, Phi.n_rows + 2);
+    ptr_emission->set_Sigma_w_Prior(iw_prior);
+
+    HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
+            transition, pi, durations, min_duration);
 
     // Saving the model in a json file.
     std::ofstream output_params(argv[2]);
