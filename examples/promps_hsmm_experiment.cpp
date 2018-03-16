@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     mat Phi = 0.2 * eye<mat>(n_basis_functions * njoints,
             n_basis_functions * njoints);
     InverseWishart iw_prior(Phi, Phi.n_rows + 2);
-    ptr_emission->set_Sigma_w_Prior(iw_prior);
+    // ptr_emission->set_Sigma_w_Prior(iw_prior);
 
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
             transition, pi, durations, min_duration);
