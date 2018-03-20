@@ -314,6 +314,9 @@ namespace hsmm {
             // Computing the marginal likelihood (aka observation likelihood).
             double current_llikelihood = logsumexp(alpha.col(nobs - 1));
 
+            // Normalizing eta to have actual posterior distributions.
+            eta -= current_llikelihood;
+
             cout << "EM iteration " << i << " marginal log-likelihood: " <<
                     current_llikelihood << ". Diff: " <<
                     current_llikelihood - marginal_llikelihood << endl;
