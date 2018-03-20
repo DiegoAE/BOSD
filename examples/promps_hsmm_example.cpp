@@ -56,9 +56,9 @@ void reset(HSMM& hsmm, vector<FullProMP> promps) {
         ProMP new_model = promps[i].get_model();
         vec new_mean = randn(size(new_model.get_mu_w()));
         mat new_Sigma_w(size(new_model.get_Sigma_w()), fill::eye);
-        new_Sigma_w *= 10 * (i + 1);
+        new_Sigma_w *= 10000;
         mat new_Sigma_y(size(new_model.get_Sigma_y()), fill::eye);
-        new_Sigma_y *= 10;
+        new_Sigma_y *= 1;
         new_model.set_mu_w(new_mean);
         new_model.set_Sigma_w(new_Sigma_w);
         new_model.set_Sigma_y(new_Sigma_y);
