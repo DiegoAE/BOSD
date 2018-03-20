@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
 
     // Creating a prior for Sigma_w.
-    mat Phi = 0.5 * eye<mat>(n_basis_functions * njoints,
+    mat Phi = eye<mat>(n_basis_functions * njoints,
             n_basis_functions * njoints);
     InverseWishart iw_prior(Phi, Phi.n_rows + 2);
     ptr_emission->set_Sigma_w_Prior(iw_prior);
