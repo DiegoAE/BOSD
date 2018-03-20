@@ -118,9 +118,20 @@ int main() {
     PrintBestWeCanAimFor(nstates, ndurations, min_duration, hidden_states,
             hidden_durations);
 
-    // Learning the model from data.
+    cout << "Original emission parameters" << endl;
+    json params_test = promp_hsmm.emission_->to_stream();
+    cout << params_test.dump(4) << endl;
+
     reset(promp_hsmm, promps);
+
+    cout << "Emission parameters after reset" << endl;
+    params_test = promp_hsmm.emission_->to_stream();
+    cout << params_test.dump(4) << endl;
+
+    // Learning the model from data.
     promp_hsmm.fit(toy_obs, 100, 1e-10);
+
+    cout << "Emission parameters after training" << endl;
     json params = promp_hsmm.emission_->to_stream();
     cout << params.dump(4) << endl;
 
@@ -140,8 +151,13 @@ int main() {
     cout << "Viterbi states and durations" << endl;
     cout << join_horiz(viterbiStates, viterbiDurations) << endl;
     int dur_diff = 0;
-    for(int i = 0; i < viterbiDurations.n_elem; i++)
+    int states_diff = 0;
+    for(int i = 0; i < viterbiDurations.n_elem; i++) {
         dur_diff += (viterbiDurations[i] != hidden_durations[i]);
+        states_diff += (viterbiStates[i] != hidden_states[i]);
+    }
     cout << "The number of mismatches in duration is " << dur_diff << endl;
+    cout << "The number of mismatches in hidden states is " << states_diff <<
+            endl;
     return 0;
 }
