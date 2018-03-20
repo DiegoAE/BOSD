@@ -248,10 +248,7 @@ namespace hsmm {
                         new_Sigma_w = S_0_over_den + S_k_over_den;
                         cout << "Debug State " << i << ":" << endl;
                         cout << "Den: " << den << endl;
-                        cout << "MAP Sigma" << endl << new_Sigma_w << endl;
-                        vec eigenvalues_mle = eig_sym(new_Sigma_w_MLE);
                         vec eigenvalues_map = eig_sym(new_Sigma_w);
-                        assert(eigenvalues_mle(0) > 0);
                         assert(eigenvalues_map(0) > 0);
                     }
                     else
