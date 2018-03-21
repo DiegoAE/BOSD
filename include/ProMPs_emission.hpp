@@ -117,28 +117,11 @@ namespace hsmm {
                         }
                     }
 
-                    // Computing the multiplicative constants for mu_w.
-                    vec mult_c_normalized_mu_w(mult_c);
-                    mult_c_normalized_mu_w -= logsumexp(mult_c_normalized_mu_w);
-                    mult_c_normalized_mu_w = exp(mult_c_normalized_mu_w);
-
-                    // Computing the multiplicative constants for Sigma_w.
-                    // If there isn't prior they are the same as for mu-w.
-                    vec mult_c_normalized_Sigma_w(mult_c);
-                    vector<double> Sigma_w_den = conv_to<vector<double>>
-                            ::from(mult_c_normalized_Sigma_w);
-                    if (Sigma_w_prior_) {
-
-                        // Adding additional terms for the denominator.
-                        // It now takes the form: v_0 + old_den + D + 2.
-                        // Note that logs are taken to use the logsumexp trick.
-                        Sigma_w_den.push_back(log(
-                                    Sigma_w_prior_->getDof()));
-                        Sigma_w_den.push_back(log(mu_w.n_rows));
-                        Sigma_w_den.push_back(log(2.0));
-                    }
-                    mult_c_normalized_Sigma_w -= logsumexp(Sigma_w_den);
-                    mult_c_normalized_Sigma_w = exp(mult_c_normalized_Sigma_w);
+                    // Computing the multiplicative constants for mu_w and
+                    // Sigma_w.
+                    vec mult_c_normalized(mult_c);
+                    mult_c_normalized -= logsumexp(mult_c_normalized);
+                    mult_c_normalized = exp(mult_c_normalized);
  
                     // Computing the multiplicative constants for Sigma_y since
                     // they have a different denominator.
@@ -153,8 +136,6 @@ namespace hsmm {
                     vec weighted_sum_post_mean(size(mu_w), fill::zeros);
                     mat weighted_sum_post_cov(size(inv_Sigma_w), fill::zeros);
                     mat weighted_sum_post_mean_mean_T(size(inv_Sigma_w),
-                            fill::zeros);
-                    mat weighted_sum_post_mean_Sigma_w(size(mu_w),
                             fill::zeros);
                     int idx_mult_c = 0;
                     for(int t = min_duration - 1; t < nobs; t++) {
@@ -193,26 +174,18 @@ namespace hsmm {
                             posterior_mean = posterior_cov * posterior_mean;
 
                             // Getting the multiplicative constants.
-                            double mult_constant_mu_w = mult_c_normalized_mu_w(
-                                    idx_mult_c);
-                            double mult_constant_Sigma_w =
-                                    mult_c_normalized_Sigma_w(idx_mult_c);
+                            double mult_constant = mult_c_normalized(idx_mult_c);
                             double mult_constant_Sigma_y =
                                     mult_c_Sigma_y_normalized(idx_mult_c);
                             idx_mult_c++;
 
-                            // Statistics required for updating the mu_w.
-                            weighted_sum_post_mean += mult_constant_mu_w *
+                            // Statistics required for updating mu_w & Sigma_w.
+                            weighted_sum_post_mean += mult_constant *
                                     posterior_mean;
-
-                            // Statistics required for updating the Sigma_w.
-                            weighted_sum_post_cov += mult_constant_Sigma_w *
+                            weighted_sum_post_cov += mult_constant *
                                     posterior_cov;
-                            weighted_sum_post_mean_mean_T +=
-                                    mult_constant_Sigma_w * posterior_mean *
-                                    posterior_mean.t();
-                            weighted_sum_post_mean_Sigma_w +=
-                                    mult_constant_Sigma_w * posterior_mean;
+                            weighted_sum_post_mean_mean_T += mult_constant *
+                                    posterior_mean * posterior_mean.t();
 
                             // Computing the new output noise covariance: Sigma_y.
                             mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
@@ -237,22 +210,19 @@ namespace hsmm {
                     if (Sigma_w_prior_) {
                         double v_0 = Sigma_w_prior_->getDof();
                         double D = mu_w.n_rows;
-                        mat S_k_over_den = weighted_sum_post_cov +
-                                weighted_sum_post_mean_mean_T -
-                                weighted_sum_post_mean_Sigma_w * new_mu_w.t() -
-                                new_mu_w * weighted_sum_post_mean_Sigma_w.t() +
-                                new_mu_w * new_mu_w.t() * sum(
-                                        mult_c_normalized_Sigma_w);
-                        double den = exp(logsumexp(Sigma_w_den));
-                        mat S_0_over_den = Sigma_w_prior_->getPhi() / den;
-                        new_Sigma_w = S_0_over_den + S_k_over_den;
-                        cout << "Debug State " << i << ":" << endl;
-                        cout << "Den: " << den << endl;
-                        vec eigenvalues_map = eig_sym(new_Sigma_w);
-                        assert(eigenvalues_map(0) > 0);
+                        mat S_0 = Sigma_w_prior_->getPhi();
+                        double mle_den = exp(logsumexp(mult_c));
+                        cout << "State " << i << " MLE Den: " << mle_den <<
+                                endl;
+                        new_Sigma_w = (S_0 + mle_den * new_Sigma_w_MLE) /
+                                (v_0 + mle_den + D + 2);
                     }
                     else
                         new_Sigma_w = new_Sigma_w_MLE;
+
+                    // Checking that the new Sigma_w is a covariance matrix.
+                    vec eigenvalues_map = eig_sym(new_Sigma_w);
+                    assert(eigenvalues_map(0) > 0);
 
                     // Setting the new parameters.
                     promp.set_mu_w(new_mu_w);
