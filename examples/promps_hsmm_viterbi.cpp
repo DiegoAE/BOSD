@@ -11,9 +11,10 @@ using json = nlohmann::json;
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
+    if (argc != 3 && argc != 4) {
         cout<<"Usage: "<< argv[0] <<
-                " <input_obs_filename> <input_json_params_filename>\n";
+                " <input_obs_filename> <input_json_params_filename>"
+                " [output_file]\n";
         return 1;
     }
     mat obs;
@@ -73,11 +74,25 @@ int main(int argc, char *argv[]) {
     ivec viterbiStates, viterbiDurations;
     viterbiPath(psi_duration, psi_state, delta, viterbiStates, viterbiDurations);
     cout << "Viterbi states and durations" << endl;
-    cout << join_horiz(viterbiStates, viterbiDurations) << endl;
-    cout << "Python list representation" << endl;
+    imat states_and_durations = join_horiz(viterbiStates, viterbiDurations);
+    cout << states_and_durations << endl;
+    cout << "Python states list representation" << endl;
     cout << "[";
     for(int i = 0; i < viterbiStates.n_elem; i++)
-        cout << viterbiStates[i] << ((i + 1 == viterbiStates.n_elem)? "]" : ",");
+        cout << viterbiStates[i] <<
+                ((i + 1 == viterbiStates.n_elem)? "]" : ",");
     cout << endl;
+    cout << "Python duration list representation" << endl;
+    cout << "[";
+    for(int i = 0; i < viterbiDurations.n_elem; i++)
+        cout << viterbiDurations[i] <<
+                ((i + 1 == viterbiDurations.n_elem)? "]" : ",");
+    cout << endl;
+
+    if (argc == 4) {
+
+        // Saving the matrix of joint states and durations.
+        states_and_durations.save(argv[3], raw_ascii);
+    }
     return 0;
 }
