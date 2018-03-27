@@ -20,9 +20,9 @@ int main(int argc, char *argv[]) {
     int njoints = obs.n_rows;
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
-    int min_duration = 45;
-    int nstates = 10;
-    int ndurations = 10;
+    int min_duration = 40;
+    int nstates = 8;
+    int ndurations = 60;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
     transition.diag().zeros(); // No self-transitions.
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
         mu_w.randu();
         mat Sigma_w = eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
-        mat Sigma_y = 0.01*eye<mat>(njoints, njoints);
+        mat Sigma_y = 0.001*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP poly(kernel, promp, njoints);
         promps.push_back(poly);
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
     shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
 
     // Creating a prior for Sigma_w.
-    mat Phi = 0.005 * eye<mat>(n_basis_functions * njoints,
+    mat Phi = 0.01 * eye<mat>(n_basis_functions * njoints,
             n_basis_functions * njoints);
     InverseWishart iw_prior(Phi, Phi.n_rows + 2);
     ptr_emission->set_Sigma_w_Prior(iw_prior);
@@ -62,14 +62,14 @@ int main(int argc, char *argv[]) {
             transition, pi, durations, min_duration);
 
     // Saving the model in a json file.
-    std::ofstream output_params(argv[2]);
+    std::ofstream initial_params(argv[2]);
     nlohmann::json initial_model = promp_hsmm.to_stream();
     if (argc == 4)
         initial_model["git_commit_id"] = argv[3];
-    output_params << std::setw(4) << initial_model << std::endl;
-    output_params.close();
+    initial_params << std::setw(4) << initial_model << std::endl;
+    initial_params.close();
 
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < 5; i++) {
 
         // Reading the current parameters.
         std::ifstream current_params_stream(argv[2]);
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
         bool convergence_reached = promp_hsmm.fit(obs, 10, 1e-5);
 
         // Saving again the parameters after one training iteration.
-        output_params.open(argv[2]);
+        std::ofstream output_params(argv[2]);
         output_params << std::setw(4) << promp_hsmm.to_stream() << std::endl;
         output_params.close();
 
