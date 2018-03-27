@@ -331,7 +331,7 @@ namespace hsmm {
             marginal_llikelihood = current_llikelihood;
 
             // Reestimating transitions.
-            mat tmp_transition(size(transition_), fill::zeros);
+            mat tmp_transition(size(transition_));
             for(int i = 0; i < nstates_; i++) {
                 vector<double> den;
                 for(int j = 0; j < nstates_; j++) {
@@ -347,8 +347,12 @@ namespace hsmm {
                 }
                 vec den_v(den);
                 double denominator = logsumexp(den_v);
-                for(int j = 0; j < nstates_; j++)
-                    tmp_transition(i, j) -= denominator;
+
+                // Handling the case when the transition probability mass is 0.
+                if (denominator != -datum::inf) {
+                    for(int j = 0; j < nstates_; j++)
+                        tmp_transition(i, j) -= denominator;
+                }
             }
             log_estimated_transition = tmp_transition;
             // Reestimating the initial state pmf.
@@ -373,8 +377,12 @@ namespace hsmm {
                 }
                 vec den_v(den);
                 double denominator = logsumexp(den_v);
-                for(int d = 0; d < ndurations_; d++)
-                    D(i, d) -= denominator;
+
+                // Handling the case when the transition probability mass is 0.
+                if (denominator != -datum::inf) {
+                    for(int d = 0; d < ndurations_; d++)
+                        D(i, d) -= denominator;
+                }
             }
             log_estimated_duration = D;
 

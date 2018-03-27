@@ -50,9 +50,14 @@ void safety_checks(const mat& transition,const vec& pi, const mat& duration,
     assert(beta_s.n_rows == nstates);
     assert(beta_s.n_cols == nobs);
     // Normalization checking.
-    assert(equal(norm(sum(transition, 1) - ones<vec>(nstates)), 0));
+    vec row_sums = sum(transition, 1);
+    for(int i = 0; i < transition.n_rows; i++)
+        assert(equal(row_sums(i), 1.0) || equal(row_sums(i), 0.0));
     assert(equal(sum(pi), 1.0));
-    assert(equal(norm(sum(duration, 1) - ones<vec>(nstates)), 0));
+    vec duration_row_sums = sum(duration, 1);
+    for(int i = 0; i < duration.n_rows; i++)
+        assert(equal(duration_row_sums(i), 1.0) ||
+                equal(duration_row_sums(i), 0.0));
 }
 
 void log_safety_checks(const mat& log_transition,const vec& log_pi,
