@@ -22,9 +22,9 @@ int main(int argc, char *argv[]) {
     int njoints = obs.n_rows;
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
-    int min_duration = 45;
-    int nstates = 10;
-    int ndurations = 10;
+    int min_duration = 40;
+    int nstates = 8;
+    int ndurations = 60;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
     transition.diag().zeros(); // No self-transitions.
