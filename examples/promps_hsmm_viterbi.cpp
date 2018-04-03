@@ -22,9 +22,9 @@ int main(int argc, char *argv[]) {
     int njoints = obs.n_rows;
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
-    int min_duration = 40;
-    int nstates = 8;
-    int ndurations = 60;
+    int min_duration = 20;
+    int nstates = 3;
+    int ndurations = 10;
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
     transition.diag().zeros(); // No self-transitions.
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations);
     durations.fill(1.0 / ndurations);
-    int n_basis_functions = 4;
+    int n_basis_functions = 2;
 
     // Setting a third order polynomial basis function for the ProMP
     int polynomial_order = n_basis_functions - 1;

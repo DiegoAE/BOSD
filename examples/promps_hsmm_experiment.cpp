@@ -20,17 +20,16 @@ int main(int argc, char *argv[]) {
     int njoints = obs.n_rows;
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
-    int min_duration = 40;
-    int nstates = 8;
-    int ndurations = 60;
+    int min_duration = 20;
+    int nstates = 3;
+    int ndurations = 10;
     mat transition(nstates, nstates);
-    transition.fill(1.0 / (nstates - 1));
-    transition.diag().zeros(); // No self-transitions.
+    transition.fill(1.0 / nstates );
     vec pi(nstates);
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations);
     durations.fill(1.0 / ndurations);
-    int n_basis_functions = 4;
+    int n_basis_functions = 2;
 
     // Setting a third order polynomial basis function for the ProMP
     int polynomial_order = n_basis_functions - 1;
@@ -40,10 +39,21 @@ int main(int argc, char *argv[]) {
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
         vec mu_w(n_basis_functions * njoints);
-        mu_w.randu();
+        if (i == 0)
+            mu_w = {-2.5, 1.0};
+        if (i == 1)
+            mu_w = {-2.5, -1.0};
+        if (i == 2)
+            mu_w = {-2.5, 0.0};
         mat Sigma_w = eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
-        mat Sigma_y = 0.001*eye<mat>(njoints, njoints);
+        if (i == 0 || i == 1)
+            Sigma_w = 25 * Sigma_w;
+
+        mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
+        if (i == 2)
+            Sigma_y = 25 * eye<mat>(njoints, njoints);
+
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP poly(kernel, promp, njoints);
         promps.push_back(poly);
@@ -56,7 +66,7 @@ int main(int argc, char *argv[]) {
     mat Phi = 0.01 * eye<mat>(n_basis_functions * njoints,
             n_basis_functions * njoints);
     InverseWishart iw_prior(Phi, Phi.n_rows + 2);
-    ptr_emission->set_Sigma_w_Prior(iw_prior);
+    // ptr_emission->set_Sigma_w_Prior(iw_prior);
 
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
             transition, pi, durations, min_duration);
