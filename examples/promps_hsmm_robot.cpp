@@ -36,7 +36,6 @@ int main(int argc, char *argv[]) {
     auto poly = make_shared<ScalarPolyBasis>(1);
     auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
     int n_basis_functions = comb->dim();
-    cout << "Evaluation at 0.5" << comb->eval(0.5) << endl;
 
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
@@ -78,7 +77,6 @@ int main(int argc, char *argv[]) {
         nlohmann::json current_params;
         current_params_stream >> current_params;
         promp_hsmm.from_stream(current_params);
-        cout << "OK" << endl;
         bool convergence_reached = promp_hsmm.fit(obs, 10, 1e-5);
 
         // Saving again the parameters after one training iteration.
