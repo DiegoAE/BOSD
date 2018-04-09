@@ -107,14 +107,14 @@ int main(int argc, char *argv[]) {
     initial_params << std::setw(4) << initial_model << std::endl;
     initial_params.close();
     
-    for(int i = 0; i < 5; i++) {
+    for(int i = 0; i < 10; i++) {
 
         // Reading the current parameters.
         std::ifstream current_params_stream(argv[2]);
         nlohmann::json current_params;
         current_params_stream >> current_params;
         promp_hsmm.from_stream(current_params);
-        bool convergence_reached = promp_hsmm.fit(obs, 10, 1e-5);
+        bool convergence_reached = promp_hsmm.fit(obs, 5, 1e-5);
 
         // Saving again the parameters after one training iteration.
         std::ofstream output_params(argv[2]);
