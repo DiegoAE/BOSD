@@ -2,11 +2,11 @@
 #define HSMM_H
 
 #include <armadillo>
-#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <json.hpp>
 #include <memory>
+#include <set>
 #include <vector>
 
 namespace hsmm {
@@ -91,6 +91,44 @@ namespace hsmm {
         private:
             double std_dev_output_noise_;
             arma::mat means_;
+    };
+
+
+    class ObservedSegment {
+        public:
+            ObservedSegment(int t, int d);
+
+            ObservedSegment(int t, int d, int hidden_state);
+
+            int getDuration() const;
+
+            int getEndingTime() const;
+
+            int getHiddenState() const;
+
+            int getStartingTime() const;
+
+            bool operator< (const ObservedSegment & segment) const;
+
+        private:
+            int t_;
+            int d_;
+            int hidden_state_;
+    };
+
+
+    class Labels {
+        public:
+            Labels();
+
+            // Sets a segment observation ending at t with duration d.
+            void setLabel(int t, int d);
+
+            // As above but additionaly specifies the generating hidden state.
+            void setLabel(int t, int d, int hidden_state);
+
+        private:
+            std::set<ObservedSegment> labels_;
     };
 
 

@@ -32,3 +32,8 @@ if (ROB_LIB)
 else()
     message(WARNING "librobotics was not found. Therefore ProMPs are not supported.")
 endif()
+
+add_subdirectory(tests)
+enable_testing()
+add_test(NAME labels_test COMMAND labels_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+

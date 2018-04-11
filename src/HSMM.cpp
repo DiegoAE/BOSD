@@ -1,7 +1,6 @@
 #include <armadillo>
 #include <ForwardBackward.hpp>
 #include <HSMM.hpp>
-#include <cassert>
 #include <cmath>
 #include <json.hpp>
 #include <iostream>
@@ -13,6 +12,11 @@ using namespace std;
 using json = nlohmann::json;
 
 namespace hsmm {
+
+    void myassert(bool condition) {
+        if (!condition)
+            throw std::logic_error("Assertion failed");
+    }
 
     // TODO: Make sure there is not any bias here.
     int sampleFromCategorical(rowvec pmf) {
@@ -211,6 +215,58 @@ namespace hsmm {
         for(int i = 0; i < getDimension(); i++)
             ret.row(i) += linspace<rowvec>(0.0, 1.0, size) + means_(state, i);
         return ret;
+    }
+
+
+    /*
+     * ObservedSegment Implementation. This supports semi-supervised learning.
+     */
+    ObservedSegment::ObservedSegment(int t, int d) :
+            ObservedSegment::ObservedSegment(t, d, -1) {}
+
+    ObservedSegment::ObservedSegment(int t, int d, int hidden_state) :
+            t_(t), d_(d), hidden_state_(hidden_state) {
+        myassert(t >= 0);
+        myassert(hidden_state >= -1);
+        myassert(d_ >= 1);
+        myassert(getStartingTime() >= 0);
+    }
+
+    int ObservedSegment::getDuration() const {
+        return d_;
+    }
+
+    int ObservedSegment::getEndingTime() const {
+        return t_;
+    }
+
+    int ObservedSegment::getHiddenState() const {
+        return hidden_state_;
+    }
+
+    int ObservedSegment::getStartingTime() const {
+        return t_ - d_ + 1;
+    }
+
+    bool ObservedSegment::operator< (const ObservedSegment & segment) const {
+        return t_ < segment.getEndingTime();
+    }
+
+
+    /*
+     * Labels implementation
+     */
+    Labels::Labels() {}
+
+    void Labels::setLabel(int t, int d) {
+        setLabel(t, d, -1); 
+    }
+
+    void Labels::setLabel(int t, int d, int hidden_state) {
+        ObservedSegment label(t, d, hidden_state);
+        myassert(labels_.count(label) == 0);
+        // TODO: Make sure all the segments are non-overlapping.
+        labels_.insert(label);
     }
 
 
