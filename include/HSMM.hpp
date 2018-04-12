@@ -127,7 +127,12 @@ namespace hsmm {
             // As above but additionaly specifies the generating hidden state.
             void setLabel(int t, int d, int hidden_state);
 
+            // Checks if a particular segment is consistent with the set labels.
+            bool isConsistent(int t, int d, int hidden_state);
+
         private:
+            bool overlaps_(int t, int d);
+
             std::set<ObservedSegment> labels_;
     };
 

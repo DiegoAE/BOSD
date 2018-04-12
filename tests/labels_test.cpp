@@ -47,3 +47,16 @@ BOOST_AUTO_TEST_CASE( overlapping_segments ) {
     BOOST_REQUIRE_THROW(segments.setLabel(30, 11), std::logic_error);
     BOOST_REQUIRE_THROW(segments.setLabel(100, 100), std::logic_error);
 }
+
+BOOST_AUTO_TEST_CASE( consistency ) {
+    hsmm::Labels segments;
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 5, -1));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(20, 5, 5));
+    BOOST_CHECK(segments.isConsistent(15, 5, 2));
+    BOOST_CHECK(segments.isConsistent(9, 5, 2));
+    BOOST_CHECK(!segments.isConsistent(20, 5, 2));
+    BOOST_CHECK(segments.isConsistent(20, 5, 5));
+    BOOST_CHECK(!segments.isConsistent(25, 15, 2));
+    BOOST_CHECK(segments.isConsistent(15, 6, 2));
+    BOOST_CHECK(segments.isConsistent(30, 10, 2));
+}

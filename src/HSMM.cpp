@@ -269,17 +269,43 @@ namespace hsmm {
 
     void Labels::setLabel(int t, int d, int hidden_state) {
         ObservedSegment label(t, d, hidden_state);
+
+        // Making sure that the segments are non-overlapping.
+        myassert(!overlaps_(t, d));
+        labels_.insert(label);
+    }
+
+    bool Labels::isConsistent(int t, int d, int hidden_state) {
+        ObservedSegment label(t, d, hidden_state);
+        if (labels_.count(label) != 0) {
+            auto it = labels_.find(label);
+            if (it->getDuration() != d)
+                return false;
+            int hs = it->getHiddenState();
+            if (hs >= 0 && hs != hidden_state)
+                return false;
+            return true;
+        }
+        if (overlaps_(t, d))
+            return false;
+        return true;
+    }
+
+    bool Labels::overlaps_(int t, int d) {
+        ObservedSegment label(t, d);
         if (!labels_.empty()) {
 
-            // Making sure that the segments are non-overlapping.
-            myassert(labels_.count(label) == 0);
+            if (labels_.count(label) != 0)
+                return true;
             auto right = labels_.lower_bound(label);
-            myassert(right == labels_.end() ||
-                     right->getStartingTime() > label.getEndingTime());
-            myassert(right == labels_.begin() ||
-                     (--right)->getEndingTime() < label.getStartingTime());
+            if (right != labels_.end() &&
+                    right->getStartingTime() <= label.getEndingTime())
+                return true;
+            if (right != labels_.begin() &&
+                    (--right)->getEndingTime() >= label.getStartingTime())
+                return true;
         }
-        labels_.insert(label);
+        return false;
     }
 
 
