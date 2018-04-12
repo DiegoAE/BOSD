@@ -18,6 +18,11 @@ namespace hsmm {
             throw std::logic_error("Assertion failed");
     }
 
+    void myassert(bool condition, string message) {
+        if (!condition)
+            throw std::logic_error(message);
+    }
+
     // TODO: Make sure there is not any bias here.
     int sampleFromCategorical(rowvec pmf) {
         rowvec prefixsum(pmf);
@@ -264,8 +269,16 @@ namespace hsmm {
 
     void Labels::setLabel(int t, int d, int hidden_state) {
         ObservedSegment label(t, d, hidden_state);
-        myassert(labels_.count(label) == 0);
-        // TODO: Make sure all the segments are non-overlapping.
+        if (!labels_.empty()) {
+
+            // Making sure that the segments are non-overlapping.
+            myassert(labels_.count(label) == 0);
+            auto right = labels_.lower_bound(label);
+            myassert(right == labels_.end() ||
+                     right->getStartingTime() > label.getEndingTime());
+            myassert(right == labels_.begin() ||
+                     (--right)->getEndingTime() < label.getStartingTime());
+        }
         labels_.insert(label);
     }
 

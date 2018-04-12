@@ -20,3 +20,30 @@ BOOST_AUTO_TEST_CASE( duplicate_segment ) {
     BOOST_REQUIRE_THROW(segments.setLabel(100, 20), std::logic_error);
 }
 
+BOOST_AUTO_TEST_CASE( nonoverlapping_segments ) {
+    hsmm::Labels segments;
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 10));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(99, 50));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(49, 40));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(199, 100));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(210, 6));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(201, 2));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(204, 3));
+    BOOST_REQUIRE_THROW(segments.setLabel(80, 2), std::logic_error);
+}
+
+BOOST_AUTO_TEST_CASE( overlapping_segments ) {
+    hsmm::Labels segments;
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 5));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(20, 5));
+    BOOST_REQUIRE_THROW(segments.setLabel(5, 2), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(8, 2), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(15, 15), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(15, 8), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(15, 7), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(22, 10), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(22, 20), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(30, 30), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(30, 11), std::logic_error);
+    BOOST_REQUIRE_THROW(segments.setLabel(100, 100), std::logic_error);
+}
