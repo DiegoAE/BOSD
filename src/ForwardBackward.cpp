@@ -8,6 +8,16 @@
 using namespace arma;
 using namespace std;
 
+void myassert(bool condition) {
+    if (!condition)
+        throw std::logic_error("Assertion failed");
+}
+
+void myassert(bool condition, string message) {
+    if (!condition)
+        throw std::logic_error(message);
+}
+
 bool equal(double a, double b) {
     return fabs(a - b) < EPS;
 }
@@ -355,3 +365,89 @@ void viterbiPath(const imat& psi_d, const imat& psi_s, const mat& delta,
     hiddenStates = conv_to<ivec>::from(statesSeq);
     hiddenDurations = conv_to<ivec>::from(durationSeq);
 }
+
+/*
+ * ObservedSegment Implementation. This supports semi-supervised learning.
+ */
+ObservedSegment::ObservedSegment(int t, int d) :
+        ObservedSegment::ObservedSegment(t, d, -1) {}
+
+ObservedSegment::ObservedSegment(int t, int d, int hidden_state) :
+        t_(t), d_(d), hidden_state_(hidden_state) {
+    myassert(t >= 0);
+    myassert(hidden_state >= -1);
+    myassert(d_ >= 1);
+    myassert(getStartingTime() >= 0);
+}
+
+int ObservedSegment::getDuration() const {
+    return d_;
+}
+
+int ObservedSegment::getEndingTime() const {
+    return t_;
+}
+
+int ObservedSegment::getHiddenState() const {
+    return hidden_state_;
+}
+
+int ObservedSegment::getStartingTime() const {
+    return t_ - d_ + 1;
+}
+
+bool ObservedSegment::operator< (const ObservedSegment & segment) const {
+    return t_ < segment.getEndingTime();
+}
+
+
+/*
+ * Labels implementation
+ */
+Labels::Labels() {}
+
+void Labels::setLabel(int t, int d) {
+    setLabel(t, d, -1);
+}
+
+void Labels::setLabel(int t, int d, int hidden_state) {
+    ObservedSegment label(t, d, hidden_state);
+
+    // Making sure that the segments are non-overlapping.
+    myassert(!overlaps_(t, d));
+    labels_.insert(label);
+}
+
+bool Labels::isConsistent(int t, int d, int hidden_state) {
+    ObservedSegment label(t, d, hidden_state);
+    if (labels_.count(label) != 0) {
+        auto it = labels_.find(label);
+        if (it->getDuration() != d)
+            return false;
+        int hs = it->getHiddenState();
+        if (hs >= 0 && hs != hidden_state)
+            return false;
+        return true;
+    }
+    if (overlaps_(t, d))
+        return false;
+    return true;
+}
+
+bool Labels::overlaps_(int t, int d) {
+    ObservedSegment label(t, d);
+    if (!labels_.empty()) {
+
+        if (labels_.count(label) != 0)
+            return true;
+        auto right = labels_.lower_bound(label);
+        if (right != labels_.end() &&
+                right->getStartingTime() <= label.getEndingTime())
+            return true;
+        if (right != labels_.begin() &&
+                (--right)->getEndingTime() >= label.getStartingTime())
+            return true;
+    }
+    return false;
+}
+

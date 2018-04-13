@@ -2,18 +2,18 @@
 #define BOOST_TEST_MODULE Labels
 #include <boost/test/unit_test.hpp>
 #include <boost/test/execution_monitor.hpp>
-#include <HSMM.hpp>
+#include <ForwardBackward.hpp>
 #include <exception>
 
 BOOST_AUTO_TEST_CASE( single_segment ) {
-    hsmm::Labels segments;
+    Labels segments;
     BOOST_REQUIRE_THROW(segments.setLabel(0, 2), std::logic_error);
     BOOST_REQUIRE_THROW(segments.setLabel(100, 2, -2), std::logic_error);
     BOOST_REQUIRE_NO_THROW(segments.setLabel(100, 101));
 }
 
 BOOST_AUTO_TEST_CASE( duplicate_segment ) {
-    hsmm::Labels segments;
+    Labels segments;
     segments.setLabel(50, 10);
     BOOST_REQUIRE_THROW(segments.setLabel(50, 5), std::logic_error);
     BOOST_REQUIRE_NO_THROW(segments.setLabel(100, 10));
@@ -21,7 +21,7 @@ BOOST_AUTO_TEST_CASE( duplicate_segment ) {
 }
 
 BOOST_AUTO_TEST_CASE( nonoverlapping_segments ) {
-    hsmm::Labels segments;
+    Labels segments;
     BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 10));
     BOOST_REQUIRE_NO_THROW(segments.setLabel(99, 50));
     BOOST_REQUIRE_NO_THROW(segments.setLabel(49, 40));
@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_CASE( nonoverlapping_segments ) {
 }
 
 BOOST_AUTO_TEST_CASE( overlapping_segments ) {
-    hsmm::Labels segments;
+    Labels segments;
     BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 5));
     BOOST_REQUIRE_NO_THROW(segments.setLabel(20, 5));
     BOOST_REQUIRE_THROW(segments.setLabel(5, 2), std::logic_error);
@@ -49,7 +49,7 @@ BOOST_AUTO_TEST_CASE( overlapping_segments ) {
 }
 
 BOOST_AUTO_TEST_CASE( consistency ) {
-    hsmm::Labels segments;
+    Labels segments;
     BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 5, -1));
     BOOST_REQUIRE_NO_THROW(segments.setLabel(20, 5, 5));
     BOOST_CHECK(segments.isConsistent(15, 5, 2));

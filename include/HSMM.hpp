@@ -3,10 +3,10 @@
 
 #include <armadillo>
 #include <cmath>
+#include <ForwardBackward.hpp>
 #include <iostream>
 #include <json.hpp>
 #include <memory>
-#include <set>
 #include <vector>
 
 namespace hsmm {
@@ -94,54 +94,13 @@ namespace hsmm {
     };
 
 
-    class ObservedSegment {
-        public:
-            ObservedSegment(int t, int d);
-
-            ObservedSegment(int t, int d, int hidden_state);
-
-            int getDuration() const;
-
-            int getEndingTime() const;
-
-            int getHiddenState() const;
-
-            int getStartingTime() const;
-
-            bool operator< (const ObservedSegment & segment) const;
-
-        private:
-            int t_;
-            int d_;
-            int hidden_state_;
-    };
-
-
-    class Labels {
-        public:
-            Labels();
-
-            // Sets a segment observation ending at t with duration d.
-            void setLabel(int t, int d);
-
-            // As above but additionaly specifies the generating hidden state.
-            void setLabel(int t, int d, int hidden_state);
-
-            // Checks if a particular segment is consistent with the set labels.
-            bool isConsistent(int t, int d, int hidden_state);
-
-        private:
-            bool overlaps_(int t, int d);
-
-            std::set<ObservedSegment> labels_;
-    };
-
-
     class HSMM {
         public:
             HSMM(std::shared_ptr<AbstractEmission> emission,
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
+
+            Labels& getLabels();
 
             void setDuration(arma::mat duration);
 
@@ -177,6 +136,7 @@ namespace hsmm {
             int min_duration_;
             int nstates_;
             std::shared_ptr<AbstractEmission> emission_;
+            Labels observed_segments_;
     };
 
 };
