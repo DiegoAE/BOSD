@@ -19,12 +19,15 @@ int main(int argc, char *argv[]) {
     }
     mat obs;
     obs.load(argv[1], raw_ascii);
+    ifstream input_params_file(argv[2]);
+    json input_params;
+    input_params_file >> input_params;
     int njoints = obs.n_rows;
     int nobs = obs.n_cols;
     cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
-    int min_duration = 20;
-    int nstates = 3;
-    int ndurations = 10;
+    int min_duration = input_params["min_duration"];
+    int nstates = input_params["nstates"];
+    int ndurations = input_params["ndurations"];
     mat transition(nstates, nstates);
     transition.fill(1.0 / (nstates - 1));
     transition.diag().zeros(); // No self-transitions.
@@ -54,9 +57,6 @@ int main(int argc, char *argv[]) {
     // Creating the ProMP emission and parsing the model parameters as json.
     shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
-    ifstream input_params_file(argv[2]);
-    json input_params;
-    input_params_file >> input_params;
     promp_hsmm.from_stream(input_params);
 
     // Running the Viterbi algorithm.
