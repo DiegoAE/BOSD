@@ -61,8 +61,9 @@ int main() {
     vec beta_s_0(nstates, fill::zeros);
     cube eta(nstates, ndurations, nobs, fill::zeros);
     cube logpdf = dhsmm.computeEmissionsLogLikelihood(samples);
-    logsFB(log(transition), log(pi), log(durations), logpdf, alpha, beta,
-            alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
+    Labels obs_segments;
+    logsFB(log(transition), log(pi), log(durations), logpdf, obs_segments,
+            alpha, beta, alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
     mat compare_alpha = exp(alpha);
     mat compare_alpha_s = exp(alpha_s);
     mat compare_beta = exp(beta);
@@ -70,8 +71,8 @@ int main() {
     cube compare_eta = exp(eta);
     mat compare_beta_s_0 = exp(beta_s_0);
     cube pdf = dhsmm.computeEmissionsLikelihood(samples);
-    FB(transition, pi, durations, pdf, alpha, beta, alpha_s, beta_s, beta_s_0,
-            eta, min_duration, nobs);
+    FB(transition, pi, durations, pdf, obs_segments, alpha, beta, alpha_s,
+            beta_s, beta_s_0, eta, min_duration, nobs);
 
     cout << "TEST" << endl;
     mat a = compare_beta - beta;

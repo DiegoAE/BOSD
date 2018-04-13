@@ -311,8 +311,9 @@ namespace hsmm {
             cube logpdf = computeEmissionsLogLikelihood(obs);
 
             logsFB(log_estimated_transition, log_estimated_pi,
-                    log_estimated_duration, logpdf, alpha, beta, alpha_s,
-                    beta_s, beta_s_0, eta, min_duration_, nobs);
+                    log_estimated_duration, logpdf, observed_segments_,
+                    alpha, beta, alpha_s, beta_s, beta_s_0, eta,
+                    min_duration_, nobs);
 
             // Computing the marginal likelihood (aka observation likelihood).
             double current_llikelihood = logsumexp(alpha.col(nobs - 1));

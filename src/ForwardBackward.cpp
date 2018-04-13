@@ -83,8 +83,9 @@ void Debug(char c, int a, int b, int d) {
 }
 
 void FB(const mat& transition,const vec& pi, const mat& duration,
-        const cube& pdf, mat& alpha, mat& beta, mat& alpha_s, mat& beta_s,
-        vec& beta_s_0, cube& eta, const int min_duration, const int nobs) {
+        const cube& pdf, const Labels& obs_segments, mat& alpha, mat& beta,
+        mat& alpha_s, mat& beta_s, vec& beta_s_0, cube& eta,
+        const int min_duration, const int nobs) {
     safety_checks(transition, pi, duration, pdf, alpha, beta, alpha_s, beta_s,
             min_duration, nobs);
     int nstates = transition.n_rows;
@@ -172,7 +173,8 @@ void FB(const mat& transition,const vec& pi, const mat& duration,
 }
 
 void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
-        const arma::mat& log_duration, const arma::cube& log_pdf, arma::mat& alpha,
+        const arma::mat& log_duration, const arma::cube& log_pdf,
+        const Labels& obs_segments, arma::mat& alpha,
         arma::mat& beta, arma::mat& alpha_s, arma::mat& beta_s,
         arma::vec& beta_s_0, arma::cube& eta, const int min_duration,
         const int nobs) {
