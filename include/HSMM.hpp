@@ -114,8 +114,11 @@ namespace hsmm {
                     arma::ivec& hiddenDurations);
 
             // Fits the model w.r.t. obs. Returns true if it reaches
-            // convergence.
+            // convergence. It only uses a single time series.
             bool fit(arma::mat obs, int max_iter, double tol);
+
+            // As above but trains from multiple sequences.
+            bool fit(arma::field<arma::mat> obs, int max_iter, double tol);
 
             // Computes the likelihoods w.r.t. the emission model.
             arma::cube computeEmissionsLikelihood(const arma::mat obs);

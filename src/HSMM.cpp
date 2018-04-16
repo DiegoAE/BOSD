@@ -290,7 +290,8 @@ namespace hsmm {
         return samples;
     }
 
-    bool HSMM::fit(mat obs, int max_iter, double tol) {
+    bool HSMM::fit(field<mat> mobs, int max_iter, double tol) {
+        mat obs = mobs[0];
         // For now only the transition matrix is being learned.
         int nobs = obs.n_cols;
         assert(nobs >= 1);
@@ -404,6 +405,12 @@ namespace hsmm {
        setPi(exp(log_estimated_pi));
        setDuration(exp(log_estimated_duration));
        return convergence_reached;
+    }
+
+    bool HSMM::fit(mat obs, int max_iter, double tol) {
+        field<mat> mobs(1);
+        mobs(0) = obs;
+        fit(mobs, max_iter, tol);
     }
 
     // Computes the likelihoods w.r.t. the emission model.
