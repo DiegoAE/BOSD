@@ -291,36 +291,66 @@ namespace hsmm {
     }
 
     bool HSMM::fit(field<mat> mobs, int max_iter, double tol) {
-        mat obs = mobs[0];
-        // For now only the transition matrix is being learned.
-        int nobs = obs.n_cols;
-        assert(nobs >= 1);
-        mat alpha(nstates_, nobs, fill::zeros);
-        mat beta(nstates_, nobs, fill::zeros);
-        mat alpha_s(nstates_, nobs, fill::zeros);
-        mat beta_s(nstates_, nobs, fill::zeros);
-        vec beta_s_0(nstates_, fill::zeros);
-        cube eta(nstates_, ndurations_, nobs, fill::zeros);
+
+        // Array initializations.
+        int nseq = mobs.n_elem;
+        assert(nseq == 1);
+        field<mat> malpha(nseq);
+        field<mat> mbeta(nseq);
+        field<mat> malpha_s(nseq);
+        field<mat> mbeta_s(nseq);
+        field<vec> mbeta_s_0(nseq);
+        field<cube> meta(nseq);
+        for(int i = 0; i < nseq; i++) {
+            int nobs = mobs(i).n_cols;
+            assert(nobs >= min_duration_);
+            malpha(i) = zeros<mat>(nstates_, nobs);
+            mbeta(i) = zeros<mat>(nstates_, nobs);
+            malpha_s(i) = zeros<mat>(nstates_, nobs);
+            mbeta_s(i) = zeros<mat>(nstates_, nobs);
+            mbeta_s_0(i) = zeros<vec>(nstates_);
+            meta(i) = zeros<cube>(nstates_, ndurations_, nobs);
+        }
+
         mat log_estimated_transition = log(transition_);
         vec log_estimated_pi = log(pi_);
         mat log_estimated_duration = log(duration_);
         double marginal_llikelihood = -datum::inf;
         bool convergence_reached = false;
         for(int i = 0; i < max_iter && !convergence_reached; i++) {
+            for(int s = 0; s < nseq; s++) {
+                const mat& obs = mobs(s);
+                mat& alpha = malpha(s);
+                mat& beta = mbeta(s);
+                mat& alpha_s = malpha_s(s);
+                mat& beta_s = mbeta_s(s);
+                vec& beta_s_0 = mbeta_s_0(s);
+                cube& eta = meta(s);
 
-            // Recomputing the emission likelihoods.
-            cube logpdf = computeEmissionsLogLikelihood(obs);
+                // Recomputing the emission likelihoods.
+                cube logpdf = computeEmissionsLogLikelihood(obs);
 
-            logsFB(log_estimated_transition, log_estimated_pi,
-                    log_estimated_duration, logpdf, observed_segments_,
-                    alpha, beta, alpha_s, beta_s, beta_s_0, eta,
-                    min_duration_, nobs);
+                logsFB(log_estimated_transition, log_estimated_pi,
+                        log_estimated_duration, logpdf, observed_segments_,
+                        alpha, beta, alpha_s, beta_s, beta_s_0, eta,
+                        min_duration_, obs.n_cols);
+            }
 
-            // Computing the marginal likelihood (aka observation likelihood).
-            double current_llikelihood = logsumexp(alpha.col(nobs - 1));
+            double current_llikelihood = 0.0;
+            for(int s = 0; s < nseq; s++) {
+                int nobs = mobs(s).n_cols;
+                const mat& alpha = malpha(s);
+                cube& eta = meta(s);
 
-            // Normalizing eta to have actual posterior distributions.
-            eta -= current_llikelihood;
+                // Computing the marginal likelihood (aka observation
+                // likelihood).
+                double current_sequence_llikelihood = logsumexp(alpha.col(
+                            nobs - 1));
+
+                // Normalizing eta to have actual posterior distributions.
+                eta -= current_sequence_llikelihood;
+                current_llikelihood += current_sequence_llikelihood;
+            }
 
             cout << "EM iteration " << i << " marginal log-likelihood: " <<
                     current_llikelihood << ". Diff: " <<
@@ -340,15 +370,21 @@ namespace hsmm {
             for(int i = 0; i < nstates_; i++) {
                 vector<double> den;
                 for(int j = 0; j < nstates_; j++) {
-                    vec num(nobs - 1);
-                    for(int t = 0; t < nobs - 1; t++) {
-                        double tmp_entry = alpha(i, t) +
-                                log_estimated_transition(i, j) +
-                                beta_s(j, t);
-                        num(t) = tmp_entry;
-                        den.push_back(tmp_entry);
+                    vector<double> num;
+                    for(int s = 0; s < nseq; s++) {
+                        int nobs = mobs(s).n_cols;
+                        const mat& alpha = malpha(s);
+                        const mat& beta_s = mbeta_s(s);
+                        for(int t = 0; t < nobs - 1; t++) {
+                            double tmp_entry = alpha(i, t) +
+                                    log_estimated_transition(i, j) +
+                                    beta_s(j, t);
+                            num.push_back(tmp_entry);
+                            den.push_back(tmp_entry);
+                        }
                     }
-                    tmp_transition(i, j) = logsumexp(num);
+                    vec num_v(num);
+                    tmp_transition(i, j) = logsumexp(num_v);
                 }
                 vec den_v(den);
                 double denominator = logsumexp(den_v);
@@ -360,11 +396,17 @@ namespace hsmm {
                 }
             }
             log_estimated_transition = tmp_transition;
+
             // Reestimating the initial state pmf.
-            log_estimated_pi = beta_s_0 + log_estimated_pi;
-            // double mllh = log(sum(estimated_pi));
-            log_estimated_pi = log_estimated_pi -
-                    logsumexp(log_estimated_pi);
+            vec tmp_pi(size(pi_), fill::zeros);
+            for(const vec& beta_s_0 : mbeta_s_0) {
+                vec current_log_estimated_pi = beta_s_0 + log_estimated_pi;
+                // double mllh = log(sum(estimated_pi));
+                current_log_estimated_pi = current_log_estimated_pi -
+                        logsumexp(current_log_estimated_pi);
+                tmp_pi += current_log_estimated_pi - log(nseq);
+            }
+            log_estimated_pi = tmp_pi;
 
             // Reestimating durations.
             // D(j, d) represents the expected number of times that state
@@ -373,12 +415,17 @@ namespace hsmm {
             for(int i = 0; i < nstates_; i++) {
                 vector<double> den;
                 for(int d = 0; d < ndurations_; d++) {
-                    vec ts(nobs);
-                    for(int t = 0; t < nobs; t++) {
-                        ts(t) = eta(i, d, t);
-                        den.push_back(eta(i, d, t));
+                    vector<double> ts;
+                    for(int s = 0; s < nseq; s++) {
+                        int nobs = mobs(s).n_cols;
+                        const cube& eta = meta(s);
+                        for(int t = 0; t < nobs; t++) {
+                            ts.push_back(eta(i, d, t));
+                            den.push_back(eta(i, d, t));
+                        }
                     }
-                    D(i, d) = logsumexp(ts);
+                    vec ts_v(ts);
+                    D(i, d) = logsumexp(ts_v);
                 }
                 vec den_v(den);
                 double denominator = logsumexp(den_v);
@@ -394,13 +441,17 @@ namespace hsmm {
             // Reestimating emissions.
             // NOTE: the rest of the HSMM parameters are updated out of
             // this loop.
+            // TODO: Change the emission reestimation API to accept multiple
+            // sequences.
+            const cube& eta = meta(0);
+            const mat& obs = mobs(0);
             emission_->reestimate(min_duration_, eta, obs);
         }
 
         cout << "Stopped because of " << ((convergence_reached) ?
                 "convergence." : "max iter.") << endl;
 
-        // Updating the model parameters.
+       // Updating the model parameters.
        setTransition(exp(log_estimated_transition));
        setPi(exp(log_estimated_pi));
        setDuration(exp(log_estimated_duration));
