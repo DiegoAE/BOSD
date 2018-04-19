@@ -42,8 +42,9 @@ namespace hsmm {
             // statistics provided by the HSMM E step. eta(j, d, t) represents
             // the expected value of state j generating a segment of length
             // min_duration + d ending at time t.
-            virtual void reestimate(int min_duration, const arma::cube& eta,
-                    const arma::mat& obs) = 0;
+            virtual void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::mat>& mobs) = 0;
 
             virtual arma::mat sampleFromState(int state, int size) const = 0;
 
@@ -63,8 +64,9 @@ namespace hsmm {
 
             virtual nlohmann::json to_stream() const;
 
-            void reestimate(int min_duration, const arma::cube& eta,
-                    const arma::mat& obs);
+            void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::mat>& mobs);
 
             arma::mat sampleFromState(int state, int size) const;
 
@@ -83,8 +85,9 @@ namespace hsmm {
 
             double loglikelihood(int state, const arma::mat& obs) const;
 
-            void reestimate(int min_duration, const arma::cube& eta,
-                    const arma::mat& obs);
+            void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::mat>& mobs);
 
             arma::mat sampleFromState(int state, int size) const;
 
@@ -112,6 +115,10 @@ namespace hsmm {
 
             arma::mat sampleSegments(int nsegments, arma::ivec& hiddenStates,
                     arma::ivec& hiddenDurations);
+
+            arma::field<arma::mat> sampleMultipleSequences(int nsequences,
+                    int nsegments, arma::field<arma::ivec>& seqsHiddenStates,
+                    arma::field<arma::ivec>& seqsHiddenDurations);
 
             // Fits the model w.r.t. obs. Returns true if it reaches
             // convergence. It only uses a single time series.

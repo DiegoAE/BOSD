@@ -119,6 +119,13 @@ int main() {
     else
         cout << "The dimensions don't match." << endl;
 
+    // Generating multiple synthetic sequences.
+    int nseq = 10;
+    int nsegments = 100;
+    field<mat> mobs;
+    field<ivec> mhs, mdur;
+    mobs = dhsmm.sampleMultipleSequences(nseq, nsegments, mhs, mdur);
+
     // Initializing uniformly the transitions, initial state pmf and durations.
     transition.fill(1.0/(nstates-1));
     transition.diag().zeros();  // No self-loops.
@@ -135,33 +142,47 @@ int main() {
             new_means, new_std_devs));
     dhsmm.setEmission(init_emission);
 
+    // Testing the learning algorithm.
+    dhsmm.fit(mobs, 100, 1e-10);
+
+    vec best_pi(nstates, fill::zeros);
+    for(int s = 0; s < nseq; s++)
+        best_pi(mhs(s)(0))++;
+    best_pi /= nseq;
+    cout << "Best initial state pmf we can aim at:" << endl << best_pi << endl;
+
+    cout << "Learnt pi:" << endl;
+    cout << dhsmm.pi_ << endl;
+
     cout << "Best transition matrix we can aim at:" << endl;
     mat prueba(nstates, nstates, fill::zeros);
-    for(int i = 0; i < hiddenStates.n_elem - 1; i++)
-        prueba(hiddenStates(i), hiddenStates(i + 1))++;
+    for(int s = 0; s < nseq; s++) {
+        ivec& hiddenStates = mhs(s);
+        for(int i = 0; i < hiddenStates.n_elem - 1; i++)
+            prueba(hiddenStates(i), hiddenStates(i + 1))++;
+    }
     mat pruebasum = sum(prueba, 1);
     for(int i = 0; i < nstates; i++)
         prueba.row(i) /= pruebasum(i);
     cout << prueba << endl;
 
-    // Testing the learning algorithm.
-    dhsmm.fit(samples, 100, 1e-10);
     cout << "Learnt matrix:" << endl;
     cout << dhsmm.transition_ << endl;
 
     cout << "Best duration matrix we can aim at:" << endl;
     mat emp_durations(nstates, ndurations, fill::zeros);
-    for(int i = 0; i < hiddenStates.n_elem; i++)
-        emp_durations(hiddenStates(i), hiddenDurations(i) - min_duration)++;
+    for(int s = 0; s < nseq; s++) {
+        ivec& hiddenStates = mhs(s);
+        ivec& hiddenDurations = mdur(s);
+        for(int i = 0; i < hiddenStates.n_elem; i++)
+            emp_durations(hiddenStates(i), hiddenDurations(i) - min_duration)++;
+    }
     mat emp_durations_sum = sum(emp_durations, 1);
     for(int i = 0; i < nstates; i++)
         emp_durations.row(i) /= emp_durations_sum(i);
     cout << emp_durations << endl;
     cout << "Learnt durations:" << endl;
     cout << dhsmm.duration_ << endl;
-
-    cout << "Learnt pi:" << endl;
-    cout << dhsmm.pi_ << endl;
 
     cout << "Learnt parameters (json)" << endl;
     json params = dhsmm.to_stream();

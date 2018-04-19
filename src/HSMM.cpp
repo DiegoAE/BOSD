@@ -114,25 +114,30 @@ namespace hsmm {
         return ret;
     }
 
-    void DummyGaussianEmission::reestimate(int min_duration, const cube& eta,
-            const mat& obs) {
-        int nobs = obs.n_cols;
-        int ndurations = eta.n_cols;
+    void DummyGaussianEmission::reestimate(int min_duration,
+            const field<cube>& meta, const field<mat>& mobs) {
+        int nseq = mobs.n_elem;
         for(int i = 0; i < getNumberStates(); i++) {
 
             // Reestimating the mean.
             vector<double> num_mult;
             vector<double> num_obs;
-            for(int t = min_duration - 1; t < nobs; t++) {
-                for(int d = 0; d < ndurations; d++) {
-                    int first_idx_seg = t - min_duration - d + 1;
-                    if (first_idx_seg < 0)
-                        break;
+            for(int s = 0; s < nseq; s++) {
+                const mat& obs = mobs(s);
+                int nobs = obs.n_cols;
+                const cube& eta = meta(s);
+                int ndurations = eta.n_cols;
+                for(int t = min_duration - 1; t < nobs; t++) {
+                    for(int d = 0; d < ndurations; d++) {
+                        int first_idx_seg = t - min_duration - d + 1;
+                        if (first_idx_seg < 0)
+                            break;
 
-                    // Since the observations factorize given t, d and i.
-                    for(int s = first_idx_seg; s <= t; s++) {
-                        num_mult.push_back(eta(i, d, t));
-                        num_obs.push_back(obs(0, s));
+                        // Since the observations factorize given t, d and i.
+                        for(int k = first_idx_seg; k <= t; k++) {
+                            num_mult.push_back(eta(i, d, t));
+                            num_obs.push_back(obs(0, k));
+                        }
                     }
                 }
             }
@@ -144,16 +149,22 @@ namespace hsmm {
 
             // Reestimating the variance.
             vector<double> num_obs_var;
-            for(int t = min_duration - 1; t < nobs; t++) {
-                for(int d = 0; d < ndurations; d++) {
-                    int first_idx_seg = t - min_duration - d + 1;
-                    if (first_idx_seg < 0)
-                        break;
+            for(int s = 0; s < nseq; s++) {
+                const mat& obs = mobs(s);
+                int nobs = obs.n_cols;
+                const cube& eta = meta(s);
+                int ndurations = eta.n_cols;
+                for(int t = min_duration - 1; t < nobs; t++) {
+                    for(int d = 0; d < ndurations; d++) {
+                        int first_idx_seg = t - min_duration - d + 1;
+                        if (first_idx_seg < 0)
+                            break;
 
-                    // Since the observations factorize given t, d and i.
-                    for(int s = first_idx_seg; s <= t; s++) {
-                        double diff = (obs(0, s) - new_mean);
-                        num_obs_var.push_back(diff * diff);
+                        // Since the observations factorize given t, d and i.
+                        for(int k = first_idx_seg; k <= t; k++) {
+                            double diff = (obs(0, k) - new_mean);
+                            num_obs_var.push_back(diff * diff);
+                        }
                     }
                 }
             }
@@ -200,7 +211,7 @@ namespace hsmm {
     }
 
     void DummyMultivariateGaussianEmission::reestimate(int min_duration,
-            const cube& eta, const mat& obs) {
+            const field<cube>& eta, const field<mat>& obs) {
         // TODO.
     }
 
@@ -290,11 +301,27 @@ namespace hsmm {
         return samples;
     }
 
+    field<mat> HSMM::sampleMultipleSequences(int nsequences, int nsegments,
+            field<ivec>& seqsHiddenStates, field<ivec>& seqsHiddenDurations) {
+        field<mat> mobs(nsequences);
+        field<ivec> seqsHS(nsequences);
+        field<ivec> seqsDur(nsequences);
+        for(int s = 0; s < nsequences; s++) {
+            ivec hs, dur;
+            mobs(s) = sampleSegments(nsegments, hs, dur);
+            seqsHS(s) = hs;
+            seqsDur(s) = dur;
+        }
+        seqsHiddenStates = seqsHS;
+        seqsHiddenDurations = seqsDur;
+        return mobs;
+    }
+
     bool HSMM::fit(field<mat> mobs, int max_iter, double tol) {
 
         // Array initializations.
         int nseq = mobs.n_elem;
-        assert(nseq == 1);
+        assert(nseq >= 1);
         field<mat> malpha(nseq);
         field<mat> mbeta(nseq);
         field<mat> malpha_s(nseq);
@@ -336,7 +363,7 @@ namespace hsmm {
                         min_duration_, obs.n_cols);
             }
 
-            double current_llikelihood = 0.0;
+            vec sequences_llikelihood(nseq);
             for(int s = 0; s < nseq; s++) {
                 int nobs = mobs(s).n_cols;
                 const mat& alpha = malpha(s);
@@ -344,14 +371,12 @@ namespace hsmm {
 
                 // Computing the marginal likelihood (aka observation
                 // likelihood).
-                double current_sequence_llikelihood = logsumexp(alpha.col(
-                            nobs - 1));
+                sequences_llikelihood(s) = logsumexp(alpha.col(nobs - 1));
 
                 // Normalizing eta to have actual posterior distributions.
-                eta -= current_sequence_llikelihood;
-                current_llikelihood += current_sequence_llikelihood;
+                eta -= sequences_llikelihood(s);
             }
-
+            double current_llikelihood = sum(sequences_llikelihood);
             cout << "EM iteration " << i << " marginal log-likelihood: " <<
                     current_llikelihood << ". Diff: " <<
                     current_llikelihood - marginal_llikelihood << endl;
@@ -379,6 +404,7 @@ namespace hsmm {
                             double tmp_entry = alpha(i, t) +
                                     log_estimated_transition(i, j) +
                                     beta_s(j, t);
+                            tmp_entry -= sequences_llikelihood(s);
                             num.push_back(tmp_entry);
                             den.push_back(tmp_entry);
                         }
@@ -404,9 +430,11 @@ namespace hsmm {
                 // double mllh = log(sum(estimated_pi));
                 current_log_estimated_pi = current_log_estimated_pi -
                         logsumexp(current_log_estimated_pi);
-                tmp_pi += current_log_estimated_pi - log(nseq);
+                vec current_pi = exp(current_log_estimated_pi);
+                assert(abs(sum(current_pi) - 1) < 1e-7);
+                tmp_pi += current_pi;
             }
-            log_estimated_pi = tmp_pi;
+            log_estimated_pi = log(tmp_pi / nseq);
 
             // Reestimating durations.
             // D(j, d) represents the expected number of times that state
@@ -441,11 +469,7 @@ namespace hsmm {
             // Reestimating emissions.
             // NOTE: the rest of the HSMM parameters are updated out of
             // this loop.
-            // TODO: Change the emission reestimation API to accept multiple
-            // sequences.
-            const cube& eta = meta(0);
-            const mat& obs = mobs(0);
-            emission_->reestimate(min_duration_, eta, obs);
+            emission_->reestimate(min_duration_, meta, mobs);
         }
 
         cout << "Stopped because of " << ((convergence_reached) ?

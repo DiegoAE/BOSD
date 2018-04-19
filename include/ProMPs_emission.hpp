@@ -93,8 +93,16 @@ namespace hsmm {
                 return random::log_normal_density(dist, stacked_obs);
             }
 
-            void reestimate(int min_duration, const arma::cube& eta,
-                    const arma::mat& obs) {
+            void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::mat>& mobs) {
+                int nseq = mobs.n_elem;
+
+                // TODO: Handle multiple sequences.
+                assert(nseq == 1);
+                const cube& eta = meta(0);
+                const mat& obs = mobs(0);
+
                 int nobs = obs.n_cols;
                 int ndurations = eta.n_cols;
 
