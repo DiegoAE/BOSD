@@ -13,11 +13,20 @@ using json = nlohmann::json;
 
 
 void PrintBestWeCanAimFor(int nstates, int ndurations, int min_duration,
-        ivec hiddenStates, ivec hiddenDurations) {
+        field<ivec> hiddenStates, field<ivec> hiddenDurations) {
+    int nseq = hiddenStates.n_elem;
+    vec best_pi(nstates, fill::zeros);
+    for(int s = 0; s < nseq; s++)
+        best_pi(hiddenStates(s)(0))++;
+    best_pi /= nseq;
+    cout << "Best initial state pmf we can aim at:" << endl << best_pi << endl;
+
     cout << "Best transition matrix we can aim at:" << endl;
     mat prueba(nstates, nstates, fill::zeros);
-    for(int i = 0; i < hiddenStates.n_elem - 1; i++)
-        prueba(hiddenStates(i), hiddenStates(i + 1))++;
+    for(int s = 0; s < nseq; s++) {
+        for(int i = 0; i < hiddenStates(s).n_elem - 1; i++)
+            prueba(hiddenStates(s)(i), hiddenStates(s)(i + 1))++;
+    }
     mat pruebasum = sum(prueba, 1);
     for(int i = 0; i < nstates; i++)
         prueba.row(i) /= pruebasum(i);
@@ -25,8 +34,11 @@ void PrintBestWeCanAimFor(int nstates, int ndurations, int min_duration,
 
     cout << "Best duration matrix we can aim at:" << endl;
     mat emp_durations(nstates, ndurations, fill::zeros);
-    for(int i = 0; i < hiddenStates.n_elem; i++)
-        emp_durations(hiddenStates(i), hiddenDurations(i) - min_duration)++;
+    for(int s = 0; s < nseq; s++) {
+        for(int i = 0; i < hiddenStates(s).n_elem; i++)
+            emp_durations(hiddenStates(s)(i), hiddenDurations(s)(i)
+                    - min_duration)++;
+    }
     mat emp_durations_sum = sum(emp_durations, 1);
     for(int i = 0; i < nstates; i++)
         emp_durations.row(i) /= emp_durations_sum(i);
@@ -75,8 +87,7 @@ int main() {
                       {0.2, 0.2, 0.0, 0.6},
                       {0.4, 0.4, 0.2, 0.0}};
     int nstates = transition.n_rows;
-    vec pi(nstates, fill::eye);
-    pi.fill(1.0/nstates);
+    vec pi = {0.1, 0.2, 0.3, 0.4};
     // mat durations(nstates, ndurations, fill::eye);
     mat durations =  {{0.0, 0.1, 0.4, 0.5},
                       {0.3, 0.0, 0.6, 0.1},
@@ -108,12 +119,13 @@ int main() {
 
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
 
+    int nseq = 1;
     int nsegments = 50;
-    ivec hidden_states, hidden_durations;
-    mat toy_obs = promp_hsmm.sampleSegments(nsegments, hidden_states,
-            hidden_durations);
-    cout << "Generated states and durations" << endl;
-    cout << join_horiz(hidden_states, hidden_durations) << endl;
+    field<ivec> hidden_states, hidden_durations;
+    field<mat> multiple_toy_obs = promp_hsmm.sampleMultipleSequences(nseq, nsegments,
+            hidden_states, hidden_durations);
+    cout << "Generated states and durations for the first sequence" << endl;
+    cout << join_horiz(hidden_states(0), hidden_durations(0)) << endl;
 
     PrintBestWeCanAimFor(nstates, ndurations, min_duration, hidden_states,
             hidden_durations);
@@ -129,13 +141,14 @@ int main() {
     cout << params_test.dump(4) << endl;
 
     // Learning the model from data.
-    promp_hsmm.fit(toy_obs, 100, 1e-10);
+    promp_hsmm.fit(multiple_toy_obs, 100, 1e-10);
 
     cout << "Emission parameters after training" << endl;
     json params = promp_hsmm.emission_->to_stream();
     cout << params.dump(4) << endl;
 
-    // Running the Viterbi algorithm.
+    // Running the Viterbi algorithm for the first sequence.
+    const mat& toy_obs = multiple_toy_obs(0);
     imat psi_duration(nstates, toy_obs.n_cols, fill::zeros);
     imat psi_state(nstates, toy_obs.n_cols, fill::zeros);
     mat delta(nstates, toy_obs.n_cols, fill::zeros);
@@ -153,8 +166,8 @@ int main() {
     int dur_diff = 0;
     int states_diff = 0;
     for(int i = 0; i < viterbiDurations.n_elem; i++) {
-        dur_diff += (viterbiDurations[i] != hidden_durations[i]);
-        states_diff += (viterbiStates[i] != hidden_states[i]);
+        dur_diff += (viterbiDurations[i] != hidden_durations(0)(i));
+        states_diff += (viterbiStates[i] != hidden_states(0)(i));
     }
     cout << "The number of mismatches in duration is " << dur_diff << endl;
     cout << "The number of mismatches in hidden states is " << states_diff <<

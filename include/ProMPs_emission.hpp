@@ -97,15 +97,6 @@ namespace hsmm {
                     const arma::field<arma::cube>& meta,
                     const arma::field<arma::mat>& mobs) {
                 int nseq = mobs.n_elem;
-
-                // TODO: Handle multiple sequences.
-                assert(nseq == 1);
-                const cube& eta = meta(0);
-                const mat& obs = mobs(0);
-
-                int nobs = obs.n_cols;
-                int ndurations = eta.n_cols;
-
                 for(int i = 0; i < getNumberStates(); i++) {
                     ProMP promp = promps_.at(i).get_model();
                     const mat inv_Sigma_w = inv_sympd(promp.get_Sigma_w());
@@ -114,14 +105,19 @@ namespace hsmm {
 
                     vector<double> mult_c;
                     vector<double> denominator_Sigma_y;
-                    for(int t = min_duration - 1; t < nobs; t++) {
-                        for(int d = 0; d < ndurations; d++) {
-                            int first_idx_seg = t - min_duration - d + 1;
-                            if (first_idx_seg < 0)
-                                break;
-                            mult_c.push_back(eta(i, d, t));
-                            denominator_Sigma_y.push_back(eta(i, d, t) +
-                                    log(min_duration + d));
+                    for(int s = 0; s < nseq; s++) {
+                        const cube& eta = meta(s);
+                        int nobs = mobs(s).n_cols;
+                        int ndurations = eta.n_cols;
+                        for(int t = min_duration - 1; t < nobs; t++) {
+                            for(int d = 0; d < ndurations; d++) {
+                                int first_idx_seg = t - min_duration - d + 1;
+                                if (first_idx_seg < 0)
+                                    break;
+                                mult_c.push_back(eta(i, d, t));
+                                denominator_Sigma_y.push_back(eta(i, d, t) +
+                                        log(min_duration + d));
+                            }
                         }
                     }
 
@@ -146,65 +142,70 @@ namespace hsmm {
                     mat weighted_sum_post_mean_mean_T(size(inv_Sigma_w),
                             fill::zeros);
                     int idx_mult_c = 0;
-                    for(int t = min_duration - 1; t < nobs; t++) {
-                        for(int d = 0; d < ndurations; d++) {
-                            int first_idx_seg = t - min_duration - d + 1;
-                            if (first_idx_seg < 0)
-                                break;
-                            const int current_duration = min_duration + d;
-                            const cube& Phis = getPhiCube(i, current_duration);
+                    for(int s = 0; s < nseq; s++) {
+                        const mat& obs = mobs(s);
+                        int nobs = obs.n_cols;
+                        int ndurations = meta(s).n_cols;
+                        for(int t = min_duration - 1; t < nobs; t++) {
+                            for(int d = 0; d < ndurations; d++) {
+                                int first_idx_seg = t - min_duration - d + 1;
+                                if (first_idx_seg < 0)
+                                    break;
+                                const int current_duration = min_duration + d;
+                                const cube& Phis = getPhiCube(i, current_duration);
 
-                            // E step for the emission hidden variables (Ws).
-                            // Computing the posterior of W given Y and Theta.
+                                // E step for the emission hidden variables (Ws).
+                                // Computing the posterior of W given Y and Theta.
 
-                            // Computing the posterior covariance of the hidden
-                            // variable w for this segment.
-                            mat posterior_cov(size(inv_Sigma_w), fill::zeros);
-                            for(int step = 0; step < current_duration; step++) {
-                                posterior_cov += Phis.slice(step).t() *
-                                    inv_Sigma_y * Phis.slice(step);
+                                // Computing the posterior covariance of the hidden
+                                // variable w for this segment.
+                                mat posterior_cov(size(inv_Sigma_w), fill::zeros);
+                                for(int step = 0; step < current_duration; step++) {
+                                    posterior_cov += Phis.slice(step).t() *
+                                        inv_Sigma_y * Phis.slice(step);
+                                }
+                                posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+                                posterior_cov = posterior_cov + inv_Sigma_w;
+                                posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+                                posterior_cov = inv_sympd(posterior_cov);
+                                posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+
+                                // Computing the posterior mean of the hidden
+                                // variable w for this segment.
+                                vec posterior_mean(size(mu_w), fill::zeros);
+                                for(int step = 0; step < current_duration; step++) {
+                                    const vec& ob = obs.col(first_idx_seg + step);
+                                    posterior_mean += Phis.slice(step).t() *
+                                        inv_Sigma_y * ob;
+                                }
+                                posterior_mean = inv_Sigma_w * mu_w + posterior_mean;
+                                posterior_mean = posterior_cov * posterior_mean;
+
+                                // Getting the multiplicative constants.
+                                double mult_constant = mult_c_normalized(idx_mult_c);
+                                double mult_constant_Sigma_y =
+                                        mult_c_Sigma_y_normalized(idx_mult_c);
+                                idx_mult_c++;
+
+                                // Statistics required for updating mu_w & Sigma_w.
+                                weighted_sum_post_mean += mult_constant *
+                                        posterior_mean;
+                                weighted_sum_post_cov += mult_constant *
+                                        posterior_cov;
+                                weighted_sum_post_mean_mean_T += mult_constant *
+                                        posterior_mean * posterior_mean.t();
+
+                                // Computing the new output noise covariance: Sigma_y.
+                                mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
+                                for(int step = 0; step < current_duration; step++) {
+                                    const mat& phi = Phis.slice(step);
+                                    const vec& diff_y = obs.col(first_idx_seg + step) -
+                                        phi * posterior_mean;
+                                    Sigma_y_term += diff_y * diff_y.t() +
+                                        phi * posterior_cov * phi.t();
+                                }
+                                new_Sigma_y += mult_constant_Sigma_y * Sigma_y_term;
                             }
-                            posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
-                            posterior_cov = posterior_cov + inv_Sigma_w;
-                            posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
-                            posterior_cov = inv_sympd(posterior_cov);
-                            posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
-
-                            // Computing the posterior mean of the hidden
-                            // variable w for this segment.
-                            vec posterior_mean(size(mu_w), fill::zeros);
-                            for(int step = 0; step < current_duration; step++) {
-                                const vec& ob = obs.col(first_idx_seg + step);
-                                posterior_mean += Phis.slice(step).t() *
-                                    inv_Sigma_y * ob;
-                            }
-                            posterior_mean = inv_Sigma_w * mu_w + posterior_mean;
-                            posterior_mean = posterior_cov * posterior_mean;
-
-                            // Getting the multiplicative constants.
-                            double mult_constant = mult_c_normalized(idx_mult_c);
-                            double mult_constant_Sigma_y =
-                                    mult_c_Sigma_y_normalized(idx_mult_c);
-                            idx_mult_c++;
-
-                            // Statistics required for updating mu_w & Sigma_w.
-                            weighted_sum_post_mean += mult_constant *
-                                    posterior_mean;
-                            weighted_sum_post_cov += mult_constant *
-                                    posterior_cov;
-                            weighted_sum_post_mean_mean_T += mult_constant *
-                                    posterior_mean * posterior_mean.t();
-
-                            // Computing the new output noise covariance: Sigma_y.
-                            mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
-                            for(int step = 0; step < current_duration; step++) {
-                                const mat& phi = Phis.slice(step);
-                                const vec& diff_y = obs.col(first_idx_seg + step) -
-                                    phi * posterior_mean;
-                                Sigma_y_term += diff_y * diff_y.t() +
-                                    phi * posterior_cov * phi.t();
-                            }
-                            new_Sigma_y += mult_constant_Sigma_y * Sigma_y_term;
                         }
                     }
 
@@ -263,8 +264,6 @@ namespace hsmm {
                 vec sample_locations = linspace<vec>(0, 1.0, size);
                 for(int i = 0; i < size; i++) {
                     double z = sample_locations(i);
-
-                    // TODO: make sure this is added to the FullProMP API.
                     mat phi_z = promps_.at(state).get_phi_t(z);
                     ret.col(i) = phi_z * w + output_noise.at(i);
                 }
