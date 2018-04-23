@@ -40,10 +40,16 @@ class Labels {
         void setLabel(int t, int d, int hidden_state);
 
         // Checks if a particular segment is consistent with the set labels.
-        bool isConsistent(int t, int d, int hidden_state);
+        bool isConsistent(int t, int d, int hidden_state) const;
+
+        // Checks if a particular segment was given as a label.
+        bool isLabel(int t, int d, int hidden_state) const;
+
+        // As above but without specifying the hidden state.
+        bool isLabel(int t, int d) const;
 
     private:
-        bool overlaps_(int t, int d);
+        bool overlaps_(int t, int d) const;
 
         std::set<ObservedSegment> labels_;
 };

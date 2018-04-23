@@ -60,3 +60,13 @@ BOOST_AUTO_TEST_CASE( consistency ) {
     BOOST_CHECK(segments.isConsistent(15, 6, 2));
     BOOST_CHECK(segments.isConsistent(30, 10, 2));
 }
+
+BOOST_AUTO_TEST_CASE( isLabel ) {
+    Labels segments;
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 5));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(20, 5, 5));
+    BOOST_CHECK(segments.isLabel(9, 5));
+    BOOST_CHECK(!segments.isLabel(9, 5, 2));
+    BOOST_CHECK(segments.isLabel(20, 5, 5));
+    BOOST_CHECK(!segments.isLabel(20, 5, -1));
+}

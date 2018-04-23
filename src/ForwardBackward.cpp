@@ -210,6 +210,7 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
                 }
                 c_alpha(d) = e_lh + logsumexp(c_alpha_s);
             }
+
             alpha(j, t) = logsumexp(c_alpha);
         }
     }
@@ -399,6 +400,12 @@ int ObservedSegment::getStartingTime() const {
 }
 
 bool ObservedSegment::operator< (const ObservedSegment & segment) const {
+    if (t_ == segment.getEndingTime()) {
+        if (getStartingTime() == segment.getStartingTime())
+            return getHiddenState() < segment.getHiddenState();
+        else
+            return getStartingTime() < segment.getStartingTime();
+    }
     return t_ < segment.getEndingTime();
 }
 
@@ -420,23 +427,27 @@ void Labels::setLabel(int t, int d, int hidden_state) {
     labels_.insert(label);
 }
 
-bool Labels::isConsistent(int t, int d, int hidden_state) {
+bool Labels::isLabel(int t, int d) const {
+    ObservedSegment label(t, d);
+    auto it = labels_.find(label);
+    return it != labels_.end();
+}
+
+bool Labels::isLabel(int t, int d, int hidden_state) const {
     ObservedSegment label(t, d, hidden_state);
-    if (labels_.count(label) != 0) {
-        auto it = labels_.find(label);
-        if (it->getDuration() != d)
-            return false;
-        int hs = it->getHiddenState();
-        if (hs >= 0 && hs != hidden_state)
-            return false;
+    auto it = labels_.find(label);
+    return it != labels_.end();
+}
+
+bool Labels::isConsistent(int t, int d, int hidden_state) const {
+    if (isLabel(t, d) || isLabel(t, d, hidden_state))
         return true;
-    }
     if (overlaps_(t, d))
         return false;
     return true;
 }
 
-bool Labels::overlaps_(int t, int d) {
+bool Labels::overlaps_(int t, int d) const {
     ObservedSegment label(t, d);
     if (!labels_.empty()) {
 
