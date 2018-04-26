@@ -101,3 +101,16 @@ BOOST_AUTO_TEST_CASE( transition ) {
         else
             BOOST_CHECK(!segments.transition(i));
 }
+
+BOOST_AUTO_TEST_CASE( firstSegment ) {
+    Labels segments;
+    BOOST_REQUIRE_THROW(segments.getFirstSegment(), std::logic_error);
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(20, 5, 5));
+    const ObservedSegment& first = segments.getFirstSegment();
+    BOOST_CHECK(first.getEndingTime() == 20 && first.getHiddenState() == 5 &&
+            first.getDuration() == 5);
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 5));
+    const ObservedSegment& first_ = segments.getFirstSegment();
+    BOOST_CHECK(first_.getEndingTime() == 9 && first_.getHiddenState() == -1 &&
+            first.getDuration() == 5);
+}
