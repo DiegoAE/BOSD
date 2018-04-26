@@ -421,6 +421,10 @@ void Labels::setLabel(int t, int d, int hidden_state) {
     labels_.insert(label);
 }
 
+bool Labels::empty() const {
+    return labels_.empty();
+}
+
 bool Labels::isLabel(int t, int d) const {
     return isLabel(t, d, -1);
 }
@@ -457,6 +461,12 @@ bool Labels::transition(int t) const {
     if (from == labels_.end() || to == labels_.end())
         return false;
     return from->getEndingTime() == t && to->getStartingTime() == (t + 1);
+}
+
+const ObservedSegment& Labels::getFirstSegment() const {
+    myassert(!empty());
+    auto it = labels_.begin();
+    return *it;
 }
 
 bool Labels::overlaps_(int t, int d) const {

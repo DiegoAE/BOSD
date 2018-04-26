@@ -39,6 +39,8 @@ class Labels {
         // As above but additionaly specifies the generating hidden state.
         void setLabel(int t, int d, int hidden_state);
 
+        bool empty() const;
+
         // Checks if a particular segment is consistent with the set labels.
         bool isConsistent(int t, int d, int hidden_state) const;
 
@@ -55,6 +57,9 @@ class Labels {
         // Checks if there is a transition at time t regardless of the hidden
         // states involved.
         bool transition(int t) const;
+
+        // Returns the leftmost segment present as a label.
+        const ObservedSegment& getFirstSegment() const;
 
     private:
         bool overlaps_(int t, int d) const;
