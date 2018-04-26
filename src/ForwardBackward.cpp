@@ -400,12 +400,6 @@ int ObservedSegment::getStartingTime() const {
 }
 
 bool ObservedSegment::operator< (const ObservedSegment & segment) const {
-    if (t_ == segment.getEndingTime()) {
-        if (getStartingTime() == segment.getStartingTime())
-            return getHiddenState() < segment.getHiddenState();
-        else
-            return getStartingTime() < segment.getStartingTime();
-    }
     return t_ < segment.getEndingTime();
 }
 
@@ -428,15 +422,14 @@ void Labels::setLabel(int t, int d, int hidden_state) {
 }
 
 bool Labels::isLabel(int t, int d) const {
-    ObservedSegment label(t, d);
-    auto it = labels_.find(label);
-    return it != labels_.end();
+    return isLabel(t, d, -1);
 }
 
 bool Labels::isLabel(int t, int d, int hidden_state) const {
     ObservedSegment label(t, d, hidden_state);
     auto it = labels_.find(label);
-    return it != labels_.end();
+    return it != labels_.end() && it->getDuration() == d &&
+        it->getHiddenState() == hidden_state;
 }
 
 bool Labels::isConsistent(int t, int d, int hidden_state) const {
@@ -445,6 +438,16 @@ bool Labels::isConsistent(int t, int d, int hidden_state) const {
     if (overlaps_(t, d))
         return false;
     return true;
+}
+
+bool Labels::transition(int hs_from, int hs_to, int t) {
+    ObservedSegment label(t, 1);  // Dummy duration value.
+    auto from = labels_.lower_bound(label);
+    auto to = labels_.upper_bound(label);
+    if (from == labels_.end() || to == labels_.end())
+        return false;
+    return from->getEndingTime() == t && to->getStartingTime() == (t + 1) &&
+        from->getHiddenState() == hs_from && to->getHiddenState() == hs_to;
 }
 
 bool Labels::overlaps_(int t, int d) const {

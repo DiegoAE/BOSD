@@ -70,3 +70,27 @@ BOOST_AUTO_TEST_CASE( isLabel ) {
     BOOST_CHECK(segments.isLabel(20, 5, 5));
     BOOST_CHECK(!segments.isLabel(20, 5, -1));
 }
+
+BOOST_AUTO_TEST_CASE( transition ) {
+    Labels segments;
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(9, 10, 1));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(99, 50, 3));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(49, 40, 2));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(199, 100));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(210, 6, 6));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(201, 2, 4));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(204, 3, 5));
+    BOOST_CHECK(segments.transition(1 , 2, 9));
+    BOOST_CHECK(segments.transition(2 , 3, 49));
+    BOOST_CHECK(!segments.transition(2 , 1, 49));
+    BOOST_CHECK(segments.transition(4 , 5, 201));
+    BOOST_CHECK(segments.transition(5 , 6, 204));
+    BOOST_CHECK(!segments.transition(6 , 7, 210));
+    for(int i = 0; i < 6; i++)
+        for(int j = 0; j < 6; j++) {
+            for(int t = 99; t <= 200; t++)
+                BOOST_CHECK(!segments.transition(i , j, t));
+            BOOST_CHECK(!segments.transition(i, j, 0));
+            BOOST_CHECK(!segments.transition(i, j, 210));
+        }
+}
