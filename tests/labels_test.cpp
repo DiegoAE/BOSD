@@ -4,6 +4,7 @@
 #include <boost/test/execution_monitor.hpp>
 #include <ForwardBackward.hpp>
 #include <exception>
+#include <set>
 
 BOOST_AUTO_TEST_CASE( single_segment ) {
     Labels segments;
@@ -93,4 +94,10 @@ BOOST_AUTO_TEST_CASE( transition ) {
             BOOST_CHECK(!segments.transition(i, j, 0));
             BOOST_CHECK(!segments.transition(i, j, 210));
         }
+    std::set<int> transition_times = {9, 49, 99, 199, 201, 204};
+    for(int i = 0; i <= 220; i++)
+        if (transition_times.find(i) != transition_times.end())
+            BOOST_CHECK(segments.transition(i));
+        else
+            BOOST_CHECK(!segments.transition(i));
 }

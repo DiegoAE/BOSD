@@ -440,7 +440,7 @@ bool Labels::isConsistent(int t, int d, int hidden_state) const {
     return true;
 }
 
-bool Labels::transition(int hs_from, int hs_to, int t) {
+bool Labels::transition(int hs_from, int hs_to, int t) const {
     ObservedSegment label(t, 1);  // Dummy duration value.
     auto from = labels_.lower_bound(label);
     auto to = labels_.upper_bound(label);
@@ -448,6 +448,15 @@ bool Labels::transition(int hs_from, int hs_to, int t) {
         return false;
     return from->getEndingTime() == t && to->getStartingTime() == (t + 1) &&
         from->getHiddenState() == hs_from && to->getHiddenState() == hs_to;
+}
+
+bool Labels::transition(int t) const {
+    ObservedSegment label(t, 1);  // Dummy duration value.
+    auto from = labels_.lower_bound(label);
+    auto to = labels_.upper_bound(label);
+    if (from == labels_.end() || to == labels_.end())
+        return false;
+    return from->getEndingTime() == t && to->getStartingTime() == (t + 1);
 }
 
 bool Labels::overlaps_(int t, int d) const {
