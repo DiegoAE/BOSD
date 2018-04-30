@@ -89,13 +89,13 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
 	BOOST_CHECK(fabs(llikelihood - expected_llikelihood_fulllabels) < EPSILON);
 
     // Testing with sparse labels.
-    logsFB(log(transition), log(pi), log(duration), logpdf, full_labels,
+    logsFB(log(transition), log(pi), log(duration), logpdf, sparse_labels,
             alpha, beta, alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
     llikelihood = logsumexp(alpha.col(nobs - 1));
     cube posterior_eta = exp(eta - llikelihood);
     for(auto p : seq_unobserved_segments) {
-        int sum_starting = 0;
-        int sum_ending = 0;
+        double sum_starting = 0;
+        double sum_ending = 0;
         int start_seg = p.first;
         int end_seg = p.second;
         for(int i = 0; i < nstates; i++)
