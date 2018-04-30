@@ -240,10 +240,6 @@ namespace hsmm {
         setTransition(transition);
     }
 
-    Labels& HSMM::getLabels() {
-        return observed_segments_;
-    }
-
     void HSMM::setDuration(mat duration) {
         assert(duration.n_rows == nstates_);
         assert(duration.n_cols == ndurations_);
@@ -317,11 +313,12 @@ namespace hsmm {
         return mobs;
     }
 
-    bool HSMM::fit(field<mat> mobs, int max_iter, double tol) {
+    bool HSMM::fit(field<mat> mobs, field<Labels> mobserved_segments,
+            int max_iter, double tol) {
 
         // Array initializations.
         int nseq = mobs.n_elem;
-        assert(nseq >= 1);
+        assert(nseq >= 1 && nseq == mobserved_segments.n_elem);
         field<mat> malpha(nseq);
         field<mat> mbeta(nseq);
         field<mat> malpha_s(nseq);
@@ -347,6 +344,7 @@ namespace hsmm {
         for(int i = 0; i < max_iter && !convergence_reached; i++) {
             for(int s = 0; s < nseq; s++) {
                 const mat& obs = mobs(s);
+                const Labels& observed_segments = mobserved_segments(s);
                 mat& alpha = malpha(s);
                 mat& beta = mbeta(s);
                 mat& alpha_s = malpha_s(s);
@@ -358,7 +356,7 @@ namespace hsmm {
                 cube logpdf = computeEmissionsLogLikelihood(obs);
 
                 logsFB(log_estimated_transition, log_estimated_pi,
-                        log_estimated_duration, logpdf, observed_segments_,
+                        log_estimated_duration, logpdf, observed_segments,
                         alpha, beta, alpha_s, beta_s, beta_s_0, eta,
                         min_duration_, obs.n_cols);
             }
@@ -482,10 +480,23 @@ namespace hsmm {
        return convergence_reached;
     }
 
-    bool HSMM::fit(mat obs, int max_iter, double tol) {
+    bool HSMM::fit(mat obs, Labels observed_segments, int max_iter,
+            double tol) {
         field<mat> mobs(1);
+        field<Labels> mobserved_segments(1);
         mobs(0) = obs;
-        fit(mobs, max_iter, tol);
+        mobserved_segments(0) = observed_segments;
+        return fit(mobs, mobserved_segments, max_iter, tol);
+    }
+
+    bool HSMM::fit(field<mat> mobs, int max_iter, double tol) {
+        field<Labels> mobserved_segments(mobs.n_elem);  // empty.
+        return fit(mobs, mobserved_segments, max_iter, tol);
+    }
+
+    bool HSMM::fit(mat obs, int max_iter, double tol) {
+        Labels dummy_observed_segments;  // empty.
+        return fit(obs, dummy_observed_segments, max_iter, tol);
     }
 
     // Computes the likelihoods w.r.t. the emission model.

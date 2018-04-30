@@ -103,8 +103,6 @@ namespace hsmm {
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
 
-            Labels& getLabels();
-
             void setDuration(arma::mat duration);
 
             void setEmission(std::shared_ptr<AbstractEmission> emission);
@@ -124,8 +122,19 @@ namespace hsmm {
             // convergence. It only uses a single time series.
             bool fit(arma::mat obs, int max_iter, double tol);
 
-            // As above but trains from multiple sequences.
+            // As above but also accepts a set of labels to perform
+            // semi-supervised learning.
+            bool fit(arma::mat obs, Labels observed_segments, int max_iter,
+                    double tol);
+
+            // Fits the model from multiple sequences.
             bool fit(arma::field<arma::mat> obs, int max_iter, double tol);
+
+            // As above (multiple sequences) but also accepts labels for
+            // semi-supervised learning.
+            bool fit(arma::field<arma::mat> obs,
+                    arma::field<Labels> observed_segments, int max_iter,
+                    double tol);
 
             // Computes the likelihoods w.r.t. the emission model.
             arma::cube computeEmissionsLikelihood(const arma::mat obs);
@@ -146,7 +155,6 @@ namespace hsmm {
             int min_duration_;
             int nstates_;
             std::shared_ptr<AbstractEmission> emission_;
-            Labels observed_segments_;
     };
 
 };
