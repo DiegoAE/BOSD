@@ -82,6 +82,39 @@ void Debug(char c, int a, int b, int d) {
     cout << c << "[" << a << "," << b << "]" << " " << d << endl;
 }
 
+double log_duration_t(double actual_value, int hidden_state, int d, int end_t,
+        const Labels& obs_segments) {
+    if (obs_segments.isLabel(end_t, d, hidden_state) ||
+            obs_segments.isLabel(end_t, d))
+        return 0.0;
+    if (!obs_segments.isConsistent(end_t, d, hidden_state))
+        return -datum::inf;
+    return actual_value;
+}
+
+double log_transition_t(double actual_value, int hs_from, int hs_to,
+        int end_t, const Labels& obs_segments) {
+    if (obs_segments.transition(hs_from, hs_to, end_t))
+        return 0.0;
+    if (obs_segments.transition(end_t))
+        return -datum::inf;
+    return actual_value;
+}
+
+double log_pi_t(double actual_value, int hidden_state, int d,
+        const Labels& obs_segments) {
+    if (obs_segments.empty())
+        return actual_value;
+    const ObservedSegment& first = obs_segments.getFirstSegment();
+    if (first.getStartingTime() == 0) {
+        if (first.getDuration() == d && first.getHiddenState() == hidden_state)
+            return 0.0;
+        else
+            return -datum::inf;
+    }
+    return actual_value;
+}
+
 void FB(const mat& transition,const vec& pi, const mat& duration,
         const cube& pdf, const Labels& obs_segments, mat& alpha, mat& beta,
         mat& alpha_s, mat& beta_s, vec& beta_s_0, cube& eta,
@@ -197,14 +230,16 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
                     break;
                 // Debug('f', first_idx_seg, t, first_idx_seg - 1);
                 double e_lh = log_pdf(j, first_idx_seg, d) +
-                        log_duration(j, d);
+                        log_duration_t(log_duration(j, d), j, d + min_duration,
+                        t, obs_segments);
                 vec c_alpha_s;
                 if (first_idx_seg == 0)
-                    c_alpha_s = log_pi(j);
+                    c_alpha_s = log_pi_t(log_pi(j), j, d + min_duration, obs_segments);
                 else {
                     c_alpha_s = zeros<vec>(nstates);
                     for(int i = 0; i < nstates; i++)
-                        c_alpha_s(i) = log_transition(i, j) +
+                        c_alpha_s(i) = log_transition_t(log_transition(i, j),
+                                i, j, first_idx_seg - 1, obs_segments) +
                                 alpha(i, first_idx_seg - 1);
                     alpha_s(j, first_idx_seg - 1) = logsumexp(c_alpha_s);
                 }
@@ -214,6 +249,7 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
             alpha(j, t) = logsumexp(c_alpha);
         }
     }
+
     // Backward pass base case.
     for(int i = 0; i < nstates; i++)
         beta(i, nobs - 1) = beta_s(i, nobs - 1) = 0.0;
@@ -232,11 +268,13 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
                         break;
                     // Debug('b', first_idx_seg, last_idx_seg, last_idx_seg);
                     double e_lh = log_pdf(i, first_idx_seg, d) +
-                            log_duration(i, d);
+                            log_duration_t(log_duration(i, d), i,
+                            d + min_duration, last_idx_seg, obs_segments);
                     c_beta_s(d) = e_lh + beta(i, last_idx_seg);
                 }
                 beta_s(i, t) = logsumexp(c_beta_s);
-                c_beta(i) = log_transition(j, i) + beta_s(i, t);
+                c_beta(i) = log_transition_t(log_transition(j, i), j, i, t,
+                        obs_segments) + beta_s(i, t);
             }
             beta(j, t) = logsumexp(c_beta);
         }
@@ -254,7 +292,8 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
             if (last_idx_seg >= nobs)
                 break;
             double e_lh = log_pdf(j, first_idx_seg, d) +
-                    log_duration(j, d);
+                    log_duration_t(log_duration(j, d), j,
+                    d + min_duration, last_idx_seg, obs_segments);
             c_beta_s_0(d) = e_lh + beta(j, last_idx_seg);
         }
         beta_s_0(j) = logsumexp(c_beta_s_0);
@@ -271,9 +310,11 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
                 if (first_idx_seg < 0)
                     break;
                 double e_lh = log_pdf(j, first_idx_seg, d) +
-                        log_duration(j, d);
+                        log_duration_t(log_duration(j, d), j, d + min_duration,
+                        t, obs_segments);
                 double left_side = (first_idx_seg == 0) ?
-                        log_pi(j) : alpha_s(j, first_idx_seg - 1);
+                        log_pi_t(log_pi(j), j, d + min_duration, obs_segments) :
+                        alpha_s(j, first_idx_seg - 1);
                 double right_side = beta(j, t);
                 eta(j, d, t) = left_side + e_lh + right_side;
             }
@@ -464,7 +505,7 @@ bool Labels::transition(int t) const {
 }
 
 const ObservedSegment& Labels::getFirstSegment() const {
-    myassert(!empty());
+    myassert(!empty(), "empty segment");
     auto it = labels_.begin();
     return *it;
 }
