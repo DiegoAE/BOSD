@@ -140,8 +140,26 @@ int main() {
     params_test = promp_hsmm.emission_->to_stream();
     cout << params_test.dump(4) << endl;
 
+    // Providing some sparse labels.
+    set<int> observed_indexes = {};  // {8,25,32,39,47};
+    field<Labels> mlabels(nseq);
+    for(int s = 0; s < nseq; s++) {
+        int idx = 0;
+        Labels observed_segments;
+        for(int i = 0; i < nsegments; i++) {
+            int hs = hidden_states(0)(i);
+            int dur = hidden_durations(0)(i);
+            idx += dur;
+            if (observed_indexes.find(i) != observed_indexes.end()) {
+                cout << "label hs: " << hs << endl;
+                observed_segments.setLabel(idx - 1, dur, hs);
+            }
+        }
+        mlabels(s) = observed_segments;
+    }
+
     // Learning the model from data.
-    promp_hsmm.fit(multiple_toy_obs, 100, 1e-10);
+    promp_hsmm.fit(multiple_toy_obs, mlabels, 100, 1e-10);
 
     cout << "Emission parameters after training" << endl;
     json params = promp_hsmm.emission_->to_stream();
