@@ -108,8 +108,27 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
         // There must be a segment which explains the starting part of an
         // unobserved run.
         BOOST_CHECK(fabs(sum_starting - 1.0) < EPSILON);
+
+        // The same applies for the ending part.
         BOOST_CHECK(fabs(sum_ending - 1.0) < EPSILON);
     }
+
+    current_idx = 0;
+    for(int i = 0; i < nSampledSegments; i++) {
+        int hs = hiddenStates(i);
+        int d = hiddenDurations(i);
+        current_idx += d;
+
+        // Checking that the provided labels apper as ones in eta.
+        if (sparse_segment_ids.find(i) != sparse_segment_ids.end())
+            BOOST_CHECK(fabs(posterior_eta(hs, d - min_duration,
+                            current_idx - 1) - 1) < EPSILON);
+    }
+
+    // Checking that the expected number of segments in the observation
+    // sequence is equal to the actual value. This is expected because
+    // the actual parameters are used for inference.
+    BOOST_CHECK(fabs(accu(posterior_eta) - nSampledSegments) < EPSILON);
 }
 
 
