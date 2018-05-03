@@ -61,6 +61,8 @@ class Labels {
         // Returns the leftmost segment present as a label.
         const ObservedSegment& getFirstSegment() const;
 
+        const std::set<ObservedSegment>& getLabels() const;
+
     private:
         bool overlaps_(int t, int d) const;
 

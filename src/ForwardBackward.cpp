@@ -510,6 +510,10 @@ const ObservedSegment& Labels::getFirstSegment() const {
     return *it;
 }
 
+const set<ObservedSegment>& Labels::getLabels() const {
+    return labels_;
+}
+
 bool Labels::overlaps_(int t, int d) const {
     ObservedSegment label(t, d);
     if (!labels_.empty()) {
