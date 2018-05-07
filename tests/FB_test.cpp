@@ -52,6 +52,7 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
     mat beta_s(nstates, nobs, fill::zeros);
     vec beta_s_0(nstates, fill::zeros);
     cube eta(nstates, ndurations, nobs, fill::zeros);
+    cube zeta(nstates, nstates, nobs - 1, fill::zeros);
 
     cube logpdf = dhsmm.computeEmissionsLogLikelihood(samples);
     Labels full_labels;
@@ -83,16 +84,36 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
     seq_unobserved_segments.push_back(make_pair(starting_unobserved_segment_idx,
                 current_idx - 1));
 
+    // Testing with full labels.
     logsFB(log(transition), log(pi), log(duration), logpdf, full_labels,
-            alpha, beta, alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
+            alpha, beta, alpha_s, beta_s, beta_s_0, eta, zeta, min_duration,
+            nobs);
+    eta = exp(eta);
+    zeta = exp(zeta);
     double llikelihood = logsumexp(alpha.col(nobs - 1));
 	BOOST_CHECK(fabs(llikelihood - expected_llikelihood_fulllabels) < EPSILON);
+    current_idx = 0;
+    for(int i = 0; i < nSampledSegments - 1; i++) {
+        int hs = hiddenStates(i);
+        int next_hs = hiddenStates(i + 1);
+        int d = hiddenDurations(i);
+        current_idx += d;
+
+        // Checking that the observed transitions have probability one and the
+        // rest have zero probability.
+        for(int j = 0; j < nstates; j++)
+            for(int k = 0; k < nstates; k++)
+                if (j == hs && k == next_hs)
+                    BOOST_CHECK(fabs(zeta(j, k, current_idx - 1) - 1.0) < EPSILON);
+                else
+                    BOOST_CHECK(fabs(zeta(j, k, current_idx - 1) - 0.0) < EPSILON);
+    }
 
     // Testing with sparse labels.
     logsFB(log(transition), log(pi), log(duration), logpdf, sparse_labels,
-            alpha, beta, alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
-    llikelihood = logsumexp(alpha.col(nobs - 1));
-    cube posterior_eta = exp(eta - llikelihood);
+            alpha, beta, alpha_s, beta_s, beta_s_0, eta, zeta, min_duration,
+            nobs);
+    eta = exp(eta);
     for(auto p : seq_unobserved_segments) {
         double sum_starting = 0;
         double sum_ending = 0;
@@ -100,9 +121,8 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
         int end_seg = p.second;
         for(int i = 0; i < nstates; i++)
             for(int d = 0; d < ndurations; d++) {
-                sum_starting += posterior_eta(i, d,
-                        start_seg + min_duration + d - 1);
-                sum_ending += posterior_eta(i, d, end_seg);
+                sum_starting += eta(i, d, start_seg + min_duration + d - 1);
+                sum_ending += eta(i, d, end_seg);
             }
 
         // There must be a segment which explains the starting part of an
@@ -121,14 +141,14 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
 
         // Checking that the provided labels apper as ones in eta.
         if (sparse_segment_ids.find(i) != sparse_segment_ids.end())
-            BOOST_CHECK(fabs(posterior_eta(hs, d - min_duration,
-                            current_idx - 1) - 1) < EPSILON);
+            BOOST_CHECK(fabs(eta(hs, d - min_duration, current_idx - 1) - 1) <
+                    EPSILON);
     }
 
     // Checking that the expected number of segments in the observation
     // sequence is equal to the actual value. This is expected because
     // the actual parameters are used for inference.
-    BOOST_CHECK(fabs(accu(posterior_eta) - nSampledSegments) < EPSILON);
+    BOOST_CHECK(fabs(accu(eta) - nSampledSegments) < EPSILON);
 }
 
 

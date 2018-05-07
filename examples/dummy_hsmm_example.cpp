@@ -60,10 +60,12 @@ int main() {
     mat beta_s(nstates, nobs, fill::zeros);
     vec beta_s_0(nstates, fill::zeros);
     cube eta(nstates, ndurations, nobs, fill::zeros);
+    cube zeta(nstates, nstates, nobs - 1, fill::zeros);
     cube logpdf = dhsmm.computeEmissionsLogLikelihood(samples);
     Labels obs_segments;
     logsFB(log(transition), log(pi), log(durations), logpdf, obs_segments,
-            alpha, beta, alpha_s, beta_s, beta_s_0, eta, min_duration, nobs);
+            alpha, beta, alpha_s, beta_s, beta_s_0, eta, zeta, min_duration,
+            nobs);
     mat compare_alpha = exp(alpha);
     mat compare_alpha_s = exp(alpha_s);
     mat compare_beta = exp(beta);

@@ -141,7 +141,7 @@ int main() {
     cout << params_test.dump(4) << endl;
 
     // Providing some sparse labels.
-    set<int> observed_indexes = {};  // {8,25,32,39,47};
+    set<int> observed_indexes = {};  //{5,6,7,8,25,32,39,47};
     field<Labels> mlabels(nseq);
     for(int s = 0; s < nseq; s++) {
         int idx = 0;
@@ -161,8 +161,8 @@ int main() {
     // Learning the model from data.
     promp_hsmm.fit(multiple_toy_obs, mlabels, 100, 1e-10);
 
-    cout << "Emission parameters after training" << endl;
-    json params = promp_hsmm.emission_->to_stream();
+    cout << "Model parameters after training" << endl;
+    json params = promp_hsmm.to_stream();
     cout << params.dump(4) << endl;
 
     // Running the Viterbi algorithm for the first sequence.

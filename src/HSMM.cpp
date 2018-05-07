@@ -325,6 +325,7 @@ namespace hsmm {
         field<mat> mbeta_s(nseq);
         field<vec> mbeta_s_0(nseq);
         field<cube> meta(nseq);
+        field<cube> mzeta(nseq);
         for(int i = 0; i < nseq; i++) {
             int nobs = mobs(i).n_cols;
             assert(nobs >= min_duration_);
@@ -334,6 +335,7 @@ namespace hsmm {
             mbeta_s(i) = zeros<mat>(nstates_, nobs);
             mbeta_s_0(i) = zeros<vec>(nstates_);
             meta(i) = zeros<cube>(nstates_, ndurations_, nobs);
+            mzeta(i) = zeros<cube>(nstates_, nstates_, nobs - 1);
         }
 
         mat log_estimated_transition = log(transition_);
@@ -351,28 +353,23 @@ namespace hsmm {
                 mat& beta_s = mbeta_s(s);
                 vec& beta_s_0 = mbeta_s_0(s);
                 cube& eta = meta(s);
+                cube& zeta = mzeta(s);
 
                 // Recomputing the emission likelihoods.
                 cube logpdf = computeEmissionsLogLikelihood(obs);
 
                 logsFB(log_estimated_transition, log_estimated_pi,
                         log_estimated_duration, logpdf, observed_segments,
-                        alpha, beta, alpha_s, beta_s, beta_s_0, eta,
+                        alpha, beta, alpha_s, beta_s, beta_s_0, eta, zeta,
                         min_duration_, obs.n_cols);
             }
-
             vec sequences_llikelihood(nseq);
             for(int s = 0; s < nseq; s++) {
                 int nobs = mobs(s).n_cols;
-                const mat& alpha = malpha(s);
-                cube& eta = meta(s);
 
                 // Computing the marginal likelihood (aka observation
                 // likelihood).
-                sequences_llikelihood(s) = logsumexp(alpha.col(nobs - 1));
-
-                // Normalizing eta to have actual posterior distributions.
-                eta -= sequences_llikelihood(s);
+                sequences_llikelihood(s) = logsumexp(malpha(s).col(nobs - 1));
             }
             double current_llikelihood = sum(sequences_llikelihood);
             cout << "EM iteration " << i << " marginal log-likelihood: " <<
@@ -395,16 +392,10 @@ namespace hsmm {
                 for(int j = 0; j < nstates_; j++) {
                     vector<double> num;
                     for(int s = 0; s < nseq; s++) {
-                        int nobs = mobs(s).n_cols;
-                        const mat& alpha = malpha(s);
-                        const mat& beta_s = mbeta_s(s);
-                        for(int t = 0; t < nobs - 1; t++) {
-                            double tmp_entry = alpha(i, t) +
-                                    log_estimated_transition(i, j) +
-                                    beta_s(j, t);
-                            tmp_entry -= sequences_llikelihood(s);
-                            num.push_back(tmp_entry);
-                            den.push_back(tmp_entry);
+                        const cube& zeta = mzeta(s);
+                        for(int t = 0; t < mobs(s).n_cols - 1; t++) {
+                            num.push_back(zeta(i, j, t));
+                            den.push_back(zeta(i, j, t));
                         }
                     }
                     vec num_v(num);
@@ -424,6 +415,7 @@ namespace hsmm {
             // Reestimating the initial state pmf.
             vec tmp_pi(size(pi_), fill::zeros);
             for(const vec& beta_s_0 : mbeta_s_0) {
+                // TODO: fix the following line to take into account the labels.
                 vec current_log_estimated_pi = beta_s_0 + log_estimated_pi;
                 // double mllh = log(sum(estimated_pi));
                 current_log_estimated_pi = current_log_estimated_pi -

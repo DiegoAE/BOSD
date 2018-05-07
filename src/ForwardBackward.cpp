@@ -209,8 +209,8 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
         const arma::mat& log_duration, const arma::cube& log_pdf,
         const Labels& obs_segments, arma::mat& alpha,
         arma::mat& beta, arma::mat& alpha_s, arma::mat& beta_s,
-        arma::vec& beta_s_0, arma::cube& eta, const int min_duration,
-        const int nobs) {
+        arma::vec& beta_s_0, arma::cube& eta, arma::cube &zeta,
+        const int min_duration, const int nobs) {
     log_safety_checks(log_transition, log_pi, log_duration, log_pdf, alpha,
             beta, alpha_s, beta_s, min_duration, nobs);
     int nstates = log_transition.n_rows;
@@ -320,6 +320,24 @@ void logsFB(const arma::mat& log_transition,const arma::vec& log_pi,
             }
         }
     }
+
+    // Computing zeta(i, j, t). The expected value of having a transition from
+    // state i to state j at time t (non-normalized).
+    zeta = zeros<cube>(nstates, nstates, nobs - 1);
+    for(int i = 0; i < nstates; i++) {
+        for(int j = 0; j < nstates; j++) {
+            for(int t = 0; t < nobs - 1; t++) {
+                zeta(i, j, t) = alpha(i, t) + log_transition_t(
+                        log_transition(i, j), i, j, t, obs_segments) +
+                        beta_s(j, t);
+            }
+        }
+    }
+
+    // Normalizing eta and zeta.
+    double llikelihood = logsumexp(alpha.col(nobs - 1));
+    eta -= llikelihood;
+    zeta -= llikelihood;
 }
 
 /**
