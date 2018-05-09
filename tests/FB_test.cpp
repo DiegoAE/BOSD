@@ -151,5 +151,14 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
     BOOST_CHECK(fabs(accu(eta) - nSampledSegments) < EPSILON);
 }
 
-
+BOOST_AUTO_TEST_CASE( LogSumExp ) {
+    int n = 10;
+    vec ones_v = ones<vec>(n);
+    double sum = exp(logsumexp(log(ones_v)));
+    BOOST_CHECK(fabs(sum - n) < EPSILON);
+    int nzeros = 3;
+    ones_v.subvec(0, nzeros - 1).fill(0.0);
+    sum = exp(logsumexp(log(ones_v)));
+    BOOST_CHECK(fabs(sum - (n-nzeros)) < EPSILON);
+}
 
