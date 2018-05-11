@@ -86,7 +86,7 @@ double log_duration_t(double actual_value, int hidden_state, int d, int end_t,
         const Labels& obs_segments) {
     if (obs_segments.isLabel(end_t, d, hidden_state) ||
             obs_segments.isLabel(end_t, d))
-        return 0.0;
+        return actual_value;
     if (!obs_segments.isConsistent(end_t, d, hidden_state))
         return -datum::inf;
     return actual_value;
@@ -95,7 +95,7 @@ double log_duration_t(double actual_value, int hidden_state, int d, int end_t,
 double log_transition_t(double actual_value, int hs_from, int hs_to,
         int end_t, const Labels& obs_segments) {
     if (obs_segments.transition(hs_from, hs_to, end_t))
-        return 0.0;
+        return actual_value;
     if (obs_segments.transition(end_t))
         return -datum::inf;
     return actual_value;
@@ -108,7 +108,7 @@ double log_pi_t(double actual_value, int hidden_state, int d,
     const ObservedSegment& first = obs_segments.getFirstSegment();
     if (first.getStartingTime() == 0) {
         if (first.getDuration() == d && first.getHiddenState() == hidden_state)
-            return 0.0;
+            return actual_value;
         else
             return -datum::inf;
     }

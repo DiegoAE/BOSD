@@ -69,7 +69,12 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
         int hs = hiddenStates(i);
         int d = hiddenDurations(i);
         expected_llikelihood_fulllabels += logpdf(hs, current_idx,
-                d - min_duration);
+                d - min_duration) + log(duration(hs, d - min_duration));
+        if (i == 0)
+            expected_llikelihood_fulllabels += log(pi(hs));
+        else
+            expected_llikelihood_fulllabels += log(transition(hiddenStates(
+                            i - 1), hs));
         int starting_idx = current_idx;
         current_idx += d;
         int ending_idx = current_idx - 1;
