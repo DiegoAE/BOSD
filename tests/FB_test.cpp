@@ -114,6 +114,7 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
             alpha, beta, alpha_s, beta_s, beta_s_0, eta, zeta, min_duration,
             nobs);
     eta = exp(eta);
+    zeta = exp(zeta);
     for(auto p : seq_unobserved_segments) {
         double sum_starting = 0;
         double sum_ending = 0;
@@ -137,12 +138,39 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
     for(int i = 0; i < nSampledSegments; i++) {
         int hs = hiddenStates(i);
         int d = hiddenDurations(i);
+        int starting_idx = current_idx;
         current_idx += d;
+        int ending_idx = current_idx - 1;
+        if (sparse_segment_ids.find(i) != sparse_segment_ids.end()) {
 
-        // Checking that the provided labels apper as ones in eta.
-        if (sparse_segment_ids.find(i) != sparse_segment_ids.end())
-            BOOST_CHECK(fabs(eta(hs, d - min_duration, current_idx - 1) - 1) <
+            // Checking that the provided labels apper as ones in eta.
+            BOOST_CHECK(fabs(eta(hs, d - min_duration, ending_idx) - 1) <
                     EPSILON);
+            for(int j = 0; j < nstates; j++) {
+
+                double sum_eta_last = 0;
+                double sum_eta_first = 0;
+                for(int k = 0; k < ndurations; k++) {
+                    sum_eta_last += eta(j, k, starting_idx - 1);
+                    sum_eta_first += eta(j, k, ending_idx + 1);
+                }
+
+                // Checking that the expected transition from an unobserved
+                // state to an observed one (or viceversa) is equal to the
+                // expected value of being in the unobserved state.
+                BOOST_CHECK(fabs(sum_eta_last - zeta(j, hs, starting_idx - 1))
+                        < EPSILON);
+                BOOST_CHECK(fabs(sum_eta_first - zeta(hs, j, ending_idx + 1))
+                        < EPSILON);
+
+                // Checking that unfeasible transitions have 0 posterior mass.
+                for(int k = 0; k < nstates; k++)
+                    if (k != hs)
+                        BOOST_CHECK(zeta(j, k, starting_idx - 1) < EPSILON &&
+                                zeta(k, j, ending_idx + 1) < EPSILON);
+
+            }
+        }
     }
 
     // Checking that the expected number of segments in the observation
