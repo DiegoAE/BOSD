@@ -528,6 +528,12 @@ const ObservedSegment& Labels::getFirstSegment() const {
     return *it;
 }
 
+const ObservedSegment& Labels::getLastSegment() const {
+    myassert(!empty(), "empty segment");
+    auto it = labels_.rbegin();
+    return *it;
+}
+
 const set<ObservedSegment>& Labels::getLabels() const {
     return labels_;
 }

@@ -347,6 +347,19 @@ namespace hsmm {
             for(int s = 0; s < nseq; s++) {
                 const mat& obs = mobs(s);
                 const Labels& observed_segments = mobserved_segments(s);
+
+                // Assertions if labels are provided.
+                if (!observed_segments.empty()) {
+                    for(const auto &segment : observed_segments.getLabels())
+                        assert(segment.getDuration() >= min_duration_ &&
+                                segment.getDuration() < min_duration_ +
+                                ndurations_);
+                    assert(observed_segments.getFirstSegment().getStartingTime()
+                            >= min_duration_);
+                    assert(-observed_segments.getLastSegment().getEndingTime() +
+                            obs.n_cols > min_duration_);
+                }
+
                 mat& alpha = malpha(s);
                 mat& beta = mbeta(s);
                 mat& alpha_s = malpha_s(s);

@@ -102,6 +102,22 @@ BOOST_AUTO_TEST_CASE( transition ) {
             BOOST_CHECK(!segments.transition(i));
 }
 
+BOOST_AUTO_TEST_CASE( firstandlastsegments ) {
+    Labels segments;
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(370, 91, 0));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(416, 46, 1));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(546, 130, 2));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(611, 65, 3));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(680, 69, 0));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(740, 60, 1));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(870, 130, 2));
+    BOOST_REQUIRE_NO_THROW(segments.setLabel(925, 55, 3));
+    const ObservedSegment& first = segments.getFirstSegment();
+    const ObservedSegment& last = segments.getLastSegment();
+    BOOST_CHECK(first.getStartingTime() == 370 - 91 + 1);
+    BOOST_CHECK(last.getEndingTime() == 925);
+}
+
 BOOST_AUTO_TEST_CASE( firstSegment ) {
     Labels segments;
     BOOST_REQUIRE_THROW(segments.getFirstSegment(), std::logic_error);

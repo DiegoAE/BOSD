@@ -61,6 +61,9 @@ class Labels {
         // Returns the leftmost segment present as a label.
         const ObservedSegment& getFirstSegment() const;
 
+        // Returns the rightmost segment present as a label.
+        const ObservedSegment& getLastSegment() const;
+
         const std::set<ObservedSegment>& getLabels() const;
 
     private:
