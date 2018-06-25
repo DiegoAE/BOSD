@@ -44,7 +44,8 @@ if (ROB_LIB)
     target_link_libraries(promps_hsmm_robot
         ${PROJECT_NAME}
         ${ROB_LIB}
-        ${ARMADILLO_LIBRARIES})
+        ${ARMADILLO_LIBRARIES}
+        ${Boost_LIBRARIES})
 else()
     message(WARNING "librobotics was not found. Therefore ProMPs are not supported.")
 endif()

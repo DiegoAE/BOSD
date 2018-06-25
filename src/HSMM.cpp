@@ -354,10 +354,14 @@ namespace hsmm {
                         assert(segment.getDuration() >= min_duration_ &&
                                 segment.getDuration() < min_duration_ +
                                 ndurations_);
-                    assert(observed_segments.getFirstSegment().getStartingTime()
-                            >= min_duration_);
-                    assert(-observed_segments.getLastSegment().getEndingTime() +
-                            obs.n_cols > min_duration_);
+                    int start_time = observed_segments.getFirstSegment(
+                            ).getStartingTime();
+                    int end_time = observed_segments.getLastSegment(
+                            ).getEndingTime();
+                    if (start_time > 0)
+                        assert(start_time >= min_duration_);
+                    if (end_time < obs.n_cols - 1)
+                        assert(obs.n_cols - end_time > min_duration_);
                 }
 
                 mat& alpha = malpha(s);
