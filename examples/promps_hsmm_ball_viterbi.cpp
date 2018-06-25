@@ -12,14 +12,62 @@ using json = nlohmann::json;
 namespace po = boost::program_options;
 
 
+// Running the Viterbi algorithm.
+void ViterbiAlgorithm(HSMM& promp_hsmm, const field<mat>& seq_obs,
+        string filename) {
+    int nseq = seq_obs.n_elem;
+    for(int s = 0; s < nseq; s++) {
+        const mat& obs = seq_obs(s);
+        int nstates = promp_hsmm.nstates_;
+        int nobs = obs.n_cols;
+        imat psi_duration(nstates, nobs, fill::zeros);
+        imat psi_state(nstates, nobs, fill::zeros);
+        mat delta(nstates, nobs, fill::zeros);
+        cout << "Before pdf" << endl;
+        cube log_pdf = promp_hsmm.computeEmissionsLogLikelihood(obs);
+        cout << "After pdf" << endl;
+        Viterbi(promp_hsmm.transition_, promp_hsmm.pi_, promp_hsmm.duration_,
+                log_pdf, delta, psi_duration, psi_state,
+                promp_hsmm.min_duration_, nobs);
+        cout << "Delta last column" << endl;
+        cout << delta.col(nobs - 1) << endl;
+        ivec viterbiStates, viterbiDurations;
+        viterbiPath(psi_duration, psi_state, delta, viterbiStates,
+                viterbiDurations);
+        cout << "Viterbi states and durations" << endl;
+        imat states_and_durations = join_horiz(viterbiStates, viterbiDurations);
+        cout << states_and_durations << endl;
+        cout << "Python states list representation" << endl;
+        cout << "[";
+        for(int i = 0; i < viterbiStates.n_elem; i++)
+            cout << viterbiStates[i] <<
+                    ((i + 1 == viterbiStates.n_elem)? "]" : ",");
+        cout << endl;
+        cout << "Python duration list representation" << endl;
+        cout << "[";
+        for(int i = 0; i < viterbiDurations.n_elem; i++)
+            cout << viterbiDurations[i] <<
+                    ((i + 1 == viterbiDurations.n_elem)? "]" : ",");
+        cout << endl;
+
+        // Saving the matrix of joint states and durations.
+        string viterbi_filename(filename);
+        if (nseq > 1)
+            viterbi_filename += string(".") + to_string(s);
+        states_and_durations.save(viterbi_filename, raw_ascii);
+    }
+}
+
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
         ("help,h", "Produce help message")
         ("input,i", po::value<string>(), "Path to the input obs")
         ("params,p", po::value<string>(), "Path to the json input params")
-        ("output,o", po::value<string>(), "Path to the output params")
-        ("nbasis,nb", po::value<int>(), "Number of basis functions used");
+        ("output,o", po::value<string>(), "Path to the output viterbi file(s)")
+        ("nbasis,b", po::value<int>(), "Number of basis functions used")
+        ("nsequences,n", po::value<int>()->default_value(1),
+                "Number of sequences used for training");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -36,15 +84,28 @@ int main(int argc, char *argv[]) {
     string output_filename = vm["output"].as<string>();
     string params = vm["params"].as<string>();
     int n_basis_functions = vm["nbasis"].as<int>();
+    int nseq = vm["nsequences"].as<int>();
 
-    mat obs;
-    obs.load(input_filename, raw_ascii);
+    field<mat> seq_obs(nseq);
+    int njoints;
+    for(int i = 0; i < nseq; i++) {
+        string name = input_filename;
+        if (nseq != 1)
+            name += string(".") + to_string(i);
+        mat obs;
+        obs.load(name, raw_ascii);
+        ifstream input_params_file(params);
+        json input_params;
+        input_params_file >> input_params;
+        njoints = obs.n_rows;
+        int nobs = obs.n_cols;
+        cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
+        seq_obs(i) = obs;
+    }
+
     ifstream input_params_file(params);
     json input_params;
     input_params_file >> input_params;
-    int njoints = obs.n_rows;
-    int nobs = obs.n_cols;
-    cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
     int min_duration = input_params["min_duration"];
     int nstates = input_params["nstates"];
     int ndurations = input_params["ndurations"];
@@ -78,37 +139,6 @@ int main(int argc, char *argv[]) {
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
     promp_hsmm.from_stream(input_params);
 
-    // Running the Viterbi algorithm.
-    imat psi_duration(nstates, nobs, fill::zeros);
-    imat psi_state(nstates, nobs, fill::zeros);
-    mat delta(nstates, nobs, fill::zeros);
-    cout << "Before pdf" << endl;
-    cube log_pdf = promp_hsmm.computeEmissionsLogLikelihood(obs);
-    cout << "After pdf" << endl;
-    Viterbi(promp_hsmm.transition_, promp_hsmm.pi_, promp_hsmm.duration_,
-            log_pdf, delta, psi_duration, psi_state, promp_hsmm.min_duration_,
-            nobs);
-    cout << "Delta last column" << endl;
-    cout << delta.col(nobs - 1) << endl;
-    ivec viterbiStates, viterbiDurations;
-    viterbiPath(psi_duration, psi_state, delta, viterbiStates, viterbiDurations);
-    cout << "Viterbi states and durations" << endl;
-    imat states_and_durations = join_horiz(viterbiStates, viterbiDurations);
-    cout << states_and_durations << endl;
-    cout << "Python states list representation" << endl;
-    cout << "[";
-    for(int i = 0; i < viterbiStates.n_elem; i++)
-        cout << viterbiStates[i] <<
-                ((i + 1 == viterbiStates.n_elem)? "]" : ",");
-    cout << endl;
-    cout << "Python duration list representation" << endl;
-    cout << "[";
-    for(int i = 0; i < viterbiDurations.n_elem; i++)
-        cout << viterbiDurations[i] <<
-                ((i + 1 == viterbiDurations.n_elem)? "]" : ",");
-    cout << endl;
-
-    // Saving the matrix of joint states and durations.
-    states_and_durations.save(output_filename, raw_ascii);
+    ViterbiAlgorithm(promp_hsmm, seq_obs, output_filename);
     return 0;
 }
