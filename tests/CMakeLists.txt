@@ -1,5 +1,4 @@
 
-find_package(Boost COMPONENTS unit_test_framework REQUIRED)
 add_executable(labels_test
     labels_test.cpp
   )
