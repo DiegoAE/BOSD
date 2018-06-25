@@ -1,4 +1,5 @@
 #include <armadillo>
+#include <boost/program_options.hpp>
 #include <HSMM.hpp>
 #include <json.hpp>
 #include <ProMPs_emission.hpp>
@@ -8,18 +9,37 @@ using namespace hsmm;
 using namespace robotics;
 using namespace std;
 using json = nlohmann::json;
+namespace po = boost::program_options;
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 3 && argc != 4) {
-        cout<<"Usage: "<< argv[0] <<
-                " <input_obs_filename> <input_json_params_filename>"
-                " [output_file]\n";
+    po::options_description desc("Options");
+    desc.add_options()
+        ("help,h", "Produce help message")
+        ("input,i", po::value<string>(), "Path to the input obs")
+        ("params,p", po::value<string>(), "Path to the json input params")
+        ("output,o", po::value<string>(), "Path to the output params")
+        ("nbasis,nb", po::value<int>(), "Number of basis functions used");
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    if (vm.count("help")) {
+        cout << desc << endl;
+        return 0;
+    }
+    if (!vm.count("input") || !vm.count("output") || !vm.count("params") ||
+            !vm.count("nbasis")) {
+        cerr << "Error: You should provide input and output files" << endl;
         return 1;
     }
+    string input_filename = vm["input"].as<string>();
+    string output_filename = vm["output"].as<string>();
+    string params = vm["params"].as<string>();
+    int n_basis_functions = vm["nbasis"].as<int>();
+
     mat obs;
-    obs.load(argv[1], raw_ascii);
-    ifstream input_params_file(argv[2]);
+    obs.load(input_filename, raw_ascii);
+    ifstream input_params_file(params);
     json input_params;
     input_params_file >> input_params;
     int njoints = obs.n_rows;
@@ -35,9 +55,8 @@ int main(int argc, char *argv[]) {
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations);
     durations.fill(1.0 / ndurations);
-    int n_basis_functions = 2;
 
-    // Setting a third order polynomial basis function for the ProMP
+    // Setting polynomial basis function for the ProMP
     int polynomial_order = n_basis_functions - 1;
     shared_ptr<ScalarBasisFun> kernel{ new ScalarPolyBasis(polynomial_order)};
 
@@ -89,10 +108,7 @@ int main(int argc, char *argv[]) {
                 ((i + 1 == viterbiDurations.n_elem)? "]" : ",");
     cout << endl;
 
-    if (argc == 4) {
-
-        // Saving the matrix of joint states and durations.
-        states_and_durations.save(argv[3], raw_ascii);
-    }
+    // Saving the matrix of joint states and durations.
+    states_and_durations.save(output_filename, raw_ascii);
     return 0;
 }
