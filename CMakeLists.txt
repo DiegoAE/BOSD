@@ -13,11 +13,14 @@ include_directories(${Boost_INCLUDE_DIR})
 add_library(${PROJECT_NAME}
     src/ForwardBackward.cpp
     src/HSMM.cpp
+    src/HMM.cpp
   )
 
 add_executable(hsmm_dummy_gaussian examples/dummy_hsmm_example.cpp)
+add_executable(hmm_dummy_gaussian examples/dummy_hmm_example.cpp)
 
 target_link_libraries(hsmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
+target_link_libraries(hmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 
 find_library(ROB_LIB NAMES robotics)
 if (ROB_LIB)
