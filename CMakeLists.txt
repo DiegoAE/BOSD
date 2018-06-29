@@ -11,6 +11,7 @@ include_directories(include)
 include_directories(${Boost_INCLUDE_DIR})
 
 add_library(${PROJECT_NAME}
+    src/emissions.cpp
     src/ForwardBackward.cpp
     src/HSMM.cpp
     src/HMM.cpp
