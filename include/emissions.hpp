@@ -16,8 +16,13 @@ namespace hsmm {
 
             virtual AbstractEmission* clone() const = 0;
 
+            // loglikelihood for a single observation.
             virtual double loglikelihood(int state, const arma::mat& obs)
                     const = 0;
+
+            // loglikelihood for a set of i.i.d. observations.
+            double loglikelihood_iid(int state,
+                    const arma::field<arma::mat>& seq) const;
 
             arma::cube likelihoodCube(int min_duration, int ndurations,
                     const arma::mat &obs) const;

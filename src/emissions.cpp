@@ -37,6 +37,14 @@ namespace hsmm {
         return dimension_;
     }
 
+    double AbstractEmission::loglikelihood_iid(int state,
+            const field<mat>& seq) const {
+        double ret = 0.0;
+        for(int i = 0; i < seq.n_elem; i++)
+            ret += loglikelihood(state, seq(i));
+        return ret;
+    }
+
     cube AbstractEmission::likelihoodCube(int min_duration, int ndurations,
             const mat &obs) const {
         return exp(loglikelihoodCube(min_duration, ndurations, obs));

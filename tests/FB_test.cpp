@@ -195,3 +195,17 @@ BOOST_AUTO_TEST_CASE( LogSumExp ) {
     BOOST_CHECK(fabs(sum - (n-nzeros)) < EPSILON);
 }
 
+BOOST_AUTO_TEST_CASE( loglikelihood ) {
+    vec means = {0, 1, 2};
+    vec std_devs = {0.1, 0.1, 0.1};
+    DummyGaussianEmission gaussian(means, std_devs);
+    for(int s = 0; s < means.n_elem; s++) {
+        mat samples = gaussian.sampleFromState(s, 100);
+        field<mat> fsamples(samples.n_cols);
+        for(int i = 0; i < fsamples.n_elem; i++)
+            fsamples(i) = samples.col(i);
+        double ll = gaussian.loglikelihood(s, samples);
+        double fll = gaussian.loglikelihood_iid(s, fsamples);
+        BOOST_CHECK(fabs(ll - fll) < EPSILON);
+    }
+}
