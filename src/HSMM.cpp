@@ -127,7 +127,7 @@ namespace hsmm {
         field<cube> meta(nseq);
         field<cube> mzeta(nseq);
         for(int i = 0; i < nseq; i++) {
-            int nobs = mobs(i).n_rows;
+            int nobs = mobs(i).n_elem;
             assert(nobs >= min_duration_);
             malpha(i) = zeros<mat>(nstates_, nobs);
             mbeta(i) = zeros<mat>(nstates_, nobs);
@@ -202,29 +202,31 @@ namespace hsmm {
             }
             marginal_llikelihood = current_llikelihood;
 
-            // Reestimating transitions.
-            mat tmp_transition(size(transition_));
+            mat tmp_transition(log_estimated_transition);
             for(int i = 0; i < nstates_; i++) {
                 vector<double> den;
                 for(int j = 0; j < nstates_; j++) {
                     vector<double> num;
                     for(int s = 0; s < nseq; s++) {
                         const cube& zeta = mzeta(s);
-                        for(int t = 0; t < mobs(s).n_rows - 1; t++) {
+                        for(int t = 0; t < mobs(s).n_elem - 1; t++) {
                             num.push_back(zeta(i, j, t));
                             den.push_back(zeta(i, j, t));
                         }
                     }
                     vec num_v(num);
-                    tmp_transition(i, j) = logsumexp(num_v);
+                    if (num_v.n_elem > 0)
+                        tmp_transition(i, j) = logsumexp(num_v);
                 }
                 vec den_v(den);
-                double denominator = logsumexp(den_v);
+                if (den_v.n_elem > 0) {
+                    double denominator = logsumexp(den_v);
 
-                // Handling the case when the transition probability mass is 0.
-                if (denominator != -datum::inf) {
-                    for(int j = 0; j < nstates_; j++)
-                        tmp_transition(i, j) -= denominator;
+                    // Handling the case when the transition probability is 0.
+                    if (denominator != -datum::inf) {
+                        for(int j = 0; j < nstates_; j++)
+                            tmp_transition(i, j) -= denominator;
+                    }
                 }
             }
             log_estimated_transition = tmp_transition;

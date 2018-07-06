@@ -40,7 +40,6 @@ namespace hsmm {
     };
 
 
-
     class ProMPsEmission : public AbstractEmission {
         public:
             ProMPsEmission(vector<FullProMP> promps) : AbstractEmission(
@@ -309,7 +308,7 @@ namespace hsmm {
             }
 
 
-        private:
+        protected:
 
             // Returns the marginal distribution of a particular state (ProMP) and
             // duration. Keep in mind that the covariance matrix grows quadratically
@@ -380,6 +379,55 @@ namespace hsmm {
             vector<FullProMP> promps_;
             std::shared_ptr<InverseWishart> Sigma_w_prior_;
             double epsilon_ = 1e-15;
+    };
+
+
+    // This version of the ProMP is specifically designed for HMMs where a
+    // single observation is a time series itself
+    class ProMPsEmissionHMM : public ProMPsEmission {
+        public:
+            ProMPsEmissionHMM(vector<FullProMP> promps) :
+                    ProMPsEmission(promps) {}
+
+            ProMPsEmission* clone() const {
+                return new ProMPsEmission(*this);
+            }
+
+            double loglikelihood(int state, const field<mat>& obs) const {
+
+                // Making sure that the duration is one.
+                assert(obs.n_elem == 1);
+                auto& sequence = obs(0);
+                const FullProMP& promp = promps_.at(state);
+
+                // The samples are assumed to be equally spaced.
+                vec sample_locations = linspace<vec>(0, 1.0, sequence.n_cols);
+
+                vec mu(promp.get_model().get_mu_w());
+                mat Sigma(promp.get_model().get_Sigma_w());
+                mat Sigma_y(promp.get_model().get_Sigma_y());
+                double ret = 0;
+                for(int i = 0; i < sequence.n_cols; i++) {
+                    mat Phi = promp.get_phi_t(sample_locations(i));
+                    mat S = Phi * Sigma * Phi.t() + Sigma_y;
+
+                    // Required for the marginal likelihood p(y_t | y_{1:t-1}).
+                    random::NormalDist dist = random::NormalDist(Phi * mu, S);
+                    ret = ret + log_normal_density(dist, sequence.col(i));
+
+                    // Using the kalman updating step to compute this efficiently.
+                    mat K = Sigma * Phi.t() * inv(S);
+                    mu = mu + K * (sequence.col(i) - Phi * mu);
+                    Sigma = Sigma - K * S * K.t();
+                }
+                return ret;
+            }
+
+            void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::field<arma::mat>>& mobs) {
+                // TODO.
+            }
     };
 
 };
