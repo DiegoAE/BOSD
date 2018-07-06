@@ -122,8 +122,8 @@ int main() {
     int nseq = 1;
     int nsegments = 50;
     field<ivec> hidden_states, hidden_durations;
-    field<mat> multiple_toy_obs = promp_hsmm.sampleMultipleSequences(nseq, nsegments,
-            hidden_states, hidden_durations);
+    field<field<mat>> multiple_toy_obs = promp_hsmm.sampleMultipleSequences(
+            nseq, nsegments, hidden_states, hidden_durations);
     cout << "Generated states and durations for the first sequence" << endl;
     cout << join_horiz(hidden_states(0), hidden_durations(0)) << endl;
 
@@ -166,15 +166,15 @@ int main() {
     cout << params.dump(4) << endl;
 
     // Running the Viterbi algorithm for the first sequence.
-    const mat& toy_obs = multiple_toy_obs(0);
-    imat psi_duration(nstates, toy_obs.n_cols, fill::zeros);
-    imat psi_state(nstates, toy_obs.n_cols, fill::zeros);
-    mat delta(nstates, toy_obs.n_cols, fill::zeros);
+    const field<mat>& toy_obs = multiple_toy_obs(0);
+    imat psi_duration(nstates, toy_obs.n_elem, fill::zeros);
+    imat psi_state(nstates, toy_obs.n_elem, fill::zeros);
+    mat delta(nstates, toy_obs.n_elem, fill::zeros);
     cube log_pdf = promp_hsmm.computeEmissionsLogLikelihood(toy_obs);
     Viterbi(transition, pi, durations, log_pdf, delta, psi_duration, psi_state,
-            min_duration, toy_obs.n_cols);
+            min_duration, toy_obs.n_elem);
     cout << "Delta last column" << endl;
-    cout << delta.col(toy_obs.n_cols - 1) << endl;
+    cout << delta.col(toy_obs.n_elem - 1) << endl;
     ivec viterbiStates, viterbiDurations;
     viterbiPath(psi_duration, psi_state, delta, viterbiStates,
             viterbiDurations);

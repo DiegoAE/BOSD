@@ -38,16 +38,15 @@ int main() {
         mult_means.row(i).fill(i);
     shared_ptr<AbstractEmission> ptr_mult_emission(
             new DummyMultivariateGaussianEmission(mult_means, 0.1));
-    mat mult_sample = ptr_mult_emission->sampleFromState(0, 5);
 
     // Instantiating the HSMM.
     HSMM dhsmm(ptr_emission, transition, pi, durations, min_duration);
 
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 50;
-    mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
+    field<mat> samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
-    int nobs = samples.n_cols;
+    int nobs = samples.n_elem;
 
     cout << "Generated samples" << endl;
     // cout << samples << endl;
@@ -124,7 +123,7 @@ int main() {
     // Generating multiple synthetic sequences.
     int nseq = 10;
     int nsegments = 100;
-    field<mat> mobs;
+    field<field<mat>> mobs;
     field<ivec> mhs, mdur;
     mobs = dhsmm.sampleMultipleSequences(nseq, nsegments, mhs, mdur);
 

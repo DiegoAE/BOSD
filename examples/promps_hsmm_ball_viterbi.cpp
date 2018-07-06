@@ -11,15 +11,21 @@ using namespace std;
 using json = nlohmann::json;
 namespace po = boost::program_options;
 
+field<mat> fromMatToField(const mat& obs) {
+    field<mat> ret(obs.n_cols);
+    for(int i = 0; i < obs.n_cols; i++)
+        ret(i) = obs.col(i);
+    return ret;
+}
 
 // Running the Viterbi algorithm.
-void ViterbiAlgorithm(HSMM& promp_hsmm, const field<mat>& seq_obs,
+void ViterbiAlgorithm(HSMM& promp_hsmm, const field<field<mat>>& seq_obs,
         string filename) {
     int nseq = seq_obs.n_elem;
     for(int s = 0; s < nseq; s++) {
-        const mat& obs = seq_obs(s);
+        const field<mat>& obs = seq_obs(s);
         int nstates = promp_hsmm.nstates_;
-        int nobs = obs.n_cols;
+        int nobs = obs.n_elem;
         imat psi_duration(nstates, nobs, fill::zeros);
         imat psi_state(nstates, nobs, fill::zeros);
         mat delta(nstates, nobs, fill::zeros);
@@ -86,7 +92,7 @@ int main(int argc, char *argv[]) {
     int n_basis_functions = vm["nbasis"].as<int>();
     int nseq = vm["nsequences"].as<int>();
 
-    field<mat> seq_obs(nseq);
+    field<field<mat>> seq_obs(nseq);
     int njoints;
     for(int i = 0; i < nseq; i++) {
         string name = input_filename;
@@ -100,7 +106,7 @@ int main(int argc, char *argv[]) {
         njoints = obs.n_rows;
         int nobs = obs.n_cols;
         cout << "Time series shape: (" << njoints << ", " << nobs << ")." << endl;
-        seq_obs(i) = obs;
+        seq_obs(i) = fromMatToField(obs);
     }
 
     ifstream input_params_file(params);

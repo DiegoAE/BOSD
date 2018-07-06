@@ -23,36 +23,32 @@ namespace hsmm {
 
             void setTransition(arma::mat transition);
 
-            arma::mat sampleSegments(int nsegments, arma::ivec& hiddenStates,
+            arma::field<arma::mat> sampleSegments(int nsegments,
+                    arma::ivec& hiddenStates,
                     arma::ivec& hiddenDurations);
 
-            arma::field<arma::mat> sampleMultipleSequences(int nsequences,
-                    int nsegments, arma::field<arma::ivec>& seqsHiddenStates,
+            arma::field<arma::field<arma::mat>> sampleMultipleSequences(
+                    int nsequences, int nsegments,
+                    arma::field<arma::ivec>& seqsHiddenStates,
                     arma::field<arma::ivec>& seqsHiddenDurations);
 
-            // Fits the model w.r.t. obs. Returns true if it reaches
-            // convergence. It only uses a single time series.
-            bool fit(arma::mat obs, int max_iter, double tol);
-
-            // As above but also accepts a set of labels to perform
-            // semi-supervised learning.
-            bool fit(arma::mat obs, Labels observed_segments, int max_iter,
-                    double tol);
-
             // Fits the model from multiple sequences.
-            bool fit(arma::field<arma::mat> obs, int max_iter, double tol);
+            bool fit(arma::field<arma::field<arma::mat>> obs,
+                    int max_iter, double tol);
 
             // As above (multiple sequences) but also accepts labels for
             // semi-supervised learning.
-            bool fit(arma::field<arma::mat> obs,
+            bool fit(arma::field<arma::field<arma::mat>> obs,
                     arma::field<Labels> observed_segments, int max_iter,
                     double tol);
 
             // Computes the likelihoods w.r.t. the emission model.
-            arma::cube computeEmissionsLikelihood(const arma::mat obs);
+            arma::cube computeEmissionsLikelihood(
+                    const arma::field<arma::mat>& obs);
 
             // Computes the loglikelihoods w.r.t. the emission model.
-            arma::cube computeEmissionsLogLikelihood(const arma::mat obs);
+            arma::cube computeEmissionsLogLikelihood(
+                    const arma::field<arma::mat>& obs);
 
             // Returns a json representation of the model.
             nlohmann::json to_stream() const;

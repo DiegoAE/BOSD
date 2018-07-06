@@ -10,6 +10,13 @@ using namespace robotics;
 using namespace std;
 namespace po = boost::program_options;
 
+field<mat> fromMatToField(const mat& obs) {
+    field<mat> ret(obs.n_cols);
+    for(int i = 0; i < obs.n_cols; i++)
+        ret(i) = obs.col(i);
+    return ret;
+}
+
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
@@ -33,7 +40,7 @@ int main(int argc, char *argv[]) {
     }
     string input_filename = vm["input"].as<string>();
     string output_filename = vm["output"].as<string>();
-    field<mat> seq_obs(1);
+    field<field<mat>> seq_obs(1);
     field<Labels> seq_labels(1);
     int njoints;
     int nseq = vm["nfiles"].as<int>();
@@ -49,7 +56,7 @@ int main(int argc, char *argv[]) {
         int nobs = obs.n_cols;
         cout << "Time series shape: (" << njoints << ", " << nobs <<
             ")." << endl;
-        seq_obs(i) = obs;
+        seq_obs(i) = fromMatToField(obs);
 
         // Reading labels for different obs.
         if (!vm.count("labels"))

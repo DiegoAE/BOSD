@@ -22,6 +22,29 @@ namespace hsmm {
         return exp(gaussianlogpdf_(x, mu, sigma));
     }
 
+    field<mat> fromMatToField(const mat& obs) {
+        field<mat> ret(obs.n_cols);
+        for(int i = 0; i < obs.n_cols; i++)
+            ret(i) = obs.col(i);
+        return ret;
+    }
+
+    mat fromFieldToMat(const field<mat>& obs) {
+        int total_cols = 0;
+        int total_rows = obs(0).n_rows;
+        for(auto& m : obs) {
+            total_cols += m.n_cols;
+            assert(m.n_rows == total_rows);
+        }
+        mat ret(total_rows, total_cols);
+        int idx = 0;
+        for(auto& m: obs) {
+            ret.cols(idx, m.n_cols - 1) = m;
+            idx += m.n_cols;
+        }
+        return ret;
+    }
+
 
     /**
      * Abstract emission implementation.
@@ -37,16 +60,8 @@ namespace hsmm {
         return dimension_;
     }
 
-    double AbstractEmission::loglikelihood_iid(int state,
-            const field<mat>& seq) const {
-        double ret = 0.0;
-        for(int i = 0; i < seq.n_elem; i++)
-            ret += loglikelihood(state, seq(i));
-        return ret;
-    }
-
     cube AbstractEmission::likelihoodCube(int min_duration, int ndurations,
-            const mat &obs) const {
+            const field<mat>& obs) const {
         return exp(loglikelihoodCube(min_duration, ndurations, obs));
     }
 
@@ -54,8 +69,8 @@ namespace hsmm {
     // where the entry (i, j, k) is the log-likelihood of the observations
     // in the interval [j, min_duration + k - 1] being produced by state i.
     cube AbstractEmission::loglikelihoodCube(int min_duration, int ndurations,
-            const mat& obs) const {
-        int nobs = obs.n_cols;
+            const field<mat>& obs) const {
+        int nobs = obs.n_elem;
         cube pdf(getNumberStates(), nobs, ndurations);
         pdf.fill(-datum::inf);
         for(int i = 0; i < getNumberStates(); i++)
@@ -64,7 +79,7 @@ namespace hsmm {
                     if (t + min_duration + d > nobs)
                         break;
                     int end_idx = t + min_duration + d - 1;
-                    pdf(i, t, d) = loglikelihood(i, obs.cols(t, end_idx));
+                    pdf(i, t, d) = loglikelihood(i, obs.rows(t, end_idx));
                 }
         return pdf;
     }
@@ -95,11 +110,14 @@ namespace hsmm {
         return new DummyGaussianEmission(*this);
     }
 
-    double DummyGaussianEmission::loglikelihood(int state, const mat& obs) const {
+    double DummyGaussianEmission::loglikelihood(int state,
+            const field<mat>& obs) const {
         double ret = 0;
-        for(int i = 0; i < obs.n_cols; i++)
-            ret += gaussianlogpdf_(obs(0, i), means_(state),
+        for(const auto& m : obs) {
+            assert(m.n_rows == 1 && m.n_cols == 1);
+            ret += gaussianlogpdf_(m(0, 0), means_(state),
                     std_devs_(state));
+        }
         return ret;
     }
 
@@ -113,7 +131,7 @@ namespace hsmm {
     }
 
     void DummyGaussianEmission::reestimate(int min_duration,
-            const field<cube>& meta, const field<mat>& mobs) {
+            const field<cube>& meta, const field<field<mat>>& mobs) {
         int nseq = mobs.n_elem;
         for(int i = 0; i < getNumberStates(); i++) {
 
@@ -121,8 +139,8 @@ namespace hsmm {
             vector<double> num_mult;
             vector<double> num_obs;
             for(int s = 0; s < nseq; s++) {
-                const mat& obs = mobs(s);
-                int nobs = obs.n_cols;
+                auto& obs = mobs(s);
+                int nobs = obs.n_elem;
                 const cube& eta = meta(s);
                 int ndurations = eta.n_cols;
                 for(int t = min_duration - 1; t < nobs; t++) {
@@ -134,7 +152,7 @@ namespace hsmm {
                         // Since the observations factorize given t, d and i.
                         for(int k = first_idx_seg; k <= t; k++) {
                             num_mult.push_back(eta(i, d, t));
-                            num_obs.push_back(obs(0, k));
+                            num_obs.push_back(obs(k)(0,0));
                         }
                     }
                 }
@@ -148,8 +166,8 @@ namespace hsmm {
             // Reestimating the variance.
             vector<double> num_obs_var;
             for(int s = 0; s < nseq; s++) {
-                const mat& obs = mobs(s);
-                int nobs = obs.n_cols;
+                const auto& obs = mobs(s);
+                int nobs = obs.n_elem;
                 const cube& eta = meta(s);
                 int ndurations = eta.n_cols;
                 for(int t = min_duration - 1; t < nobs; t++) {
@@ -160,7 +178,7 @@ namespace hsmm {
 
                         // Since the observations factorize given t, d and i.
                         for(int k = first_idx_seg; k <= t; k++) {
-                            double diff = (obs(0, k) - new_mean);
+                            double diff = (obs(k)(0,0) - new_mean);
                             num_obs_var.push_back(diff * diff);
                         }
                     }
@@ -174,8 +192,10 @@ namespace hsmm {
         }
     }
 
-    mat DummyGaussianEmission::sampleFromState(int state, int size) const {
-        return randn<mat>(1, size) * std_devs_(state) + means_(state);
+    field<mat> DummyGaussianEmission::sampleFromState(int state,
+            int size) const {
+        mat ret = randn<mat>(1, size) * std_devs_(state) + means_(state);
+        return fromMatToField(ret);
     }
 
 
@@ -193,10 +213,10 @@ namespace hsmm {
     }
 
     double DummyMultivariateGaussianEmission::loglikelihood(int state,
-            const mat& obs) const {
-        assert(obs.n_rows == getDimension());
-        int size = obs.n_cols;
-        mat copy_obs(obs);
+                const field<mat>& obs) const {
+        mat copy_obs = fromFieldToMat(obs);
+        assert(copy_obs.n_rows == getDimension());
+        int size = copy_obs.n_cols;
         for(int i = 0; i < getDimension(); i++)
             copy_obs.row(i) -= linspace<rowvec>(0.0, 1.0, size) +
                     means_(state, i);
@@ -209,16 +229,16 @@ namespace hsmm {
     }
 
     void DummyMultivariateGaussianEmission::reestimate(int min_duration,
-            const field<cube>& eta, const field<mat>& obs) {
+            const field<cube>& eta, const field<field<mat>>& mobs) {
         // TODO.
     }
 
-    mat DummyMultivariateGaussianEmission::sampleFromState(
+    field<mat> DummyMultivariateGaussianEmission::sampleFromState(
             int state, int size) const {
         mat ret = randn<mat>(getDimension(), size) * std_dev_output_noise_;
         for(int i = 0; i < getDimension(); i++)
             ret.row(i) += linspace<rowvec>(0.0, 1.0, size) + means_(state, i);
-        return ret;
+        return fromMatToField(ret);
     }
 };
 

@@ -23,8 +23,9 @@ int main() {
     HMM hmm(ptr_emission, transition, pi);
 
     ivec hs, hd;
-    mat obs = hmm.sampleSegments(1500, hs, hd);
-    hmm.fit(obs, 10, 1e-5);
+    field<mat> obs = hmm.sampleSegments(1500, hs, hd);
+    field<field<mat>> mobs = {obs};
+    hmm.fit(mobs, 10, 1e-5);
     cout << hmm.transition_ << endl;
     cout << hmm.pi_ << endl;
     return 0;

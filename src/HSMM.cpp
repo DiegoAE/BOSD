@@ -60,7 +60,7 @@ namespace hsmm {
         transition_ = transition;
     }
 
-    mat HSMM::sampleSegments(int nsegments, ivec& hiddenStates,
+    field<mat> HSMM::sampleSegments(int nsegments, ivec& hiddenStates,
             ivec& hiddenDurations) {
         assert(nsegments >= 1);
 
@@ -83,11 +83,12 @@ namespace hsmm {
         }
 
         // Generating samples
-        mat samples(emission_->getDimension(), sampleSequenceLength);
+        field<mat> samples(sampleSequenceLength);
         int idx = 0;
         for(int i = 0; i < nsegments; i++) {
-            mat currSample = emission_->sampleFromState(states(i), durations(i));
-            samples.cols(idx, idx + durations(i) - 1) = currSample;
+            field<mat> currSample = emission_->sampleFromState(
+                    states(i), durations(i));
+            samples.rows(idx, idx + durations(i) - 1) = currSample;
             idx += durations(i);
         }
         hiddenStates = states;
@@ -95,9 +96,10 @@ namespace hsmm {
         return samples;
     }
 
-    field<mat> HSMM::sampleMultipleSequences(int nsequences, int nsegments,
-            field<ivec>& seqsHiddenStates, field<ivec>& seqsHiddenDurations) {
-        field<mat> mobs(nsequences);
+    field<field<mat>> HSMM::sampleMultipleSequences(int nsequences,
+            int nsegments, field<ivec>& seqsHiddenStates,
+            field<ivec>& seqsHiddenDurations) {
+        field<field<mat>> mobs(nsequences);
         field<ivec> seqsHS(nsequences);
         field<ivec> seqsDur(nsequences);
         for(int s = 0; s < nsequences; s++) {
@@ -111,7 +113,7 @@ namespace hsmm {
         return mobs;
     }
 
-    bool HSMM::fit(field<mat> mobs, field<Labels> mobserved_segments,
+    bool HSMM::fit(field<field<mat>> mobs, field<Labels> mobserved_segments,
             int max_iter, double tol) {
 
         // Array initializations.
@@ -125,7 +127,7 @@ namespace hsmm {
         field<cube> meta(nseq);
         field<cube> mzeta(nseq);
         for(int i = 0; i < nseq; i++) {
-            int nobs = mobs(i).n_cols;
+            int nobs = mobs(i).n_rows;
             assert(nobs >= min_duration_);
             malpha(i) = zeros<mat>(nstates_, nobs);
             mbeta(i) = zeros<mat>(nstates_, nobs);
@@ -143,7 +145,7 @@ namespace hsmm {
         bool convergence_reached = false;
         for(int i = 0; i < max_iter && !convergence_reached; i++) {
             for(int s = 0; s < nseq; s++) {
-                const mat& obs = mobs(s);
+                const field<mat>& obs = mobs(s);
                 const Labels& observed_segments = mobserved_segments(s);
 
                 // Assertions if labels are provided.
@@ -158,8 +160,8 @@ namespace hsmm {
                             ).getEndingTime();
                     if (start_time > 0)
                         assert(start_time >= min_duration_);
-                    if (end_time < obs.n_cols - 1)
-                        assert(obs.n_cols - end_time > min_duration_);
+                    if (end_time < obs.n_elem - 1)
+                        assert(obs.n_elem - end_time > min_duration_);
                 }
 
                 mat& alpha = malpha(s);
@@ -176,11 +178,11 @@ namespace hsmm {
                 logsFB(log_estimated_transition, log_estimated_pi,
                         log_estimated_duration, logpdf, observed_segments,
                         alpha, beta, alpha_s, beta_s, beta_s_0, eta, zeta,
-                        min_duration_, obs.n_cols);
+                        min_duration_, obs.n_elem);
             }
             vec sequences_llikelihood(nseq);
             for(int s = 0; s < nseq; s++) {
-                int nobs = mobs(s).n_cols;
+                int nobs = mobs(s).n_elem;
 
                 // Computing the marginal likelihood (aka observation
                 // likelihood).
@@ -208,7 +210,7 @@ namespace hsmm {
                     vector<double> num;
                     for(int s = 0; s < nseq; s++) {
                         const cube& zeta = mzeta(s);
-                        for(int t = 0; t < mobs(s).n_cols - 1; t++) {
+                        for(int t = 0; t < mobs(s).n_rows - 1; t++) {
                             num.push_back(zeta(i, j, t));
                             den.push_back(zeta(i, j, t));
                         }
@@ -250,7 +252,7 @@ namespace hsmm {
                 for(int d = 0; d < ndurations_; d++) {
                     vector<double> ts;
                     for(int s = 0; s < nseq; s++) {
-                        int nobs = mobs(s).n_cols;
+                        int nobs = mobs(s).n_rows;
                         const cube& eta = meta(s);
                         for(int t = 0; t < nobs; t++) {
                             ts.push_back(eta(i, d, t));
@@ -287,32 +289,18 @@ namespace hsmm {
        return convergence_reached;
     }
 
-    bool HSMM::fit(mat obs, Labels observed_segments, int max_iter,
-            double tol) {
-        field<mat> mobs(1);
-        field<Labels> mobserved_segments(1);
-        mobs(0) = obs;
-        mobserved_segments(0) = observed_segments;
-        return fit(mobs, mobserved_segments, max_iter, tol);
-    }
-
-    bool HSMM::fit(field<mat> mobs, int max_iter, double tol) {
+    bool HSMM::fit(field<field<mat>> mobs, int max_iter, double tol) {
         field<Labels> mobserved_segments(mobs.n_elem);  // empty.
         return fit(mobs, mobserved_segments, max_iter, tol);
     }
 
-    bool HSMM::fit(mat obs, int max_iter, double tol) {
-        Labels dummy_observed_segments;  // empty.
-        return fit(obs, dummy_observed_segments, max_iter, tol);
-    }
-
     // Computes the likelihoods w.r.t. the emission model.
-    cube HSMM::computeEmissionsLikelihood(const mat obs) {
+    cube HSMM::computeEmissionsLikelihood(const field<mat>& obs) {
         return emission_->likelihoodCube(min_duration_, ndurations_, obs);
     }
 
     // Computes the loglikelihoods w.r.t. the emission model.
-    cube HSMM::computeEmissionsLogLikelihood(const mat obs) {
+    cube HSMM::computeEmissionsLogLikelihood(const field<mat>& obs) {
         return emission_->loglikelihoodCube(min_duration_, ndurations_,
             obs);
     }

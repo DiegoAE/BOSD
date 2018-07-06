@@ -2,7 +2,7 @@
 #define PROMP_EMISSION_H
 
 #include <armadillo>
-#include <HSMM.hpp>
+#include <emissions.hpp>
 #include <iostream>
 #include <json.hpp>
 #include <ForwardBackward.hpp>
@@ -17,10 +17,6 @@ using namespace robotics;
 using namespace std;
 
 namespace hsmm {
-
-    // Pseudo-random number generation.
-    mt19937 rand_generator;
-
 
     class InverseWishart {
         public:
@@ -58,27 +54,27 @@ namespace hsmm {
                 return new ProMPsEmission(*this);
             }
 
-            double loglikelihood(int state, const mat& obs) const {
+            double loglikelihood(int state, const field<mat>& obs) const {
                 const FullProMP& promp = promps_.at(state);
 
                 // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, obs.n_cols);
+                vec sample_locations = linspace<vec>(0, 1.0, obs.n_elem);
 
                 vec mu(promp.get_model().get_mu_w());
                 mat Sigma(promp.get_model().get_Sigma_w());
                 mat Sigma_y(promp.get_model().get_Sigma_y());
                 double ret = 0;
-                for(int i = 0; i < obs.n_cols; i++) {
+                for(int i = 0; i < obs.n_elem; i++) {
                     mat Phi = promp.get_phi_t(sample_locations(i));
                     mat S = Phi * Sigma * Phi.t() + Sigma_y;
 
                     // Required for the marginal likelihood p(y_t | y_{1:t-1}).
                     random::NormalDist dist = random::NormalDist(Phi * mu, S);
-                    ret = ret + log_normal_density(dist, obs.col(i));
+                    ret = ret + log_normal_density(dist, obs(i));
 
                     // Using the kalman updating step to compute this efficiently.
                     mat K = Sigma * Phi.t() * inv(S);
-                    mu = mu + K * (obs.col(i) - Phi * mu);
+                    mu = mu + K * (obs(i) - Phi * mu);
                     Sigma = Sigma - K * S * K.t();
                 }
                 return ret;
@@ -95,7 +91,7 @@ namespace hsmm {
 
             void reestimate(int min_duration,
                     const arma::field<arma::cube>& meta,
-                    const arma::field<arma::mat>& mobs) {
+                    const arma::field<arma::field<arma::mat>>& mobs) {
                 int nseq = mobs.n_elem;
                 for(int i = 0; i < getNumberStates(); i++) {
                     ProMP promp = promps_.at(i).get_model();
@@ -107,7 +103,7 @@ namespace hsmm {
                     vector<double> denominator_Sigma_y;
                     for(int s = 0; s < nseq; s++) {
                         const cube& eta = meta(s);
-                        int nobs = mobs(s).n_cols;
+                        int nobs = mobs(s).n_elem;
                         int ndurations = eta.n_cols;
                         for(int t = min_duration - 1; t < nobs; t++) {
                             for(int d = 0; d < ndurations; d++) {
@@ -143,8 +139,8 @@ namespace hsmm {
                             fill::zeros);
                     int idx_mult_c = 0;
                     for(int s = 0; s < nseq; s++) {
-                        const mat& obs = mobs(s);
-                        int nobs = obs.n_cols;
+                        auto& obs = mobs(s);
+                        int nobs = obs.n_elem;
                         int ndurations = meta(s).n_cols;
                         for(int t = min_duration - 1; t < nobs; t++) {
                             for(int d = 0; d < ndurations; d++) {
@@ -174,7 +170,7 @@ namespace hsmm {
                                 // variable w for this segment.
                                 vec posterior_mean(size(mu_w), fill::zeros);
                                 for(int step = 0; step < current_duration; step++) {
-                                    const vec& ob = obs.col(first_idx_seg + step);
+                                    const vec& ob = obs(first_idx_seg + step);
                                     posterior_mean += Phis.slice(step).t() *
                                         inv_Sigma_y * ob;
                                 }
@@ -199,7 +195,7 @@ namespace hsmm {
                                 mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
                                 for(int step = 0; step < current_duration; step++) {
                                     const mat& phi = Phis.slice(step);
-                                    const vec& diff_y = obs.col(first_idx_seg + step) -
+                                    const vec& diff_y = obs(first_idx_seg + step) -
                                         phi * posterior_mean;
                                     Sigma_y_term += diff_y * diff_y.t() +
                                         phi * posterior_cov * phi.t();
@@ -248,7 +244,8 @@ namespace hsmm {
                 }
             }
 
-            mat sampleFromState(int state, int size) const {
+            field<mat> sampleFromState(int state, int size) const {
+                mt19937 rand_generator(time(0));
                 const ProMP& model = promps_.at(state).get_model();
                 vector<vec> w_samples = random::sample_multivariate_normal(
                         rand_generator, {model.get_mu_w(), model.get_Sigma_w()}, 1);
@@ -258,14 +255,14 @@ namespace hsmm {
                 vector<vec> output_noise = random::sample_multivariate_normal(
                         rand_generator, {noise_mean, model.get_Sigma_y()}, size);
 
-                mat ret(getDimension(), size);
+                field<mat> ret(size);
 
                 // The samples are assumed to be equally spaced.
                 vec sample_locations = linspace<vec>(0, 1.0, size);
                 for(int i = 0; i < size; i++) {
                     double z = sample_locations(i);
                     mat phi_z = promps_.at(state).get_phi_t(z);
-                    ret.col(i) = phi_z * w + output_noise.at(i);
+                    ret(i) = phi_z * w + output_noise.at(i);
                 }
                 return ret;
             }

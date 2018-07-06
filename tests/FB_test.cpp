@@ -41,9 +41,9 @@ BOOST_AUTO_TEST_CASE( ForwardBackwardWithLabels ) {
     HSMM dhsmm(ptr_emission, transition, pi, duration, min_duration);
     ivec hiddenStates, hiddenDurations;
     int nSampledSegments = 50;
-    mat samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
+    field<mat> samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
-    int nobs = samples.n_cols;
+    int nobs = samples.n_elem;
 
     // Output parameters of the Forward-Backward algorithm.
     mat alpha(nstates, nobs, fill::zeros);
@@ -195,17 +195,3 @@ BOOST_AUTO_TEST_CASE( LogSumExp ) {
     BOOST_CHECK(fabs(sum - (n-nzeros)) < EPSILON);
 }
 
-BOOST_AUTO_TEST_CASE( loglikelihood ) {
-    vec means = {0, 1, 2};
-    vec std_devs = {0.1, 0.1, 0.1};
-    DummyGaussianEmission gaussian(means, std_devs);
-    for(int s = 0; s < means.n_elem; s++) {
-        mat samples = gaussian.sampleFromState(s, 100);
-        field<mat> fsamples(samples.n_cols);
-        for(int i = 0; i < fsamples.n_elem; i++)
-            fsamples(i) = samples.col(i);
-        double ll = gaussian.loglikelihood(s, samples);
-        double fll = gaussian.loglikelihood_iid(s, fsamples);
-        BOOST_CHECK(fabs(ll - fll) < EPSILON);
-    }
-}

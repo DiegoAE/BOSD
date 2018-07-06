@@ -10,14 +10,21 @@ using namespace robotics;
 using namespace std;
 namespace po = boost::program_options;
 
+field<mat> fromMatToField(const mat& obs) {
+    field<mat> ret(obs.n_cols);
+    for(int i = 0; i < obs.n_cols; i++)
+        ret(i) = obs.col(i);
+    return ret;
+}
+
 // Running the Viterbi algorithm.
-void ViterbiAlgorithm(HSMM& promp_hsmm, const field<mat>& seq_obs,
+void ViterbiAlgorithm(HSMM& promp_hsmm, const field<field<mat>>& seq_obs,
         string filename) {
     int nseq = seq_obs.n_elem;
     for(int s = 0; s < nseq; s++) {
-        const mat& obs = seq_obs(s);
+        const field<mat>& obs = seq_obs(s);
         int nstates = promp_hsmm.nstates_;
-        int nobs = obs.n_cols;
+        int nobs = obs.n_elem;
         imat psi_duration(nstates, nobs, fill::zeros);
         imat psi_state(nstates, nobs, fill::zeros);
         mat delta(nstates, nobs, fill::zeros);
@@ -80,7 +87,7 @@ int main(int argc, char *argv[]) {
     }
     string input_filename = vm["input"].as<string>();
     string output_filename = vm["output"].as<string>();
-    field<mat> seq_obs(1);
+    field<field<mat>> seq_obs(1);
     field<Labels> seq_labels(1);
     int njoints;
     int nseq = vm["nfiles"].as<int>();
@@ -96,7 +103,7 @@ int main(int argc, char *argv[]) {
         int nobs = obs.n_cols;
         cout << "Time series shape: (" << njoints << ", " << nobs <<
             ")." << endl;
-        seq_obs(i) = obs;
+        seq_obs(i) = fromMatToField(obs);
 
         // Reading labels for different obs.
         if (!vm.count("labels"))
