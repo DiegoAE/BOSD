@@ -581,6 +581,43 @@ namespace hsmm {
                         cout << ". Not updated." << endl;
                 }
             }
+
+            field<mat> sampleFromState(int state, int size,
+                    mt19937 &rand_generator) const {
+
+                // Since the segments are modeled as single observations.
+                assert(size == 1);
+                const ProMP& model = promps_.at(state).get_model();
+                vector<vec> w_samples = random::sample_multivariate_normal(
+                        rand_generator, {model.get_mu_w(), model.get_Sigma_w()}, 1);
+                vec w = w_samples.back();
+
+                // Getting the actual size of the segment.
+                size = getDurationForEachSegment(rand_generator);
+
+                vec noise_mean = zeros<vec>(getDimension());
+                vector<vec> output_noise = random::sample_multivariate_normal(
+                        rand_generator, {noise_mean, model.get_Sigma_y()}, size);
+
+                mat joint_sample(getDimension(), size);
+
+                // The samples are assumed to be equally spaced.
+                vec sample_locations = linspace<vec>(0, 1.0, size);
+                for(int i = 0; i < size; i++) {
+                    double z = sample_locations(i);
+                    mat phi_z = promps_.at(state).get_phi_t(z);
+                    joint_sample.col(i) = phi_z * w + output_noise.at(i);
+                }
+                field<mat> ret = {joint_sample};
+                return ret;
+            }
+
+        private:
+
+            int getDurationForEachSegment(mt19937 &rand_generator) const {
+                return 20;
+            }
+
     };
 
 };
