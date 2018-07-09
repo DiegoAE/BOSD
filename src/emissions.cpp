@@ -84,6 +84,10 @@ namespace hsmm {
         return pdf;
     }
 
+    field<mat> AbstractEmission::sampleFromState(int state, int size) {
+        return sampleFromState(state, size, rand_generator_);
+    }
+
     json AbstractEmission::to_stream() const {
         cout << "Warning: serialization of emission parameters not implemented"
                 << endl;
@@ -193,7 +197,7 @@ namespace hsmm {
     }
 
     field<mat> DummyGaussianEmission::sampleFromState(int state,
-            int size) const {
+            int size, mt19937 &rng) const {
         mat ret = randn<mat>(1, size) * std_devs_(state) + means_(state);
         return fromMatToField(ret);
     }
@@ -234,7 +238,7 @@ namespace hsmm {
     }
 
     field<mat> DummyMultivariateGaussianEmission::sampleFromState(
-            int state, int size) const {
+            int state, int size, mt19937 &rng) const {
         mat ret = randn<mat>(getDimension(), size) * std_dev_output_noise_;
         for(int i = 0; i < getDimension(); i++)
             ret.row(i) += linspace<rowvec>(0.0, 1.0, size) + means_(state, i);

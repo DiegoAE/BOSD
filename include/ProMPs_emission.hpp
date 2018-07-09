@@ -8,7 +8,6 @@
 #include <ForwardBackward.hpp>
 #include <map>
 #include <memory>
-#include <random>
 #include <robotics.hpp>
 
 using namespace arma;
@@ -121,7 +120,7 @@ namespace hsmm {
                     vec mult_c_normalized(mult_c);
                     mult_c_normalized -= logsumexp(mult_c_normalized);
                     mult_c_normalized = exp(mult_c_normalized);
- 
+
                     // Computing the multiplicative constants for Sigma_y since
                     // they have a different denominator.
                     vec mult_c_Sigma_y_normalized(mult_c);
@@ -243,8 +242,8 @@ namespace hsmm {
                 }
             }
 
-            field<mat> sampleFromState(int state, int size) const {
-                mt19937 rand_generator(time(0));
+            field<mat> sampleFromState(int state, int size,
+                    mt19937 &rand_generator) const {
                 const ProMP& model = promps_.at(state).get_model();
                 vector<vec> w_samples = random::sample_multivariate_normal(
                         rand_generator, {model.get_mu_w(), model.get_Sigma_w()}, 1);
@@ -426,7 +425,161 @@ namespace hsmm {
             void reestimate(int min_duration,
                     const arma::field<arma::cube>& meta,
                     const arma::field<arma::field<arma::mat>>& mobs) {
+                
                 // TODO.
+                return;
+
+                int nseq = mobs.n_elem;
+                for(int i = 0; i < getNumberStates(); i++) {
+                    ProMP promp = promps_.at(i).get_model();
+                    const mat inv_Sigma_w = inv_sympd(promp.get_Sigma_w());
+                    const mat inv_Sigma_y = inv_sympd(promp.get_Sigma_y());
+                    const vec mu_w = promp.get_mu_w();
+
+                    vector<double> mult_c;
+                    vector<double> denominator_Sigma_y;
+                    for(int s = 0; s < nseq; s++) {
+                        const cube& eta = meta(s);
+                        int nobs = mobs(s).n_elem;
+                        int ndurations = eta.n_cols;
+                        assert(ndurations == 1);
+                        for(int t = min_duration - 1; t < nobs; t++) {
+                            for(int d = 0; d < ndurations; d++) {
+                                int first_idx_seg = t - min_duration - d + 1;
+                                if (first_idx_seg < 0)
+                                    break;
+                                mult_c.push_back(eta(i, d, t));
+                                denominator_Sigma_y.push_back(eta(i, d, t) +
+                                        log(min_duration + d));
+                            }
+                        }
+                    }
+
+                    // Computing the multiplicative constants for mu_w and
+                    // Sigma_w.
+                    vec mult_c_normalized(mult_c);
+                    mult_c_normalized -= logsumexp(mult_c_normalized);
+                    mult_c_normalized = exp(mult_c_normalized);
+
+                    // Computing the multiplicative constants for Sigma_y since
+                    // they have a different denominator.
+                    vec mult_c_Sigma_y_normalized(mult_c);
+                    vec den_Sigma_y(denominator_Sigma_y);
+                    mult_c_Sigma_y_normalized -= logsumexp(den_Sigma_y);
+                    mult_c_Sigma_y_normalized = exp(mult_c_Sigma_y_normalized);
+
+                    mat new_Sigma_y(size(promp.get_Sigma_y()), fill::zeros);
+
+                    // EM for ProMPs.
+                    vec weighted_sum_post_mean(size(mu_w), fill::zeros);
+                    mat weighted_sum_post_cov(size(inv_Sigma_w), fill::zeros);
+                    mat weighted_sum_post_mean_mean_T(size(inv_Sigma_w),
+                            fill::zeros);
+                    int idx_mult_c = 0;
+                    for(int s = 0; s < nseq; s++) {
+                        auto& obs = mobs(s);
+                        int nobs = obs.n_elem;
+                        int ndurations = meta(s).n_cols;
+                        for(int t = min_duration - 1; t < nobs; t++) {
+                            for(int d = 0; d < ndurations; d++) {
+                                int first_idx_seg = t - min_duration - d + 1;
+                                if (first_idx_seg < 0)
+                                    break;
+                                const int current_duration = min_duration + d;
+                                const cube& Phis = getPhiCube(i, current_duration);
+
+                                // E step for the emission hidden variables (Ws).
+                                // Computing the posterior of W given Y and Theta.
+
+                                // Computing the posterior covariance of the hidden
+                                // variable w for this segment.
+                                mat posterior_cov(size(inv_Sigma_w), fill::zeros);
+                                for(int step = 0; step < current_duration; step++) {
+                                    posterior_cov += Phis.slice(step).t() *
+                                        inv_Sigma_y * Phis.slice(step);
+                                }
+                                posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+                                posterior_cov = posterior_cov + inv_Sigma_w;
+                                posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+                                posterior_cov = inv_sympd(posterior_cov);
+                                posterior_cov = (posterior_cov+posterior_cov.t())/2.0;
+
+                                // Computing the posterior mean of the hidden
+                                // variable w for this segment.
+                                vec posterior_mean(size(mu_w), fill::zeros);
+                                for(int step = 0; step < current_duration; step++) {
+                                    const vec& ob = obs(first_idx_seg + step);
+                                    posterior_mean += Phis.slice(step).t() *
+                                        inv_Sigma_y * ob;
+                                }
+                                posterior_mean = inv_Sigma_w * mu_w + posterior_mean;
+                                posterior_mean = posterior_cov * posterior_mean;
+
+                                // Getting the multiplicative constants.
+                                double mult_constant = mult_c_normalized(idx_mult_c);
+                                double mult_constant_Sigma_y =
+                                        mult_c_Sigma_y_normalized(idx_mult_c);
+                                idx_mult_c++;
+
+                                // Statistics required for updating mu_w & Sigma_w.
+                                weighted_sum_post_mean += mult_constant *
+                                        posterior_mean;
+                                weighted_sum_post_cov += mult_constant *
+                                        posterior_cov;
+                                weighted_sum_post_mean_mean_T += mult_constant *
+                                        posterior_mean * posterior_mean.t();
+
+                                // Computing the new output noise covariance: Sigma_y.
+                                mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
+                                for(int step = 0; step < current_duration; step++) {
+                                    const mat& phi = Phis.slice(step);
+                                    const vec& diff_y = obs(first_idx_seg + step) -
+                                        phi * posterior_mean;
+                                    Sigma_y_term += diff_y * diff_y.t() +
+                                        phi * posterior_cov * phi.t();
+                                }
+                                new_Sigma_y += mult_constant_Sigma_y * Sigma_y_term;
+                            }
+                        }
+                    }
+
+                    // Expected number of segments generated by the i-th state.
+                    double mle_den = exp(logsumexp(mult_c));
+
+                    // M step for the emission variables.
+                    vec new_mu_w(weighted_sum_post_mean);
+                    mat new_Sigma_w_MLE = weighted_sum_post_cov +
+                        weighted_sum_post_mean_mean_T - new_mu_w*new_mu_w.t();
+
+                    // If there is a prior for Sigma_w then we do MAP instead.
+                    mat new_Sigma_w;
+                    if (Sigma_w_prior_) {
+                        double v_0 = Sigma_w_prior_->getDof();
+                        double D = mu_w.n_rows;
+                        mat S_0 = Sigma_w_prior_->getPhi();
+                        new_Sigma_w = (S_0 + mle_den * new_Sigma_w_MLE) /
+                                (v_0 + mle_den + D + 2);
+                    }
+                    else
+                        new_Sigma_w = new_Sigma_w_MLE;
+
+                    cout << "State " << i << " MLE Den: " << mle_den << " ";
+                    if (mle_den > epsilon_) {
+
+                        // Checking that the new Sigma_w is a covariance matrix.
+                        vec eigenvalues_map = eig_sym(new_Sigma_w);
+                        assert(eigenvalues_map(0) > 0);
+
+                        // Setting the new parameters.
+                        promp.set_mu_w(new_mu_w);
+                        promp.set_Sigma_w(new_Sigma_w);
+                        promp.set_Sigma_y(new_Sigma_y);
+                        promps_.at(i).set_model(promp);
+                        cout << ". Updated." << endl;
+                    }
+                    else
+                        cout << ". Not updated." << endl;
+                }
             }
     };
 

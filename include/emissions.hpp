@@ -3,6 +3,7 @@
 
 #include <armadillo>
 #include <json.hpp>
+#include <random>
 
 namespace hsmm {
 
@@ -43,12 +44,17 @@ namespace hsmm {
                     const arma::field<arma::cube>& meta,
                     const arma::field<arma::field<arma::mat>>& mobs) = 0;
 
+            arma::field<arma::mat> sampleFromState(int state, int nsegments);
+
             virtual arma::field<arma::mat> sampleFromState(int state,
-                    int nsegments) const = 0;
+                    int nsegments, std::mt19937 &rng) const = 0;
 
         private:
             int nstates_;
             int dimension_;
+
+            // Pseudo-random number generation.
+            std::mt19937 rand_generator_;
     };
 
 
@@ -67,7 +73,8 @@ namespace hsmm {
                     const arma::field<arma::cube>& meta,
                     const arma::field<arma::field<arma::mat>>& mobs);
 
-            arma::field<arma::mat> sampleFromState(int state, int size) const;
+            arma::field<arma::mat> sampleFromState(int state, int size,
+                    std::mt19937 &rng) const;
 
         private:
             arma::vec means_;
@@ -89,7 +96,8 @@ namespace hsmm {
                     const arma::field<arma::cube>& meta,
                     const arma::field<arma::field<arma::mat>>& mobs);
 
-            arma::field<arma::mat> sampleFromState(int state, int size) const;
+            arma::field<arma::mat> sampleFromState(int state, int size,
+                    std::mt19937 &rng) const;
 
         private:
             double std_dev_output_noise_;
