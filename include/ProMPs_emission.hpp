@@ -425,10 +425,6 @@ namespace hsmm {
             void reestimate(int min_duration,
                     const arma::field<arma::cube>& meta,
                     const arma::field<arma::field<arma::mat>>& mobs) {
-                
-                // TODO.
-                return;
-
                 int nseq = mobs.n_elem;
                 for(int i = 0; i < getNumberStates(); i++) {
                     ProMP promp = promps_.at(i).get_model();
@@ -442,16 +438,12 @@ namespace hsmm {
                         const cube& eta = meta(s);
                         int nobs = mobs(s).n_elem;
                         int ndurations = eta.n_cols;
-                        assert(ndurations == 1);
-                        for(int t = min_duration - 1; t < nobs; t++) {
-                            for(int d = 0; d < ndurations; d++) {
-                                int first_idx_seg = t - min_duration - d + 1;
-                                if (first_idx_seg < 0)
-                                    break;
-                                mult_c.push_back(eta(i, d, t));
-                                denominator_Sigma_y.push_back(eta(i, d, t) +
-                                        log(min_duration + d));
-                            }
+                        assert(ndurations == 1 && min_duration == 1);
+                        for(int t = 0; t < nobs; t++) {
+                            mult_c.push_back(eta(i, 0, t));
+                            int current_duration = mobs(s)(t).n_cols;
+                            denominator_Sigma_y.push_back(eta(i, 0, t) +
+                                    log(current_duration));
                         }
                     }
 
@@ -480,12 +472,10 @@ namespace hsmm {
                         auto& obs = mobs(s);
                         int nobs = obs.n_elem;
                         int ndurations = meta(s).n_cols;
-                        for(int t = min_duration - 1; t < nobs; t++) {
-                            for(int d = 0; d < ndurations; d++) {
-                                int first_idx_seg = t - min_duration - d + 1;
-                                if (first_idx_seg < 0)
-                                    break;
-                                const int current_duration = min_duration + d;
+                        for(int t = 0; t < nobs; t++) {
+
+                                // Length of the current observation
+                                const int current_duration = obs(t).n_cols;
                                 const cube& Phis = getPhiCube(i, current_duration);
 
                                 // E step for the emission hidden variables (Ws).
@@ -508,7 +498,7 @@ namespace hsmm {
                                 // variable w for this segment.
                                 vec posterior_mean(size(mu_w), fill::zeros);
                                 for(int step = 0; step < current_duration; step++) {
-                                    const vec& ob = obs(first_idx_seg + step);
+                                    const vec& ob = obs(t).col(step);
                                     posterior_mean += Phis.slice(step).t() *
                                         inv_Sigma_y * ob;
                                 }
@@ -533,13 +523,12 @@ namespace hsmm {
                                 mat Sigma_y_term(size(new_Sigma_y), fill::zeros);
                                 for(int step = 0; step < current_duration; step++) {
                                     const mat& phi = Phis.slice(step);
-                                    const vec& diff_y = obs(first_idx_seg + step) -
+                                    const vec& diff_y = obs(t).col(step) -
                                         phi * posterior_mean;
                                     Sigma_y_term += diff_y * diff_y.t() +
                                         phi * posterior_cov * phi.t();
                                 }
                                 new_Sigma_y += mult_constant_Sigma_y * Sigma_y_term;
-                            }
                         }
                     }
 

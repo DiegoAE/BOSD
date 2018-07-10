@@ -52,16 +52,14 @@ void reset(HMM& hmm, vector<FullProMP> promps) {
         mat new_Sigma_w(size(new_model.get_Sigma_w()), fill::eye);
         new_Sigma_w *= 10000;
         mat new_Sigma_y(size(new_model.get_Sigma_y()), fill::eye);
-        new_Sigma_y *= 1;
+
         new_model.set_mu_w(new_mean);
         new_model.set_Sigma_w(new_Sigma_w);
         new_model.set_Sigma_y(new_Sigma_y);
         promps[i].set_model(new_model);
     }
-    shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
-
-    // TODO: estimate the emission parameters.
-    //hmm.setEmission(ptr_emission);
+    shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmissionHMM(promps));
+    hmm.setEmission(ptr_emission);
 }
 
 int main() {
@@ -96,7 +94,7 @@ int main() {
 
     HMM promp_hmm(ptr_emission, transition, pi);
 
-    int nseq = 1;
+    int nseq = 10;
     int nsegments = 50;
     cout << "Number of sequences: " << nseq << endl;
     cout << "Number of segments in each sequence: " << nsegments << endl;
