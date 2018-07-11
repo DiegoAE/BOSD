@@ -69,6 +69,7 @@ int main(int argc, char *argv[]) {
         ("help,h", "Produce help message")
         ("input,i", po::value<string>(), "Path to the input obs")
         ("output,o", po::value<string>(), "Path to the json output params")
+        ("nstates,s", po::value<int>(), "Number of hidden states")
         ("commitid", po::value<string>(), "Git commit id of the experiment")
         ("labels", po::value<string>(), "Path to the provided labels")
         ("viterbi,v", po::value<string>(), "Path to the output viterbi file")
@@ -81,8 +82,9 @@ int main(int argc, char *argv[]) {
         cout << desc << endl;
         return 0;
     }
-    if (!vm.count("input") || !vm.count("output")) {
-        cerr << "Error: You should provide input and output files" << endl;
+    if (!vm.count("input") || !vm.count("output") || !vm.count("nstates")) {
+        cerr << "Error: You should provide input files, output files and "
+                "number of hidden states" << endl;
         return 1;
     }
     string input_filename = vm["input"].as<string>();
@@ -118,7 +120,7 @@ int main(int argc, char *argv[]) {
                     labels_mat(j, 2));
     }
 
-    int nstates = 5;
+    int nstates = vm["nstates"].as<int>();
     mat transition(nstates, nstates);
     transition.fill(1.0 / nstates );
     vec pi(nstates);
