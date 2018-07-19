@@ -23,9 +23,11 @@ target_link_libraries(FB_test
   ${ARMADILLO_LIBRARIES}
   )
 
-target_link_libraries(ProMPs_test
-  ${ROB_LIB}
-  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
-  ${PROJECT_NAME}
-  ${ARMADILLO_LIBRARIES}
-  )
+if (ROB_LIB)
+    target_link_libraries(ProMPs_test
+        ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+        ${PROJECT_NAME}
+        ${ROB_LIB}
+        ${ARMADILLO_LIBRARIES}
+        )
+endif()
