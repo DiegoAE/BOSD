@@ -23,6 +23,13 @@ add_executable(hmm_dummy_gaussian examples/dummy_hmm_example.cpp)
 target_link_libraries(hsmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 target_link_libraries(hmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 
+add_subdirectory(tests)
+enable_testing()
+add_test(NAME labels_test COMMAND labels_test WORKING_DIRECTORY
+    ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME FB_test COMMAND FB_test WORKING_DIRECTORY
+    ${CMAKE_CURRENT_SOURCE_DIR})
+
 find_library(ROB_LIB NAMES robotics)
 if (ROB_LIB)
     find_path(ROB_INCLUDES NAMES robotics.hpp)
@@ -61,12 +68,9 @@ if (ROB_LIB)
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES})
+    add_test(NAME ProMPs_test COMMAND ProMPs_test WORKING_DIRECTORY
+        ${CMAKE_CURRENT_SOURCE_DIR})
 else()
     message(WARNING "librobotics was not found. Therefore ProMPs are not supported.")
 endif()
-
-add_subdirectory(tests)
-enable_testing()
-add_test(NAME labels_test COMMAND labels_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME FB_test COMMAND FB_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
