@@ -70,10 +70,51 @@ namespace hsmm {
                     random::NormalDist dist = random::NormalDist(Phi * mu, S);
                     ret = ret + log_normal_density(dist, obs(i));
 
-                    // Using the kalman updating step to compute this efficiently.
+                    // Using the kalman updating step for efficiency.
                     mat K = Sigma * Phi.t() * inv(S);
                     mu = mu + K * (obs(i) - Phi * mu);
                     Sigma = Sigma - K * S * K.t();
+                }
+                return ret;
+            }
+
+            double informationFilterLoglikelihood(int state,
+                    const field<mat>& obs) const {
+                const FullProMP& promp = promps_.at(state);
+
+                // The samples are assumed to be equally spaced.
+                vec sample_locations = linspace<vec>(0, 1.0, obs.n_elem);
+
+                // Moment based parameterization.
+                vec mu(promp.get_model().get_mu_w());
+                mat Sigma(promp.get_model().get_Sigma_w());
+                mat Sigma_y(promp.get_model().get_Sigma_y());
+
+                // Canonical parameterization.
+                mat information_matrix = inv_sympd(Sigma);
+                vec information_state = information_matrix * mu;
+                mat inv_obs_noise = inv_sympd(Sigma_y);
+
+                double ret = 0;
+                for(int i = 0; i < obs.n_elem; i++) {
+                    mat Phi = promp.get_phi_t(sample_locations(i));
+
+                    // Computing the likelihood under the current filtering
+                    // distribution.
+                    mat filtered_Sigma = inv_sympd(information_matrix);
+                    vec filtered_mu = filtered_Sigma * information_state;
+
+                    // p(y_t | y_{1:t-1}).
+                    random::NormalDist dist = random::NormalDist(
+                            Phi * filtered_mu,
+                            Phi * filtered_Sigma * Phi.t() + Sigma_y);
+                    ret = ret + log_normal_density(dist, obs(i));
+
+                    mat aux = Phi.t() * inv_obs_noise;
+                    mat I_k = aux * Phi;
+                    mat i_k = aux * obs(i);
+                    information_matrix = information_matrix + I_k;
+                    information_state = information_state + i_k;
                 }
                 return ret;
             }
@@ -241,6 +282,9 @@ namespace hsmm {
                         cout << ". Not updated." << endl;
                 }
             }
+
+            // Unshadowing this method from the AbstractEmission class.
+            using AbstractEmission::sampleFromState;
 
             field<mat> sampleFromState(int state, int size,
                     mt19937 &rand_generator) const {

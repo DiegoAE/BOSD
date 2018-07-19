@@ -3,6 +3,8 @@
 #include <boost/test/unit_test.hpp>
 #include <ProMPs_emission.hpp>
 
+#define EPSILON 1e-6
+
 using namespace arma;
 using namespace hsmm;
 using namespace std;
@@ -27,5 +29,18 @@ BOOST_AUTO_TEST_CASE( ProMPs ) {
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP poly(kernel, promp, njoints);
         promps.push_back(poly);
+    }
+
+    // Creating the ProMP emission.
+    ProMPsEmission emission(promps);
+
+    for(int i = 0; i < nstates; i++) {
+        for(int size = 1; size < 100; size += 10) {
+            field<mat> obs = emission.sampleFromState(i, size);
+            double loglikelihood = emission.loglikelihood(i, obs);
+            double Iloglikelihood = emission.informationFilterLoglikelihood(i,
+                obs);
+            BOOST_CHECK(fabs(loglikelihood - Iloglikelihood) < EPSILON);
+        }
     }
 }
