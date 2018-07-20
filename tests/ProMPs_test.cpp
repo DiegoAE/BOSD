@@ -1,6 +1,7 @@
 #define BOOST_TEST_DYN_LINK
 #define BOOST_TEST_MODULE ProMPs
 #include <boost/test/unit_test.hpp>
+#include <chrono>
 #include <ProMPs_emission.hpp>
 
 #define EPSILON 1e-6
@@ -42,5 +43,25 @@ BOOST_AUTO_TEST_CASE( ProMPs ) {
                 obs);
             BOOST_CHECK(fabs(loglikelihood - Iloglikelihood) < EPSILON);
         }
+    }
+
+    // Comparing the running time.
+    int benchmark_size = 200;
+    for(int i = 0; i < nstates; i++) {
+        auto t1 = chrono::high_resolution_clock::now();
+        auto sample = emission.sampleFromState(i, benchmark_size);
+        double kf_loglikelihood = emission.loglikelihood(i, sample);
+        auto t2 = chrono::high_resolution_clock::now();
+        double if_loglikelihood = emission.informationFilterLoglikelihood(i,
+                sample);
+        auto t3 = chrono::high_resolution_clock::now();
+        auto elapsed_kf = chrono::duration_cast<chrono::milliseconds>(
+                t2 - t1).count();
+        auto elapsed_if = chrono::duration_cast<chrono::milliseconds>(
+                t3 - t2).count();
+        cout << "Elapsed KF: " << elapsed_kf << " Elapsed IF: " <<
+                elapsed_if << endl;
+        BOOST_CHECK(fabs(kf_loglikelihood - if_loglikelihood)
+                < EPSILON);
     }
 }
