@@ -38,6 +38,11 @@ namespace hsmm {
             int dof_;
     };
 
+    double zeroMeanGaussianLogLikelihood(const vec& x, const mat &precision) {
+        return -0.5 * as_scalar(x.t()*precision*x - log(det(precision)) +
+                x.n_elem * log(2*datum::pi));
+    }
+
 
     class ProMPsEmission : public AbstractEmission {
         public:
@@ -52,28 +57,52 @@ namespace hsmm {
                 return new ProMPsEmission(*this);
             }
 
+            void resetMemCaches() {
+                cachePhis_.clear();
+                cacheInvS_.clear();
+                cacheK_.clear();
+            }
+
             double loglikelihood(int state, const field<mat>& obs) const {
+                pair<int, int> p = make_pair(state, obs.n_elem);
                 const FullProMP& promp = promps_.at(state);
-
-                // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, obs.n_elem);
-
                 vec mu(promp.get_model().get_mu_w());
                 mat Sigma(promp.get_model().get_Sigma_w());
                 mat Sigma_y(promp.get_model().get_Sigma_y());
+                const cube& Phis = getPhiCube(state, obs.n_elem);
                 double ret = 0;
-                for(int i = 0; i < obs.n_elem; i++) {
-                    mat Phi = promp.get_phi_t(sample_locations(i));
-                    mat S = Phi * Sigma * Phi.t() + Sigma_y;
+                if (cacheInvS_.find(p) == cacheInvS_.end() ||
+                        cacheK_.find(p) == cacheK_.end()) {
+                    field<mat> invS(obs.n_elem);
+                    field<mat> K(obs.n_elem);
+                    for(int i = 0; i < obs.n_elem; i++) {
+                        const mat& Phi = Phis.slice(i);
+                        vec diff = obs(i) - Phi * mu;
+                        mat S = Phi * Sigma * Phi.t() + Sigma_y;
+                        invS(i) = inv_sympd(S);
 
-                    // Required for the marginal likelihood p(y_t | y_{1:t-1}).
-                    random::NormalDist dist = random::NormalDist(Phi * mu, S);
-                    ret = ret + log_normal_density(dist, obs(i));
+                        // p(y_t | y_{1:t-1}).
+                        ret += zeroMeanGaussianLogLikelihood(diff, invS(i));
 
-                    // Using the kalman updating step for efficiency.
-                    mat K = Sigma * Phi.t() * inv(S);
-                    mu = mu + K * (obs(i) - Phi * mu);
-                    Sigma = Sigma - K * S * K.t();
+                        // Kalman updating (correcting) step.
+                        K(i) = Sigma * Phi.t() * inv(S);
+                        mu = mu + K(i) * diff;
+                        Sigma = Sigma - K(i) * S * K(i).t();
+                    }
+
+                    // Caching the matrices for faster likelihood evaluation.
+                    cacheInvS_[p] = invS;
+                    cacheK_[p] = K;
+                }
+                else {
+                    const field<mat>& invS = cacheInvS_[p];
+                    const field<mat>& K = cacheK_[p];
+                    for(int i = 0; i < obs.n_elem; i++) {
+                        const mat& Phi = Phis.slice(i);
+                        vec diff = obs(i) - Phi * mu;
+                        ret += zeroMeanGaussianLogLikelihood(diff, invS(i));
+                        mu = mu + K(i) * diff;
+                    }
                 }
                 return ret;
             }
@@ -276,6 +305,7 @@ namespace hsmm {
                         promp.set_Sigma_w(new_Sigma_w);
                         promp.set_Sigma_y(new_Sigma_y);
                         promps_.at(i).set_model(promp);
+                        resetMemCaches();
                         cout << ". Updated." << endl;
                     }
                     else
@@ -340,6 +370,7 @@ namespace hsmm {
                     promps_.at(i).set_model(json2basic_promp(params.at("model")));
                     assert(params.at("num_joints") == getDimension());
                 }
+                resetMemCaches();
                 return;
             }
 
@@ -400,7 +431,7 @@ namespace hsmm {
                 return PhiStacked;
             }
 
-            cube getPhiCube(int state, int duration) {
+            cube getPhiCube(int state, int duration) const {
                 pair<int, int> p = make_pair(state, duration);
                 if (cachePhis_.find(p) != cachePhis_.end())
                     return cachePhis_[p];
@@ -418,10 +449,14 @@ namespace hsmm {
                 return stacked_Phi;
             }
 
-            map<pair<int, int>, cube> cachePhis_;
             vector<FullProMP> promps_;
             std::shared_ptr<InverseWishart> Sigma_w_prior_;
             double epsilon_ = 1e-15;
+
+            // Members for caching.
+            mutable map<pair<int, int>, cube> cachePhis_;
+            mutable map<pair<int, int>, field<mat>> cacheInvS_;
+            mutable map<pair<int, int>, field<mat>> cacheK_;
     };
 
 
