@@ -26,7 +26,8 @@ namespace hsmm {
      * HSMM implementation.
      */
     HSMM::HSMM(shared_ptr<AbstractEmission> emission, mat transition,
-            vec pi, mat duration, int min_duration) : emission_(emission) {
+            vec pi, mat duration, int min_duration) : emission_(emission),
+            learn_duration_(true) {
         nstates_ = emission_->getNumberStates();
         ndurations_ = duration.n_cols;
         min_duration_ = min_duration;
@@ -273,7 +274,8 @@ namespace hsmm {
                         D(i, d) -= denominator;
                 }
             }
-            log_estimated_duration = D;
+            if (learn_duration_)
+                log_estimated_duration = D;
 
             // Reestimating emissions.
             // NOTE: the rest of the HSMM parameters are updated out of

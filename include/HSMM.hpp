@@ -63,6 +63,7 @@ namespace hsmm {
             int min_duration_;
             int nstates_;
             std::shared_ptr<AbstractEmission> emission_;
+            bool learn_duration_;
     };
 
 };
