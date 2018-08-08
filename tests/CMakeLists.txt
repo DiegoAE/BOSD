@@ -20,6 +20,8 @@ target_link_libraries(FB_test
   )
 
 if (ROB_LIB)
+    find_path(ROB_INCLUDES NAMES robotics.hpp)
+    include_directories(${ROB_INCLUDES})
     add_executable(ProMPs_test ProMPs_test.cpp )
     target_link_libraries(ProMPs_test
         ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
