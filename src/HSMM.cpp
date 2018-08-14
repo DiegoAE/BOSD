@@ -27,7 +27,7 @@ namespace hsmm {
      */
     HSMM::HSMM(shared_ptr<AbstractEmission> emission, mat transition,
             vec pi, mat duration, int min_duration) : emission_(emission),
-            learn_duration_(true) {
+            learn_duration_(true), debug_(false) {
         nstates_ = emission_->getNumberStates();
         ndurations_ = duration.n_cols;
         min_duration_ = min_duration;
@@ -203,6 +203,17 @@ namespace hsmm {
             }
             marginal_llikelihood = current_llikelihood;
 
+            // M step.
+            // Lower bound before M step.
+            double lb_pi, lb_transition, lb_duration;
+            if (debug_) {
+                lb_pi = lower_bound_term_pi(meta, log_estimated_pi);
+                lb_transition = lower_bound_term_transition(mzeta,
+                        log_estimated_transition);
+                lb_duration = lower_bound_term_duration(meta,
+                        log_estimated_duration);
+            }
+
             mat tmp_transition(log_estimated_transition);
             for(int i = 0; i < nstates_; i++) {
                 vector<double> den;
@@ -276,6 +287,22 @@ namespace hsmm {
             }
             if (learn_duration_)
                 log_estimated_duration = D;
+
+            // Lower bound after M step.
+            if (debug_) {
+                double lb_pi_after = lower_bound_term_pi(meta, log_estimated_pi);
+                double lb_transition_after = lower_bound_term_transition(mzeta,
+                        log_estimated_transition);
+                double lb_duration_after = lower_bound_term_duration(meta,
+                        log_estimated_duration);
+                cout << "Diff lower bound before and after M step" << endl;
+                cout << "pi: " << lb_pi_after - lb_pi << endl;
+                cout << "transition: " << lb_transition_after - lb_transition << endl;
+                cout << "duration: " << lb_duration_after - lb_duration << endl;
+                assert(lb_pi_after - lb_pi > -tol);
+                assert(lb_transition_after - lb_transition > -tol);
+                assert(lb_duration_after - lb_duration > -tol);
+            }
 
             // Reestimating emissions.
             // NOTE: the rest of the HSMM parameters are updated out of
@@ -355,4 +382,40 @@ namespace hsmm {
         setDuration(duration);
     }
 
+    // Debugging functions.
+    double HSMM::lower_bound_term_transition(const field<cube>& zetas,
+            const mat& log_transition) const {
+        double ret = 0;
+        for(const cube& zeta : zetas)
+            for(int i = 0; i < nstates_; i++)
+                for(int j = 0; j < nstates_; j++)
+                    for(int t = 0; t < zeta.n_slices; t++)
+                        if (log_transition(i, j) > -datum::inf)
+                            ret += exp(zeta(i, j, t)) * log_transition(i, j);
+       return ret;
+    }
+
+    double HSMM::lower_bound_term_pi(const field<cube>& etas,
+            const vec& log_pi) const {
+        double ret = 0;
+        for(const cube& eta : etas)
+            for(int i = 0; i < nstates_; i++)
+                for(int d = 0; d < ndurations_; d++)
+                    if (log_pi(i) > -datum::inf)
+                        ret += exp(eta(i, d, min_duration_ + d - 1)) *
+                            log_pi(i);
+        return ret;
+    }
+
+    double HSMM::lower_bound_term_duration(const field<cube>& etas,
+            const mat& log_duration) const {
+        double ret = 0;
+        for(const cube& eta : etas)
+            for(int i = 0; i < nstates_; i++)
+                for(int d = 0; d < ndurations_; d++)
+                    for(int t = 0; t < eta.n_slices; t++)
+                        if (log_duration(i, d) > -datum::inf)
+                            ret += exp(eta(i, d, t)) * log_duration(i, d);
+        return ret;
+    }
 };

@@ -64,6 +64,18 @@ namespace hsmm {
             int nstates_;
             std::shared_ptr<AbstractEmission> emission_;
             bool learn_duration_;
+            bool debug_;
+
+        protected:
+
+            double lower_bound_term_transition(const arma::field<
+                    arma::cube> &zetas, const arma::mat& log_transition) const;
+
+            double lower_bound_term_pi(const arma::field<arma::cube> &etas,
+                    const arma::vec& log_pi) const;
+
+            double lower_bound_term_duration(const arma::field<
+                    arma::cube> &etas, const arma::mat& log_duration) const;
     };
 
 };
