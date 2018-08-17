@@ -48,7 +48,7 @@ namespace hsmm {
         public:
             ProMPsEmission(vector<FullProMP> promps) : AbstractEmission(
                     promps.size(), promps.at(0).get_num_joints()),
-            promps_(promps) {
+            promps_(promps), diagonal_sigma_y_(true) {
                 for(int i = 0; i < getNumberStates(); i++)
                     assert(promps_.at(i).get_num_joints() == getDimension());
             }
@@ -296,6 +296,10 @@ namespace hsmm {
                     cout << "State " << i << " MLE Den: " << mle_den << " ";
                     if (mle_den > epsilon_) {
 
+                        // Making sure the noise covariance is diagonal.
+                        if (diagonal_sigma_y_)
+                            new_Sigma_y = diagmat(new_Sigma_y.diag());
+
                         // Checking that the new Sigma_w is a covariance matrix.
                         vec eigenvalues_map = eig_sym(new_Sigma_w);
                         assert(eigenvalues_map(0) > 0);
@@ -452,6 +456,7 @@ namespace hsmm {
             vector<FullProMP> promps_;
             std::shared_ptr<InverseWishart> Sigma_w_prior_;
             double epsilon_ = 1e-15;
+            bool diagonal_sigma_y_;
 
             // Members for caching.
             mutable map<pair<int, int>, cube> cachePhis_;
@@ -633,6 +638,10 @@ namespace hsmm {
 
                     cout << "State " << i << " MLE Den: " << mle_den << " ";
                     if (mle_den > epsilon_) {
+
+                        // Making sure the noise covariance is diagonal.
+                        if (diagonal_sigma_y_)
+                            new_Sigma_y = diagmat(new_Sigma_y.diag());
 
                         // Checking that the new Sigma_w is a covariance matrix.
                         vec eigenvalues_map = eig_sym(new_Sigma_w);
