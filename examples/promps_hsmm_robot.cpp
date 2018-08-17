@@ -69,11 +69,18 @@ int main(int argc, char *argv[]) {
         ("help,h", "Produce help message")
         ("input,i", po::value<string>(), "Path to the input obs")
         ("output,o", po::value<string>(), "Path to the json output params")
+        ("nstates", po::value<int>(), "Number of hidden states for the HSMM")
+        ("mindur", po::value<int>(), "Minimum duration of a segment")
+        ("ndur", po::value<int>(), "Number of different durations supported")
         ("commitid", po::value<string>(), "Git commit id of the experiment")
         ("labels", po::value<string>(), "Path to the provided labels")
         ("viterbi,v", po::value<string>(), "Path to the output viterbi file")
         ("nfiles", po::value<int>()->default_value(1),
-                "Number of files (sequences) to process");
+                "Number of files (sequences) to process")
+        ("debug", "Flag for activating debug mode in HSMM")
+        ("nodur", "Flag to deactivate the learning of durations");
+    vector<string> required_fields = {"input", "output", "nstates", "mindur",
+            "ndur", "viterbi"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -81,9 +88,11 @@ int main(int argc, char *argv[]) {
         cout << desc << endl;
         return 0;
     }
-    if (!vm.count("input") || !vm.count("output")) {
-        cerr << "Error: You should provide input and output files" << endl;
-        return 1;
+    for(auto s: required_fields) {
+        if (!vm.count(s)) {
+            cerr << "Error: You must provide the argument: " << s << endl;
+            return 1;
+        }
     }
     string input_filename = vm["input"].as<string>();
     string output_filename = vm["output"].as<string>();
@@ -118,9 +127,9 @@ int main(int argc, char *argv[]) {
                     labels_mat(j, 2));
     }
 
-    int min_duration = 40;
-    int nstates = 5;
-    int ndurations = 30;
+    int min_duration = vm["mindur"].as<int>();
+    int nstates = vm["nstates"].as<int>();
+    int ndurations = vm["ndur"].as<int>();
     mat transition(nstates, nstates);
     transition.fill(1.0 / nstates );
     vec pi(nstates);
@@ -159,6 +168,10 @@ int main(int argc, char *argv[]) {
 
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
             transition, pi, durations, min_duration);
+    if (vm.count("nodur"))
+        promp_hsmm.learn_duration_ = false;
+    if (vm.count("debug"))
+        promp_hsmm.debug_ = true;
 
     // Saving the model in a json file.
     std::ofstream initial_params(output_filename);
@@ -167,7 +180,6 @@ int main(int argc, char *argv[]) {
         initial_model["git_commit_id"] = vm["commitid"].as<string>();
     initial_params << std::setw(4) << initial_model << std::endl;
     initial_params.close();
-
     for(int i = 0; i < 10; i++) {
 
         // Reading the current parameters.
@@ -185,8 +197,7 @@ int main(int argc, char *argv[]) {
         output_params << std::setw(4) << current_params << std::endl;
         output_params.close();
 
-        if (vm.count("viterbi"))
-            ViterbiAlgorithm(promp_hsmm, seq_obs, vm["viterbi"].as<string>());
+        ViterbiAlgorithm(promp_hsmm, seq_obs, vm["viterbi"].as<string>());
 
         if (convergence_reached)
             break;
