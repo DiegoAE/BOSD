@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
     // Creating a prior for Sigma_w.
     mat Phi = 0.5 * eye<mat>(n_basis_functions * njoints,
             n_basis_functions * njoints);
-    InverseWishart iw_prior(Phi, Phi.n_rows + 2);
+    NormalInverseWishart iw_prior(Phi, Phi.n_rows + 2);
     ptr_emission->set_Sigma_w_Prior(iw_prior);
 
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),

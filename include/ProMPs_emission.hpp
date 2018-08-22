@@ -17,12 +17,28 @@ using namespace std;
 
 namespace hsmm {
 
-    class InverseWishart {
+    class NormalInverseWishart {
         public:
-            InverseWishart(mat Phi, int dof) : Phi_(Phi), dof_(dof) {
+            NormalInverseWishart(vec mu_0, double lambda, mat Phi, int dof) :
+                    Phi_(Phi), dof_(dof), mu_0_(mu_0), lambda_(lambda) {
                 assert(dof > Phi.n_rows + 1);
                 vec eigenvalues = eig_sym(Phi);
                 assert(eigenvalues(0) > 0);
+                assert(!(lambda < 0));
+                assert(mu_0.n_rows == Phi.n_rows);
+            }
+
+            // This constructor assumes there is no prior for the mean.
+            // (i.e. only the inverse-Wishart part).
+            NormalInverseWishart(mat Phi, int dof) : NormalInverseWishart(
+                    zeros<vec>(Phi.n_rows), 0.0, Phi, dof) {}
+
+            vec getMu0() {
+                return mu_0_;
+            }
+
+            double getLambda() {
+                return lambda_;
             }
 
             mat getPhi() {
@@ -34,6 +50,8 @@ namespace hsmm {
             }
 
         private:
+            vec mu_0_;
+            double lambda_;
             mat Phi_;
             int dof_;
     };
@@ -277,21 +295,30 @@ namespace hsmm {
                     double mle_den = exp(logsumexp(mult_c));
 
                     // M step for the emission variables.
-                    vec new_mu_w(weighted_sum_post_mean);
+                    vec new_mu_w_MLE(weighted_sum_post_mean);
                     mat new_Sigma_w_MLE = weighted_sum_post_cov +
-                        weighted_sum_post_mean_mean_T - new_mu_w*new_mu_w.t();
+                        weighted_sum_post_mean_mean_T - new_mu_w_MLE *
+                        new_mu_w_MLE.t();
 
-                    // If there is a prior for Sigma_w then we do MAP instead.
+                    // If there is a prior then we do MAP instead.
                     mat new_Sigma_w;
-                    if (Sigma_w_prior_) {
-                        double v_0 = Sigma_w_prior_->getDof();
+                    mat new_mu_w;
+                    if (normal_inverse_prior_) {
+                        double v_0 = normal_inverse_prior_->getDof();
                         double D = mu_w.n_rows;
-                        mat S_0 = Sigma_w_prior_->getPhi();
+                        mat S_0 = normal_inverse_prior_->getPhi();
                         new_Sigma_w = (S_0 + mle_den * new_Sigma_w_MLE) /
                                 (v_0 + mle_den + D + 2);
+
+                        double k_0 = normal_inverse_prior_->getLambda();
+                        vec m_0 = normal_inverse_prior_->getMu0();
+                        new_mu_w = (k_0 * m_0 + mle_den * new_mu_w_MLE) /
+                                (mle_den + k_0);
                     }
-                    else
+                    else {
                         new_Sigma_w = new_Sigma_w_MLE;
+                        new_mu_w = new_mu_w_MLE;
+                    }
 
                     cout << "State " << i << " MLE Den: " << mle_den << " ";
                     if (mle_den > epsilon_) {
@@ -378,11 +405,12 @@ namespace hsmm {
                 return;
             }
 
-            void set_Sigma_w_Prior(InverseWishart prior) {
-                Sigma_w_prior_ = std::make_shared<InverseWishart>(
+            // TODO: change the name of this method.
+            void set_Sigma_w_Prior(NormalInverseWishart prior) {
+                normal_inverse_prior_ = std::make_shared<NormalInverseWishart>(
                         std::move(prior));
                 int size_cov = promps_.at(0).get_model().get_Sigma_w().n_rows;
-                assert(size_cov == Sigma_w_prior_->getPhi().n_rows);
+                assert(size_cov == normal_inverse_prior_->getPhi().n_rows);
             }
 
 
@@ -454,7 +482,7 @@ namespace hsmm {
             }
 
             vector<FullProMP> promps_;
-            std::shared_ptr<InverseWishart> Sigma_w_prior_;
+            std::shared_ptr<NormalInverseWishart> normal_inverse_prior_;
             double epsilon_ = 1e-15;
             bool diagonal_sigma_y_;
 
@@ -620,21 +648,30 @@ namespace hsmm {
                     double mle_den = exp(logsumexp(mult_c));
 
                     // M step for the emission variables.
-                    vec new_mu_w(weighted_sum_post_mean);
+                    vec new_mu_w_MLE(weighted_sum_post_mean);
                     mat new_Sigma_w_MLE = weighted_sum_post_cov +
-                        weighted_sum_post_mean_mean_T - new_mu_w*new_mu_w.t();
+                        weighted_sum_post_mean_mean_T - new_mu_w_MLE *
+                        new_mu_w_MLE.t();
 
-                    // If there is a prior for Sigma_w then we do MAP instead.
+                    // If there is a prior then we do MAP instead.
                     mat new_Sigma_w;
-                    if (Sigma_w_prior_) {
-                        double v_0 = Sigma_w_prior_->getDof();
+                    mat new_mu_w;
+                    if (normal_inverse_prior_) {
+                        double v_0 = normal_inverse_prior_->getDof();
                         double D = mu_w.n_rows;
-                        mat S_0 = Sigma_w_prior_->getPhi();
+                        mat S_0 = normal_inverse_prior_->getPhi();
                         new_Sigma_w = (S_0 + mle_den * new_Sigma_w_MLE) /
                                 (v_0 + mle_den + D + 2);
+
+                        double k_0 = normal_inverse_prior_->getLambda();
+                        vec m_0 = normal_inverse_prior_->getMu0();
+                        new_mu_w = (k_0 * m_0 + mle_den * new_mu_w_MLE) /
+                                (mle_den + k_0);
                     }
-                    else
+                    else {
                         new_Sigma_w = new_Sigma_w_MLE;
+                        new_mu_w = new_mu_w_MLE;
+                    }
 
                     cout << "State " << i << " MLE Den: " << mle_den << " ";
                     if (mle_den > epsilon_) {
