@@ -81,6 +81,11 @@ namespace hsmm {
                 cacheK_.clear();
             }
 
+            void init_params_from_data(const arma::field<arma::field<
+                    arma::mat>>& mobs) {
+                // TODO.
+            }
+
             double loglikelihood(int state, const field<mat>& obs) const {
                 pair<int, int> p = make_pair(state, obs.n_elem);
                 const FullProMP& promp = promps_.at(state);
