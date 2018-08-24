@@ -32,6 +32,9 @@ namespace hsmm {
                     arma::field<arma::ivec>& seqsHiddenStates,
                     arma::field<arma::ivec>& seqsHiddenDurations);
 
+            void init_params_from_data(const arma::field<arma::field<
+                    arma::mat>> &obs);
+
             // Fits the model from multiple sequences.
             bool fit(arma::field<arma::field<arma::mat>> obs,
                     int max_iter, double tol);

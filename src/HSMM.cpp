@@ -114,9 +114,12 @@ namespace hsmm {
         return mobs;
     }
 
+    void HSMM::init_params_from_data(const field<field<mat>> &mobs) {
+        emission_->init_params_from_data(min_duration_, ndurations_, mobs);
+    }
+
     bool HSMM::fit(field<field<mat>> mobs, field<Labels> mobserved_segments,
             int max_iter, double tol) {
-        emission_->init_params_from_data(mobs);
 
         // Array initializations.
         int nseq = mobs.n_elem;

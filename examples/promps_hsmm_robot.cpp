@@ -173,6 +173,9 @@ int main(int argc, char *argv[]) {
     if (vm.count("debug"))
         promp_hsmm.debug_ = true;
 
+    // Initializing the model from data.
+    promp_hsmm.init_params_from_data(seq_obs);
+
     // Saving the model in a json file.
     std::ofstream initial_params(output_filename);
     nlohmann::json initial_model = promp_hsmm.to_stream();

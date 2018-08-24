@@ -81,9 +81,62 @@ namespace hsmm {
                 cacheK_.clear();
             }
 
-            void init_params_from_data(const arma::field<arma::field<
-                    arma::mat>>& mobs) {
-                // TODO.
+            // This initialization mechanism assumes all the hidden states
+            // share the same basis functions and their hyperparameters.
+            void init_params_from_data(int min_duration, int ndurations,
+                    const arma::field<arma::field<arma::mat>>& mobs) {
+                vector<double> noise_vars;
+                for(auto &obs : mobs) {
+                    for(int t = 0; t < obs.n_elem; t++) {
+                        for(int d = 0; d < ndurations; d++) {
+                            if (t + min_duration + d > obs.n_elem)
+                                break;
+                            int end_idx = t + min_duration + d - 1;
+                            auto &segment = obs.rows(t, end_idx);
+                            vec lsq_omega = least_squares_omega(0, segment);
+                            double var = var_isotropic_gaussian_given_omega(0,
+                                    lsq_omega, segment);
+                            noise_vars.push_back(var);
+                        }
+                    }
+                }
+                vec vars = noise_vars;
+
+                // TODO: make a less arbitrary decision about the cutoff.
+                vec histogram_cutoffs = linspace<vec>(0, max(vars), 20);
+                uvec histogram = histc(vars, histogram_cutoffs);
+                cout << "Hist. of noise vars:" << endl << histogram << endl;
+
+                mat remaining_w(promps_.at(0).get_model().get_mu_w().n_rows,
+                        histogram(0));
+                double threshold = histogram_cutoffs(1);
+                int idx = 0;
+                for(auto &obs : mobs) {
+                    for(int t = 0; t < obs.n_elem; t++) {
+                        for(int d = 0; d < ndurations; d++) {
+                            if (t + min_duration + d > obs.n_elem)
+                                break;
+                            int end_idx = t + min_duration + d - 1;
+                            auto &segment = obs.rows(t, end_idx);
+                            vec lsq_omega = least_squares_omega(0, segment);
+                            double var = var_isotropic_gaussian_given_omega(0,
+                                    lsq_omega, segment);
+                            if (var < threshold)
+                                remaining_w.col(idx++) = lsq_omega;
+                        }
+                    }
+                }
+                assert(idx == histogram(0));
+                mat means;
+                kmeans(means, remaining_w, getNumberStates(), static_subset,
+                        10, false);
+
+                // Updating the means of the ProMPs based on the k-means.
+                for(int i = 0; i < getNumberStates(); i++) {
+                    ProMP promp = promps_.at(i).get_model();
+                    promp.set_mu_w(means.col(i));
+                    promps_.at(i).set_model(promp);
+                }
             }
 
             double loglikelihood(int state, const field<mat>& obs) const {
@@ -485,6 +538,43 @@ namespace hsmm {
                 cachePhis_[p] = stacked_Phi;
                 return stacked_Phi;
             }
+
+            // Returns the least squares solution to the problem:
+            // y(t) = Phi(t) * w for a bunch of i.i.d. y's. Note that omega is
+            // not assumed to be a random variable.
+            vec least_squares_omega(int state,
+                    const field<mat>& segment) const {
+                int nobs = segment.n_elem;
+                const cube& Phis = getPhiCube(state, nobs);
+                mat A(size(Phis.slice(0).t() * Phis.slice(0)),
+                        fill::zeros);
+                vec b(A.n_rows, fill::zeros);
+                for(int t = 0; t < nobs; t++) {
+                    const mat& Phi = Phis.slice(t);
+                    A = A + Phi.t() * Phi;
+                    b = b + Phi.t() * segment(t);
+                }
+
+                // Solving A * w = b
+                vec lsq_omega = solve(A, b);
+                return lsq_omega;
+            }
+
+            // Compute the variance of an isotropic Gaussian noise model
+            // given omega.
+            double var_isotropic_gaussian_given_omega(int state, vec w,
+                    const field<mat>& segment) const {
+                int nobs = segment.n_elem;
+                const cube& Phis = getPhiCube(state, nobs);
+                double var = 0;
+                for(int t = 0; t < nobs; t++) {
+                    const mat& Phi = Phis.slice(t);
+                    vec diff = segment(t) - Phi * w;
+                    var += dot(diff, diff);
+                }
+                return var / (nobs * segment(0).n_rows);
+            }
+
 
             vector<FullProMP> promps_;
             std::shared_ptr<NormalInverseWishart> normal_inverse_prior_;
