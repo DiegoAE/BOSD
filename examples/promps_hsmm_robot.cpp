@@ -78,7 +78,10 @@ int main(int argc, char *argv[]) {
         ("nfiles", po::value<int>()->default_value(1),
                 "Number of files (sequences) to process")
         ("debug", "Flag for activating debug mode in HSMM")
-        ("nodur", "Flag to deactivate the learning of durations");
+        ("nodur", "Flag to deactivate the learning of durations")
+        ("polybasisfun", po::value<int>()->default_value(1), "Order of the "
+                "poly basis functions")
+        ("norbf", "Flag to deactivate the radial basis functions");
     vector<string> required_fields = {"input", "output", "nstates", "mindur",
             "ndur", "viterbi"};
     po::variables_map vm;
@@ -140,8 +143,10 @@ int main(int argc, char *argv[]) {
     // Setting a combination of polynomial and rbf basis functions.
     auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
                 {0.25,0.5,0.75},0.25));
-    auto poly = make_shared<ScalarPolyBasis>(1);
+    auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
     auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    if (vm.count("norbf"))
+        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
     int n_basis_functions = comb->dim();
 
     // Instantiating as many ProMPs as hidden states.

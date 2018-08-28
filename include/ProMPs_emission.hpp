@@ -103,7 +103,7 @@ namespace hsmm {
                 vec vars = noise_vars;
 
                 // TODO: make a less arbitrary decision about the cutoff.
-                vec histogram_cutoffs = linspace<vec>(0, max(vars), 20);
+                vec histogram_cutoffs = linspace<vec>(0, max(vars), 80);
                 uvec histogram = histc(vars, histogram_cutoffs);
                 cout << "Hist. of noise vars:" << endl << histogram << endl;
 
