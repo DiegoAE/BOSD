@@ -64,4 +64,15 @@ BOOST_AUTO_TEST_CASE( ProMPs ) {
         BOOST_CHECK(fabs(kf_loglikelihood - if_loglikelihood)
                 < EPSILON);
     }
+
+    // Checking the missing output handling.
+    for(int i = 0; i < nstates; i++) {
+        int size = 100;
+        field<mat> obs1 = emission.sampleFromState(i, size);
+        int missing_from = 50;
+        for(int j = missing_from; j < obs1.n_elem; j++)
+            obs1(j).reset();
+        // Making sure it doesn't fail. TODO: compare with other thing.
+        double ll1 = emission.loglikelihood(i, obs1);
+    }
 }

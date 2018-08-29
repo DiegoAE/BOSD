@@ -142,27 +142,21 @@ namespace hsmm {
             double loglikelihood(int state, const field<mat>& obs) const {
                 pair<int, int> p = make_pair(state, obs.n_elem);
                 const FullProMP& promp = promps_.at(state);
-                vec mu(promp.get_model().get_mu_w());
-                mat Sigma(promp.get_model().get_Sigma_w());
-                mat Sigma_y(promp.get_model().get_Sigma_y());
                 const cube& Phis = getPhiCube(state, obs.n_elem);
                 double ret = 0;
                 if (cacheInvS_.find(p) == cacheInvS_.end() ||
                         cacheK_.find(p) == cacheK_.end()) {
+                    mat Sigma(promp.get_model().get_Sigma_w());
+                    mat Sigma_y(promp.get_model().get_Sigma_y());
                     field<mat> invS(obs.n_elem);
                     field<mat> K(obs.n_elem);
                     for(int i = 0; i < obs.n_elem; i++) {
                         const mat& Phi = Phis.slice(i);
-                        vec diff = obs(i) - Phi * mu;
                         mat S = Phi * Sigma * Phi.t() + Sigma_y;
                         invS(i) = inv_sympd(S);
 
-                        // p(y_t | y_{1:t-1}).
-                        ret += zeroMeanGaussianLogLikelihood(diff, invS(i));
-
                         // Kalman updating (correcting) step.
                         K(i) = Sigma * Phi.t() * inv(S);
-                        mu = mu + K(i) * diff;
                         Sigma = Sigma - K(i) * S * K(i).t();
                     }
 
@@ -170,15 +164,24 @@ namespace hsmm {
                     cacheInvS_[p] = invS;
                     cacheK_[p] = K;
                 }
-                else {
-                    const field<mat>& invS = cacheInvS_[p];
-                    const field<mat>& K = cacheK_[p];
-                    for(int i = 0; i < obs.n_elem; i++) {
-                        const mat& Phi = Phis.slice(i);
-                        vec diff = obs(i) - Phi * mu;
-                        ret += zeroMeanGaussianLogLikelihood(diff, invS(i));
-                        mu = mu + K(i) * diff;
+                vec mu(promp.get_model().get_mu_w());
+                const field<mat>& invS = cacheInvS_[p];
+                const field<mat>& K = cacheK_[p];
+                for(int i = 0; i < obs.n_elem; i++) {
+                    const mat& Phi = Phis.slice(i);
+                    if (obs(i).is_empty()) {
+
+                        // Making sure all the missing obs are at the end.
+                        // Other missing obs patterns are not supported yet.
+                        for(int j = i; j < obs.n_elem; j++)
+                            assert(obs(j).is_empty());
+                        break;
                     }
+                    vec diff = obs(i) - Phi * mu;
+
+                    // p(y_t | y_1, ..., y_{t-1}).
+                    ret += zeroMeanGaussianLogLikelihood(diff, invS(i));
+                    mu = mu + K(i) * diff;
                 }
                 return ret;
             }
