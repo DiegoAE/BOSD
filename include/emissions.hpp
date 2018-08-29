@@ -64,14 +64,29 @@ namespace hsmm {
     };
 
 
-    class DummyGaussianEmission : public AbstractEmission {
+    // This emission class assumes the observations are conditionally
+    // independent given the duration of the segment and its position on
+    // it (offset).
+    class AbstractEmissionConditionalIIDobs : public AbstractEmission {
+        public:
+            AbstractEmissionConditionalIIDobs(int nstates, int dimension);
+
+            double loglikelihood(int state,
+                    const arma::field<arma::mat>& obs) const;
+
+            virtual double loglikelihoodIIDobs(int state, int seg_dur, int offset,
+                    const arma::mat& single_obs) const = 0;
+    };
+
+
+    class DummyGaussianEmission : public AbstractEmissionConditionalIIDobs {
         public:
             DummyGaussianEmission(arma::vec& means, arma::vec& std_devs);
 
             DummyGaussianEmission* clone() const;
 
-            double loglikelihood(int state,
-                    const arma::field<arma::mat>& obs) const;
+            double loglikelihoodIIDobs(int state, int seg_dur, int offfset,
+                    const arma::mat& obs) const;
 
             virtual nlohmann::json to_stream() const;
 

@@ -102,10 +102,27 @@ namespace hsmm {
 
 
     /**
+     * AbstractEmissionIIDobs implementation
+     */
+    AbstractEmissionConditionalIIDobs::AbstractEmissionConditionalIIDobs(
+            int nstates, int dimension) :
+            AbstractEmission(nstates, dimension) {}
+
+    double AbstractEmissionConditionalIIDobs::loglikelihood(int state,
+            const field<mat>& obs) const {
+        double ret = 0;
+        int seg_dur = obs.n_elem;
+        for(int i = 0; i < seg_dur; i++)
+            ret += loglikelihoodIIDobs(state, seg_dur, i, obs(i));
+        return ret;
+    }
+
+
+    /**
      * DummyGaussianEmission implementation.
      */
     DummyGaussianEmission::DummyGaussianEmission(vec& means, vec& std_devs) :
-            AbstractEmission(means.n_elem, 1), means_(means),
+            AbstractEmissionConditionalIIDobs(means.n_elem, 1), means_(means),
             std_devs_(std_devs) {
         assert(means_.n_elem == std_devs_.n_elem);
     }
@@ -114,15 +131,11 @@ namespace hsmm {
         return new DummyGaussianEmission(*this);
     }
 
-    double DummyGaussianEmission::loglikelihood(int state,
-            const field<mat>& obs) const {
-        double ret = 0;
-        for(const auto& m : obs) {
-            assert(m.n_rows == 1 && m.n_cols == 1);
-            ret += gaussianlogpdf_(m(0, 0), means_(state),
-                    std_devs_(state));
-        }
-        return ret;
+    double DummyGaussianEmission::loglikelihoodIIDobs(int state, int seg_dur,
+            int offset, const mat& single_obs) const {
+        assert(single_obs.n_rows == 1 && single_obs.n_cols == 1);
+        return gaussianlogpdf_(single_obs(0, 0), means_(state),
+                std_devs_(state));
     }
 
     json DummyGaussianEmission::to_stream() const {
