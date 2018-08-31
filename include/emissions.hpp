@@ -17,8 +17,7 @@ namespace hsmm {
 
             virtual AbstractEmission* clone() const = 0;
 
-            // Init the parameters from the provided data. This method will be
-            // called before starting the HSMM training algorithm.
+            // Init the parameters from the provided data.
             virtual void init_params_from_data(int min_duration,
                     int ndurations, const arma::field<arma::field<
                     arma::mat>>& mobs) {}
@@ -85,7 +84,7 @@ namespace hsmm {
 
             DummyGaussianEmission* clone() const;
 
-            double loglikelihoodIIDobs(int state, int seg_dur, int offfset,
+            double loglikelihoodIIDobs(int state, int seg_dur, int offset,
                     const arma::mat& obs) const;
 
             virtual nlohmann::json to_stream() const;

@@ -422,4 +422,17 @@ namespace hsmm {
                             ret += exp(eta(i, d, t)) * log_duration(i, d);
         return ret;
     }
+
+
+    /*
+     * Online HSMM implementation
+     */
+    OnlineHSMM::OnlineHSMM(shared_ptr<AbstractEmission> emission,
+            mat transition, vec pi, mat duration, int min_duration) : HSMM(
+            emission, transition, pi, duration, min_duration) {}
+
+    void OnlineHSMM::addNewObservation(const mat& obs) {
+        observations_.push_back(obs);
+    }
+
 };

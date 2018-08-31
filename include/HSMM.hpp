@@ -2,10 +2,12 @@
 #define HSMM_H
 
 #include <armadillo>
+#include <deque>
 #include <emissions.hpp>
 #include <ForwardBackward.hpp>
 #include <json.hpp>
 #include <memory>
+#include <vector>
 
 namespace hsmm {
 
@@ -79,6 +81,21 @@ namespace hsmm {
 
             double lower_bound_term_duration(const arma::field<
                     arma::cube> &etas, const arma::mat& log_duration) const;
+    };
+
+
+    class OnlineHSMM : public HSMM {
+        public:
+            OnlineHSMM(std::shared_ptr<AbstractEmission> emission,
+                    arma::mat transition, arma::vec pi, arma::mat duration,
+                    int min_duration);
+
+            void addNewObservation(const arma::mat& obs);
+
+        protected:
+            std::vector<arma::mat> observations_;
+            std::deque<arma::cube> posteriors_;
+            std::deque<arma::vec> alpha_posteriors_;
     };
 
 };

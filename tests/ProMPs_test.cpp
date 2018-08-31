@@ -10,7 +10,8 @@ using namespace arma;
 using namespace hsmm;
 using namespace std;
 
-BOOST_AUTO_TEST_CASE( ProMPs ) {
+
+ProMPsEmission getExampleProMP() {
     int n_basis_functions = 4;
     int njoints = 1;
     int nstates = 5;
@@ -32,10 +33,16 @@ BOOST_AUTO_TEST_CASE( ProMPs ) {
         promps.push_back(poly);
     }
 
-    // Creating the ProMP emission.
     ProMPsEmission emission(promps);
+    return emission;
+}
 
-    for(int i = 0; i < nstates; i++) {
+BOOST_AUTO_TEST_CASE( ProMPs ) {
+
+    // Creating the ProMP emission.
+    ProMPsEmission emission = getExampleProMP();
+
+    for(int i = 0; i < emission.getNumberStates(); i++) {
         for(int size = 1; size < 100; size += 10) {
             field<mat> obs = emission.sampleFromState(i, size);
             double loglikelihood = emission.loglikelihood(i, obs);
@@ -47,7 +54,7 @@ BOOST_AUTO_TEST_CASE( ProMPs ) {
 
     // Comparing the running time.
     int benchmark_size = 200;
-    for(int i = 0; i < nstates; i++) {
+    for(int i = 0; i < emission.getNumberStates(); i++) {
         auto t1 = chrono::high_resolution_clock::now();
         auto sample = emission.sampleFromState(i, benchmark_size);
         double kf_loglikelihood = emission.loglikelihood(i, sample);
@@ -66,7 +73,7 @@ BOOST_AUTO_TEST_CASE( ProMPs ) {
     }
 
     // Checking the missing output handling.
-    for(int i = 0; i < nstates; i++) {
+    for(int i = 0; i < emission.getNumberStates(); i++) {
         int size = 100;
         field<mat> obs1 = emission.sampleFromState(i, size);
         int missing_from = 50;
