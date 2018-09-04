@@ -93,8 +93,11 @@ namespace hsmm {
             void addNewObservation(const arma::mat& obs);
 
         protected:
+
+            // Logposterior over (d (duration),s (offset),i (hidden state))
+            // conditioned on all the observations given so far.
+            arma::cube last_log_posterior_;
             std::vector<arma::mat> observations_;
-            std::deque<arma::cube> posteriors_;
             std::deque<arma::vec> alpha_posteriors_;
     };
 

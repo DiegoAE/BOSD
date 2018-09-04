@@ -429,10 +429,69 @@ namespace hsmm {
      */
     OnlineHSMM::OnlineHSMM(shared_ptr<AbstractEmission> emission,
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
-            emission, transition, pi, duration, min_duration) {}
+            emission, transition, pi, duration, min_duration),
+            last_log_posterior_(ndurations_, min_duration_ + ndurations_,
+            nstates_) {
+        alpha_posteriors_.push_back(log(pi_));
+    }
 
     void OnlineHSMM::addNewObservation(const mat& obs) {
         observations_.push_back(obs);
+        mat log_duration = log(duration_);
+        mat log_transition = log(transition_);
+        last_log_posterior_.fill(-datum::inf);
+        vector<double> normalization_terms;
+        for(int d = min_duration_; d < min_duration_ + ndurations_; d++) {
+            for(int s = 0; s < d; s++) {
+
+                // Making sure the offset is consistent with the number of
+                // observations so far.
+                if (s >= observations_.size())
+                    break;
+
+                // Building the current segment. Notice that it is padded with
+                // empty matrices.
+                field<mat> current_segment(d);
+                for(int idx = s, obs_idx = observations_.size()-1; idx >= 0;
+                        idx--, obs_idx--) {
+                    current_segment(idx) = observations_[obs_idx];
+                }
+                const vec& relevant_alpha_posterior = alpha_posteriors_.at(
+                        alpha_posteriors_.size() - 1 - s);
+                for(int i = 0; i < nstates_; i++) {
+                    double log_pdf_seg = emission_->loglikelihood(i,
+                            current_segment) + log_duration(i,d-min_duration_);
+                    double log_unnormalized_value = log_pdf_seg +
+                            relevant_alpha_posterior(i);
+                    last_log_posterior_(d - min_duration_, s, i) =
+                            log_unnormalized_value;
+                    normalization_terms.push_back(log_unnormalized_value);
+                }
+            }
+        }
+
+        // Normalizing the current joint posterior.
+        double normalization_c = logsumexp(normalization_terms);
+        assert(normalization_c > -datum::inf);
+        last_log_posterior_ -= normalization_c;
+
+        // Computing the marginal posterior over the next hidden state assuming
+        // there is a change point right after the current input observation.
+        vec current_marginal_posterior(nstates_);
+        for(int i = 0; i < nstates_; i++) {
+            vector<double> terms;
+            for(int j = 0; j < nstates_; j++) {
+                for(int dur = 0; dur < ndurations_; dur++) {
+                    double term = last_log_posterior_(dur,
+                            min_duration_ + dur - 1, j) + log_transition(j, i);
+                    terms.push_back(term);
+                }
+            }
+            current_marginal_posterior(i) = logsumexp(terms);
+        }
+
+        // Pushing back the computed posterior.
+        alpha_posteriors_.push_back(current_marginal_posterior);
     }
 
 };

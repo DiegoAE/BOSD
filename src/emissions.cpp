@@ -112,8 +112,12 @@ namespace hsmm {
             const field<mat>& obs) const {
         double ret = 0;
         int seg_dur = obs.n_elem;
-        for(int i = 0; i < seg_dur; i++)
-            ret += loglikelihoodIIDobs(state, seg_dur, i, obs(i));
+        for(int i = 0; i < seg_dur; i++) {
+
+            // If there are missing outputs just skip them.
+            if (!obs(i).is_empty())
+                ret += loglikelihoodIIDobs(state, seg_dur, i, obs(i));
+        }
         return ret;
     }
 
