@@ -62,11 +62,12 @@ namespace hsmm {
     }
 
 
-    class ProMPsEmission : public AbstractEmission {
+    class ProMPsEmission : public AbstractEmissionOnlineSetting {
         public:
-            ProMPsEmission(vector<FullProMP> promps) : AbstractEmission(
-                    promps.size(), promps.at(0).get_num_joints()),
-            promps_(promps), diagonal_sigma_y_(true) {
+            ProMPsEmission(vector<FullProMP> promps) :
+                    AbstractEmissionOnlineSetting(promps.size(),
+                    promps.at(0).get_num_joints()), promps_(promps),
+                    diagonal_sigma_y_(true) {
                 for(int i = 0; i < getNumberStates(); i++)
                     assert(promps_.at(i).get_num_joints() == getDimension());
             }
@@ -428,6 +429,13 @@ namespace hsmm {
                     mat phi_z = promps_.at(state).get_phi_t(z);
                     ret(i) = phi_z * w + output_noise.at(i);
                 }
+                return ret;
+            }
+
+            mat sampleNextObsGivenPastObs(int state, int seg_dur,
+                    const field<mat>& past_obs) const {
+                assert(past_obs.n_elem < seg_dur);
+                mat ret;
                 return ret;
             }
 

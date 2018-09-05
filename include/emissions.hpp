@@ -63,6 +63,18 @@ namespace hsmm {
     };
 
 
+    // For the HSMM online setting (prediction) is required to sample
+    // conditioning on some already seen observations.
+    class AbstractEmissionOnlineSetting : public AbstractEmission {
+        public:
+            AbstractEmissionOnlineSetting(int states, int dimension) :
+                    AbstractEmission(states, dimension) {}
+
+            virtual arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
+                    const arma::field<arma::mat>& past_obs) const = 0;
+    };
+
+
     // This emission class assumes the observations are conditionally
     // independent given the duration of the segment and its position on
     // it (offset).
