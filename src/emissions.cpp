@@ -101,6 +101,15 @@ namespace hsmm {
     }
 
 
+    /*
+     * AbstractEmissionOnlineSetting implementation
+     */
+    mat AbstractEmissionOnlineSetting::sampleNextObsGivenPastObs(int state,
+            int seg_dur, const field<mat>& past_obs) {
+        return sampleNextObsGivenPastObs(state, seg_dur, past_obs);
+    }
+
+
     /**
      * AbstractEmissionIIDobs implementation
      */

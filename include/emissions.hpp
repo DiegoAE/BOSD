@@ -53,13 +53,14 @@ namespace hsmm {
 
             virtual arma::field<arma::mat> sampleFromState(int state,
                     int nsegments, std::mt19937 &rng) const = 0;
+        protected:
+
+            // Pseudo-random number generation.
+            std::mt19937 rand_generator_;
 
         private:
             int nstates_;
             int dimension_;
-
-            // Pseudo-random number generation.
-            std::mt19937 rand_generator_;
     };
 
 
@@ -70,8 +71,12 @@ namespace hsmm {
             AbstractEmissionOnlineSetting(int states, int dimension) :
                     AbstractEmission(states, dimension) {}
 
+            arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
+                    const arma::field<arma::mat>& past_obs);
+
             virtual arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
-                    const arma::field<arma::mat>& past_obs) const = 0;
+                    const arma::field<arma::mat>& past_obs,
+                    std::mt19937 &rng) const = 0;
     };
 
 

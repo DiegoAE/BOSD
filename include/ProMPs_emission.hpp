@@ -432,11 +432,29 @@ namespace hsmm {
                 return ret;
             }
 
+            //using AbstractEmissionOnlineSetting::sampleNextObsGivenPastObs;
+
+            // TODO: test it.
             mat sampleNextObsGivenPastObs(int state, int seg_dur,
-                    const field<mat>& past_obs) const {
+                    const field<mat>& past_obs, std::mt19937 &rng) const {
                 assert(past_obs.n_elem < seg_dur);
-                mat ret;
-                return ret;
+                pair<int, int> p = make_pair(state, seg_dur);
+                const FullProMP& promp = promps_.at(state);
+                const cube& Phis = getPhiCube(state, seg_dur);
+                vec mu(promp.get_model().get_mu_w());
+
+                // TODO: Note that it's assumed the computations are already
+                // cached. This could be better handled.
+                const field<mat>& invS = cacheInvS_.at(p);
+                const field<mat>& K = cacheK_.at(p);
+                int i;
+                for(i = 0; i < past_obs.n_elem; i++)
+                    mu = mu + K(i) * (past_obs(i) - Phis.slice(i) * mu);
+
+                // Now i indexes the offset we want to sample from.
+                vector<vec> sample = random::sample_multivariate_normal(
+                        rng, {Phis.slice(i) * mu, inv(invS(i))}, 1);
+                return sample.at(0);
             }
 
             nlohmann::json to_stream() const {
