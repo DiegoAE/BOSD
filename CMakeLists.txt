@@ -40,6 +40,7 @@ if (ROB_LIB)
     add_executable(promps_hsmm_example examples/promps_hsmm_example.cpp)
     add_executable(promps_hsmm_ball examples/promps_hsmm_ball.cpp)
     add_executable(promps_hsmm_ball_viterbi examples/promps_hsmm_ball_viterbi.cpp)
+    add_executable(promps_hsmm_online examples/promps_hsmm_online.cpp)
     add_executable(promps_hsmm_robot examples/promps_hsmm_robot.cpp)
     add_executable(promps_hmm_example examples/promps_hmm_example.cpp)
     add_executable(promps_hmm_robot examples/promps_hmm_robot.cpp)
@@ -53,6 +54,11 @@ if (ROB_LIB)
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES})
     target_link_libraries(promps_hsmm_ball_viterbi
+        ${PROJECT_NAME}
+        ${ROB_LIB}
+        ${ARMADILLO_LIBRARIES}
+        ${Boost_LIBRARIES})
+    target_link_libraries(promps_hsmm_online
         ${PROJECT_NAME}
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}
