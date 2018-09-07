@@ -10,15 +10,21 @@ using namespace robotics;
 using namespace std;
 namespace po = boost::program_options;
 
+mat fieldToMat(int njoints, field<mat> &samples) {
+    mat ret(njoints, samples.n_elem);
+    for(int i = 0; i < samples.n_elem; i++)
+        ret.col(i) = samples(i);
+    return ret;
+}
 
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
         ("help,h", "Produce help message")
         ("params,p", po::value<string>(), "Path to the input promp hsmm params")
-        ("polybasisfun", po::value<int>()->default_value(1), "Order of the "
+        ("polybasisfun", po::value<int>()->default_value(2), "Order of the "
                 "poly basis functions")
-        ("norbf", "Flag to deactivate the radial basis functions");
+        ("rbf", "Flag to activate the radial basis functions");
     vector<string> required_fields = {"params"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -47,9 +53,9 @@ int main(int argc, char *argv[]) {
     auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
                 {0.25,0.5,0.75},0.25));
     auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
-    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
-    if (vm.count("norbf"))
-        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    if (vm.count("rbf"))
+        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
     int n_basis_functions = comb->dim();
 
     // Instantiating as many ProMPs as hidden states.
@@ -74,6 +80,14 @@ int main(int argc, char *argv[]) {
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
             dummy_transition, dummy_pi, dummy_duration, min_duration);
     promp_hsmm.from_stream(current_params);
+
+    ivec hidden_states, hidden_durations;
+    field<mat> samples = promp_hsmm.sampleSegments(10, hidden_states,
+            hidden_durations);
+    imat hidden_info = join_horiz(hidden_states, hidden_durations);
+    hidden_info.save("seq_viterbi.txt", raw_ascii);
+    mat mat_samples = fieldToMat(njoints, samples);
+    mat_samples.save("synth_obs.txt", raw_ascii);
     return 0;
 }
 
