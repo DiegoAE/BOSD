@@ -140,18 +140,18 @@ namespace hsmm {
                 }
             }
 
-            double loglikelihood(int state, const field<mat>& obs) const {
-                pair<int, int> p = make_pair(state, obs.n_elem);
-                const FullProMP& promp = promps_.at(state);
-                const cube& Phis = getPhiCube(state, obs.n_elem);
-                double ret = 0;
+            void generateCachedMatrices(const pair<int, int> &p) const {
                 if (cacheInvS_.find(p) == cacheInvS_.end() ||
                         cacheK_.find(p) == cacheK_.end()) {
+                    int state = p.first;
+                    int dur = p.second;
+                    const FullProMP& promp = promps_.at(state);
+                    const cube& Phis = getPhiCube(state, dur);
                     mat Sigma(promp.get_model().get_Sigma_w());
                     mat Sigma_y(promp.get_model().get_Sigma_y());
-                    field<mat> invS(obs.n_elem);
-                    field<mat> K(obs.n_elem);
-                    for(int i = 0; i < obs.n_elem; i++) {
+                    field<mat> invS(dur);
+                    field<mat> K(dur);
+                    for(int i = 0; i < dur; i++) {
                         const mat& Phi = Phis.slice(i);
                         mat S = Phi * Sigma * Phi.t() + Sigma_y;
                         invS(i) = inv_sympd(S);
@@ -165,9 +165,21 @@ namespace hsmm {
                     cacheInvS_[p] = invS;
                     cacheK_[p] = K;
                 }
+            }
+
+            double loglikelihood(int state, const field<mat>& obs) const {
+
+                // Making sure all the required matrices are already
+                // precomputed.
+                pair<int, int> p = make_pair(state, obs.n_elem);
+                generateCachedMatrices(p);
+
+                const FullProMP& promp = promps_.at(state);
+                const cube& Phis = getPhiCube(state, obs.n_elem);
                 vec mu(promp.get_model().get_mu_w());
                 const field<mat>& invS = cacheInvS_[p];
                 const field<mat>& K = cacheK_[p];
+                double ret = 0;
                 for(int i = 0; i < obs.n_elem; i++) {
                     const mat& Phi = Phis.slice(i);
                     if (obs(i).is_empty()) {
@@ -432,19 +444,33 @@ namespace hsmm {
                 return ret;
             }
 
-            //using AbstractEmissionOnlineSetting::sampleNextObsGivenPastObs;
+            // Equivalent to sampleFromState but uses conditioning.
+            field<mat> sampleFromState2(int state, int size,
+                    mt19937 &rand_generator) const {
+                field<mat> ret(size);
+                for(int i = 0; i < size; i++) {
+                    field<mat> empty_matrix;
+                    field<mat>& obs_so_far = empty_matrix;
+                    if (i > 0)
+                        obs_so_far = ret(span(0, i - 1), span::all);
+                    ret(i) = sampleNextObsGivenPastObs(state, size,
+                            obs_so_far, rand_generator);
+                }
+                return ret;
+            }
 
-            // TODO: test it.
             mat sampleNextObsGivenPastObs(int state, int seg_dur,
                     const field<mat>& past_obs, std::mt19937 &rng) const {
                 assert(past_obs.n_elem < seg_dur);
+
+                // Making sure all the required matrices are already computed.
                 pair<int, int> p = make_pair(state, seg_dur);
+                generateCachedMatrices(p);
+
                 const FullProMP& promp = promps_.at(state);
                 const cube& Phis = getPhiCube(state, seg_dur);
                 vec mu(promp.get_model().get_mu_w());
 
-                // TODO: Note that it's assumed the computations are already
-                // cached. This could be better handled.
                 const field<mat>& invS = cacheInvS_.at(p);
                 const field<mat>& K = cacheK_.at(p);
                 int i;
