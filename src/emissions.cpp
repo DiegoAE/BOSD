@@ -136,13 +136,26 @@ namespace hsmm {
      * DummyGaussianEmission implementation.
      */
     DummyGaussianEmission::DummyGaussianEmission(vec& means, vec& std_devs) :
-            AbstractEmissionConditionalIIDobs(means.n_elem, 1), means_(means),
+            AbstractEmissionOnlineSetting(means.n_elem, 1), means_(means),
             std_devs_(std_devs) {
         assert(means_.n_elem == std_devs_.n_elem);
     }
 
     DummyGaussianEmission* DummyGaussianEmission::clone() const {
         return new DummyGaussianEmission(*this);
+    }
+
+    double DummyGaussianEmission::loglikelihood(int state,
+            const field<mat>& obs) const {
+        double ret = 0;
+        int seg_dur = obs.n_elem;
+        for(int i = 0; i < seg_dur; i++) {
+
+            // If there are missing outputs just skip them.
+            if (!obs(i).is_empty())
+                ret += loglikelihoodIIDobs(state, seg_dur, i, obs(i));
+        }
+        return ret;
     }
 
     double DummyGaussianEmission::loglikelihoodIIDobs(int state, int seg_dur,
@@ -227,6 +240,12 @@ namespace hsmm {
             int size, mt19937 &rng) const {
         mat ret = randn<mat>(1, size) * std_devs_(state) + means_(state);
         return fromMatToField(ret);
+    }
+
+    mat DummyGaussianEmission::sampleNextObsGivenPastObs(int state,
+            int seg_dur, const field<mat>& past_obs, mt19937 &rng) const {
+        assert(past_obs.n_elem < seg_dur);
+        return randn<mat>(1, 1) * std_devs_(state) + means_(state);
     }
 
 

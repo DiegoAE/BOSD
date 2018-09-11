@@ -33,15 +33,21 @@ vec means = {0, 5, 10, 15};
 vec std_devs =  {0.5, 1.0, 0.1, 2.0};
 
 BOOST_AUTO_TEST_CASE( OnlineHSMM_test ) {
-    shared_ptr<AbstractEmission> ptr_emission(new DummyGaussianEmission(
+    shared_ptr<AbstractEmissionOnlineSetting> ptr_emission(new DummyGaussianEmission(
             means, std_devs));
     OnlineHSMM dhsmm(ptr_emission, transition, pi, duration, min_duration);
     ivec hiddenStates, hiddenDurations;
-    int nSampledSegments = 50;
+    int nSampledSegments = 10;
     field<mat> samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
             hiddenDurations);
     int nobs = samples.n_elem;
     for(int i = 0; i < nobs; i++)
         dhsmm.addNewObservation(samples(i));
+    for(int i = 0; i < 10; i++) {
+        mat next = dhsmm.sampleNextObservation();
+        cout << next << endl;
+    }
+    cout << "Hidden states " << endl << hiddenStates << endl;
+    cout << "Hidden duration " << endl << hiddenDurations << endl;
 }
 

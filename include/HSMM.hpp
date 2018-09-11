@@ -86,11 +86,13 @@ namespace hsmm {
 
     class OnlineHSMM : public HSMM {
         public:
-            OnlineHSMM(std::shared_ptr<AbstractEmission> emission,
+            OnlineHSMM(std::shared_ptr<AbstractEmissionOnlineSetting> emission,
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
 
             void addNewObservation(const arma::mat& obs);
+
+            arma::mat sampleNextObservation() const;
 
         protected:
 

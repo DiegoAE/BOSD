@@ -427,9 +427,10 @@ namespace hsmm {
     /*
      * Online HSMM implementation
      */
-    OnlineHSMM::OnlineHSMM(shared_ptr<AbstractEmission> emission,
+    OnlineHSMM::OnlineHSMM(shared_ptr<AbstractEmissionOnlineSetting> emission,
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
-            emission, transition, pi, duration, min_duration),
+            static_pointer_cast<AbstractEmission>(emission), transition,
+            pi, duration, min_duration),
             last_log_posterior_(ndurations_, min_duration_ + ndurations_,
             nstates_) {
         alpha_posteriors_.push_back(log(pi_));
@@ -492,6 +493,52 @@ namespace hsmm {
 
         // Pushing back the computed posterior.
         alpha_posteriors_.push_back(current_marginal_posterior);
+    }
+
+    mat OnlineHSMM::sampleNextObservation() const {
+        cube current_posterior = exp(last_log_posterior_);
+        int nrows = current_posterior.n_rows;
+        int ncols = current_posterior.n_cols;
+        int nslices = current_posterior.n_slices;
+
+        // Sampling a triplet (d,s,i) from the current posterior.
+        double accum = 0.0;
+        double usample = randu();
+        int found = 0;
+        mat sample;
+        for(int i = 0; i < nslices; i++) {
+            for(int d = 0; d < nrows; d++) {
+                for(int s = 0; s < ncols; s++) {
+                    double naccum = accum + current_posterior(d, s, i);
+                    if (accum < usample && usample < naccum) {
+                        found++;
+                        if (s == min_duration_ + d - 1) {
+
+                            // Handling the case when there is a transition
+                            // right after this.
+                            // TODO.
+                            cout << "Not handled yet" << endl;
+                            sample = randn<mat>(1,1);
+                        }
+                        else {
+                            field<mat> last_obs(s + 1);
+                            int tam = observations_.size();
+                            for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
+                                last_obs(j) = observations_.at(idx);
+                            sample = static_pointer_cast<
+                                    AbstractEmissionOnlineSetting>(
+                                    emission_)->sampleNextObsGivenPastObs(i,
+                                    min_duration_ + d, last_obs);
+                        }
+                    }
+                    accum = naccum;
+                }
+            }
+        }
+        assert(found == 1);
+        assert(abs(accum - 1.0) < 1e-7);
+        assert(!sample.is_empty());
+        return sample;
     }
 
 };

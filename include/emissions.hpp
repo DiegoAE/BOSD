@@ -95,11 +95,14 @@ namespace hsmm {
     };
 
 
-    class DummyGaussianEmission : public AbstractEmissionConditionalIIDobs {
+    class DummyGaussianEmission : public AbstractEmissionOnlineSetting {
         public:
             DummyGaussianEmission(arma::vec& means, arma::vec& std_devs);
 
             DummyGaussianEmission* clone() const;
+
+            double loglikelihood(int state,
+                    const arma::field<arma::mat>& obs) const;
 
             double loglikelihoodIIDobs(int state, int seg_dur, int offset,
                     const arma::mat& obs) const;
@@ -111,6 +114,10 @@ namespace hsmm {
                     const arma::field<arma::field<arma::mat>>& mobs);
 
             arma::field<arma::mat> sampleFromState(int state, int size,
+                    std::mt19937 &rng) const;
+
+            arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
+                    const arma::field<arma::mat>& past_obs,
                     std::mt19937 &rng) const;
 
         private:
