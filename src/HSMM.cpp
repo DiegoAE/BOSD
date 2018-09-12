@@ -18,6 +18,7 @@ namespace hsmm {
         rowvec prefixsum(pmf);
         for(int i = 1; i < pmf.n_elem; i++)
             prefixsum(i) += prefixsum(i - 1);
+        assert(abs(prefixsum(pmf.n_elem - 1) - 1.0) < 1e-7);
         return lower_bound(prefixsum.begin(), prefixsum.end(), randu()) -
                 prefixsum.begin();
     }
@@ -515,10 +516,17 @@ namespace hsmm {
                         if (s == min_duration_ + d - 1) {
 
                             // Handling the case when there is a transition
-                            // right after this.
-                            // TODO.
-                            cout << "Not handled yet" << endl;
-                            sample = randn<mat>(1,1);
+                            // right after this. Sampling next state and
+                            // duration.
+                            int next_state = sampleFromCategorical(
+                                    transition_.row(i));
+                            int next_duration = sampleFromCategorical(
+                                    duration_.row(next_state)) + min_duration_;
+                            field<mat> no_past_obs;
+                            sample = static_pointer_cast<
+                                    AbstractEmissionOnlineSetting>(
+                                    emission_)->sampleNextObsGivenPastObs(
+                                    next_state, next_duration, no_past_obs);
                         }
                         else {
                             field<mat> last_obs(s + 1);
