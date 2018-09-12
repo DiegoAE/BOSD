@@ -437,6 +437,11 @@ namespace hsmm {
         alpha_posteriors_.push_back(log(pi_));
     }
 
+    shared_ptr<AbstractEmissionOnlineSetting> OnlineHSMM::getOnlineEmission(
+            ) const {
+        return static_pointer_cast<AbstractEmissionOnlineSetting>(emission_);
+    }
+
     void OnlineHSMM::addNewObservation(const mat& obs) {
         observations_.push_back(obs);
         mat log_duration = log(duration_);
@@ -497,6 +502,14 @@ namespace hsmm {
     }
 
     mat OnlineHSMM::sampleNextObservation() const {
+        if (observations_.empty()) {
+            int state = sampleFromCategorical(pi_.t());
+            int dur = sampleFromCategorical(duration_.row(state)) +
+                    min_duration_;
+            field<mat> no_obs;
+            return getOnlineEmission()->sampleNextObsGivenPastObs(state, dur,
+                    no_obs);
+        }
         cube current_posterior = exp(last_log_posterior_);
         int nrows = current_posterior.n_rows;
         int ncols = current_posterior.n_cols;
@@ -516,26 +529,24 @@ namespace hsmm {
                         if (s == min_duration_ + d - 1) {
 
                             // Handling the case when there is a transition
-                            // right after this. Sampling next state and
-                            // duration.
+                            // right after the current observation. Sampling
+                            // next state and duration.
                             int next_state = sampleFromCategorical(
                                     transition_.row(i));
                             int next_duration = sampleFromCategorical(
                                     duration_.row(next_state)) + min_duration_;
                             field<mat> no_past_obs;
-                            sample = static_pointer_cast<
-                                    AbstractEmissionOnlineSetting>(
-                                    emission_)->sampleNextObsGivenPastObs(
-                                    next_state, next_duration, no_past_obs);
+                            sample = getOnlineEmission(
+                                    )->sampleNextObsGivenPastObs(next_state,
+                                    next_duration, no_past_obs);
                         }
                         else {
                             field<mat> last_obs(s + 1);
                             int tam = observations_.size();
                             for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
                                 last_obs(j) = observations_.at(idx);
-                            sample = static_pointer_cast<
-                                    AbstractEmissionOnlineSetting>(
-                                    emission_)->sampleNextObsGivenPastObs(i,
+                            sample = getOnlineEmission(
+                                    )->sampleNextObsGivenPastObs(i,
                                     min_duration_ + d, last_obs);
                         }
                     }

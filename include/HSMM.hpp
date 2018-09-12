@@ -90,6 +90,9 @@ namespace hsmm {
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
 
+            std::shared_ptr<AbstractEmissionOnlineSetting> getOnlineEmission(
+                    ) const;
+
             void addNewObservation(const arma::mat& obs);
 
             arma::mat sampleNextObservation() const;

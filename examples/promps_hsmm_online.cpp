@@ -22,6 +22,11 @@ int main(int argc, char *argv[]) {
     desc.add_options()
         ("help,h", "Produce help message")
         ("params,p", po::value<string>(), "Path to the input promp hsmm params")
+        ("input,i", po::value<string>(), "Path to input obs. (optional)")
+        ("upto,u", po::value<int>(), "The model will condition on the obs. up "
+                "to this index")
+        ("nsamples,n", po::value<int>()->default_value(1), "Number of samples "
+                "to generate after conditioning on the input observations")
         ("polybasisfun", po::value<int>()->default_value(2), "Order of the "
                 "poly basis functions")
         ("rbf", "Flag to activate the radial basis functions");
@@ -77,17 +82,32 @@ int main(int argc, char *argv[]) {
 
     // Creating the ProMP emission.
     shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
-    HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
-            dummy_transition, dummy_pi, dummy_duration, min_duration);
-    promp_hsmm.from_stream(current_params);
+    OnlineHSMM online_promp_hsmm(std::static_pointer_cast<
+            AbstractEmissionOnlineSetting>(ptr_emission), dummy_transition,
+            dummy_pi, dummy_duration,
+            min_duration);
+    online_promp_hsmm.from_stream(current_params);
 
-    ivec hidden_states, hidden_durations;
-    field<mat> samples = promp_hsmm.sampleSegments(10, hidden_states,
-            hidden_durations);
-    imat hidden_info = join_horiz(hidden_states, hidden_durations);
-    hidden_info.save("seq_viterbi.txt", raw_ascii);
-    mat mat_samples = fieldToMat(njoints, samples);
-    mat_samples.save("synth_obs.txt", raw_ascii);
+    mat obs;
+    if (vm.count("input")) {
+        obs.load(vm["input"].as<string>(), raw_ascii);
+        assert(obs.n_rows == njoints);
+    }
+    mat obs_for_cond(obs);
+    if (!obs.is_empty() && vm.count("upto"))
+        obs_for_cond = obs.cols(0, vm["upto"].as<int>());
+
+    for(int c = 0; c < obs_for_cond.n_cols; c++)
+        online_promp_hsmm.addNewObservation(obs_for_cond.col(c));
+
+    int nsamples = vm["nsamples"].as<int>();
+    mat samples(njoints, nsamples);
+    for(int c = 0; c < nsamples; c++) {
+        mat sample = online_promp_hsmm.sampleNextObservation();
+        online_promp_hsmm.addNewObservation(sample);
+        samples.col(c) = sample;
+    }
+    samples.raw_print(cout);
     return 0;
 }
 
