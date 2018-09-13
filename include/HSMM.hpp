@@ -97,6 +97,8 @@ namespace hsmm {
 
             arma::mat sampleNextObservation() const;
 
+            void printTopKFromPosterior(int k) const;
+
         protected:
 
             // Logposterior over (d (duration),s (offset),i (hidden state))

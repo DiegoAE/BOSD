@@ -560,4 +560,21 @@ namespace hsmm {
         return sample;
     }
 
+    void OnlineHSMM::printTopKFromPosterior(int k) const {
+        cube current_posterior = exp(last_log_posterior_);
+        set<pair<double,string>> pq;
+        for(int d = 0; d < ndurations_; d++)
+            for(int s = 0; s < min_duration_ + d; s++)
+                for(int i = 0; i < nstates_; i++) {
+                    double p = current_posterior(d, s, i);
+                    string str = "(" + to_string(d) + ", " + to_string(s) +
+                            ", " + to_string(i) + ")";
+                    pq.insert(make_pair(p, str));
+                    if (pq.size() > k)
+                        pq.erase(pq.begin());
+                }
+        for(auto p: pq)
+            cout << p.first << " " << p.second << endl;
+    }
+
 };
