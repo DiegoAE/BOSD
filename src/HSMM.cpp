@@ -526,6 +526,10 @@ namespace hsmm {
                     double naccum = accum + current_posterior(d, s, i);
                     if (accum < usample && usample < naccum) {
                         found++;
+                        field<mat> last_obs(s + 1);
+                        int tam = observations_.size();
+                        for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
+                            last_obs(j) = observations_.at(idx);
                         if (s == min_duration_ + d - 1) {
 
                             // Handling the case when there is a transition
@@ -537,18 +541,13 @@ namespace hsmm {
                                     duration_.row(next_state)) + min_duration_;
                             field<mat> no_past_obs;
                             sample = getOnlineEmission(
-                                    )->sampleNextObsGivenPastObs(next_state,
-                                    next_duration, no_past_obs);
+                                    )->sampleFirstSegmentObsGivenLastSegment(
+                                    next_state, next_duration, last_obs, i);
                         }
-                        else {
-                            field<mat> last_obs(s + 1);
-                            int tam = observations_.size();
-                            for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
-                                last_obs(j) = observations_.at(idx);
+                        else
                             sample = getOnlineEmission(
                                     )->sampleNextObsGivenPastObs(i,
                                     min_duration_ + d, last_obs);
-                        }
                     }
                     accum = naccum;
                 }

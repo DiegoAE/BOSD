@@ -110,6 +110,22 @@ namespace hsmm {
                 rand_generator_);
     }
 
+    // Default implementation. Disregards any information from the last
+    // segment.
+    mat AbstractEmissionOnlineSetting::sampleFirstSegmentObsGivenLastSegment(
+            int curr_state, int curr_seg_dur, const field<mat> &last_segment,
+            int last_state, std::mt19937 &rng) const {
+        field<mat> empty_segment;
+        return sampleNextObsGivenPastObs(curr_state, curr_seg_dur,
+                empty_segment, rng);
+    }
+
+    mat AbstractEmissionOnlineSetting::sampleFirstSegmentObsGivenLastSegment(
+            int curr_state, int curr_seg_dur, const field<mat> &last_segment,
+            int last_state) {
+        return sampleFirstSegmentObsGivenLastSegment(curr_state, curr_seg_dur,
+                last_segment, last_state, rand_generator_);
+    }
 
     /**
      * AbstractEmissionIIDobs implementation
