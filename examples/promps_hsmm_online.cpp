@@ -107,7 +107,8 @@ int main(int argc, char *argv[]) {
         online_promp_hsmm.addNewObservation(sample);
         samples.col(c) = sample;
     }
-    samples.raw_print(cout);
+    mat whole_thing = join_horiz(obs_for_cond, samples);
+    whole_thing.raw_print(cout);
     return 0;
 }
 

@@ -95,6 +95,8 @@ namespace hsmm {
 
             void addNewObservation(const arma::mat& obs);
 
+            void sampleFromPosterior(int &dur, int &offset, int &hs) const;
+
             arma::mat sampleNextObservation() const;
 
             void printTopKFromPosterior(int k) const;

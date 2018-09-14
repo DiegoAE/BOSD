@@ -501,21 +501,13 @@ namespace hsmm {
         alpha_posteriors_.push_back(current_marginal_posterior);
     }
 
-    mat OnlineHSMM::sampleNextObservation() const {
-        if (observations_.empty()) {
-            int state = sampleFromCategorical(pi_.t());
-            int dur = sampleFromCategorical(duration_.row(state)) +
-                    min_duration_;
-            field<mat> no_obs;
-            return getOnlineEmission()->sampleNextObsGivenPastObs(state, dur,
-                    no_obs);
-        }
+    void OnlineHSMM::sampleFromPosterior(int & dur, int & offset,
+            int & hs) const {
+        dur = offset = hs = -1;
         cube current_posterior = exp(last_log_posterior_);
         int nrows = current_posterior.n_rows;
         int ncols = current_posterior.n_cols;
         int nslices = current_posterior.n_slices;
-
-        // Sampling a triplet (d,s,i) from the current posterior.
         double accum = 0.0;
         double usample = randu();
         int found = 0;
@@ -526,28 +518,9 @@ namespace hsmm {
                     double naccum = accum + current_posterior(d, s, i);
                     if (accum < usample && usample < naccum) {
                         found++;
-                        field<mat> last_obs(s + 1);
-                        int tam = observations_.size();
-                        for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
-                            last_obs(j) = observations_.at(idx);
-                        if (s == min_duration_ + d - 1) {
-
-                            // Handling the case when there is a transition
-                            // right after the current observation. Sampling
-                            // next state and duration.
-                            int next_state = sampleFromCategorical(
-                                    transition_.row(i));
-                            int next_duration = sampleFromCategorical(
-                                    duration_.row(next_state)) + min_duration_;
-                            field<mat> no_past_obs;
-                            sample = getOnlineEmission(
-                                    )->sampleFirstSegmentObsGivenLastSegment(
-                                    next_state, next_duration, last_obs, i);
-                        }
-                        else
-                            sample = getOnlineEmission(
-                                    )->sampleNextObsGivenPastObs(i,
-                                    min_duration_ + d, last_obs);
+                        dur = d;
+                        offset = s;
+                        hs = i;
                     }
                     accum = naccum;
                 }
@@ -555,7 +528,42 @@ namespace hsmm {
         }
         assert(found == 1);
         assert(abs(accum - 1.0) < 1e-7);
-        assert(!sample.is_empty());
+        return;
+    }
+
+    mat OnlineHSMM::sampleNextObservation() const {
+        if (observations_.empty()) {
+            int state = sampleFromCategorical(pi_.t());
+            int dur = sampleFromCategorical(duration_.row(state)) +
+                    min_duration_;
+            field<mat> no_obs;
+            return getOnlineEmission()->sampleNextObsGivenPastObs(state, dur,
+                    no_obs);
+        }
+
+        // Sampling a triplet (d,s,i) from the current posterior.
+        int d, s, i;
+        sampleFromPosterior(d, s, i);
+        field<mat> last_obs(s + 1);
+        int tam = observations_.size();
+        for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
+            last_obs(j) = observations_.at(idx);
+        mat sample;
+        if (s == min_duration_ + d - 1) {
+
+            // Handling the case when there is a transition
+            // right after the current observation. Sampling
+            // next state and duration.
+            int next_state = sampleFromCategorical(
+                    transition_.row(i));
+            int next_duration = sampleFromCategorical(
+                    duration_.row(next_state)) + min_duration_;
+            sample =getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
+                    next_state, next_duration, last_obs, i);
+        }
+        else
+            sample = getOnlineEmission()->sampleNextObsGivenPastObs(i,
+                    min_duration_ + d, last_obs);
         return sample;
     }
 
