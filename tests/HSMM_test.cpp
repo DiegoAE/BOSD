@@ -43,10 +43,9 @@ BOOST_AUTO_TEST_CASE( OnlineHSMM_test ) {
     int nobs = samples.n_elem;
     for(int i = 0; i < nobs; i++)
         dhsmm.addNewObservation(samples(i));
-    for(int i = 0; i < 10; i++) {
-        mat next = dhsmm.sampleNextObservation();
-        dhsmm.addNewObservation(next);
-    }
+    int nsamples = 20;
+    field<mat> next = dhsmm.sampleNextObservations(nsamples);
+    assert(next.n_elem == nsamples);
     cout << "Hidden states " << endl << hiddenStates << endl;
     cout << "Hidden duration " << endl << hiddenDurations << endl;
 }

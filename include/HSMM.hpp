@@ -97,11 +97,14 @@ namespace hsmm {
 
             void sampleFromPosterior(int &dur, int &offset, int &hs) const;
 
-            arma::mat sampleNextObservation() const;
+            arma::field<arma::mat> sampleNextObservations(int nobs) const;
 
             void printTopKFromPosterior(int k) const;
 
         protected:
+
+            int appendToField(arma::field<arma::mat>& current_obs, int idx,
+                    const arma::field<arma::mat> new_obs) const;
 
             // Logposterior over (d (duration),s (offset),i (hidden state))
             // conditioned on all the observations given so far.

@@ -447,25 +447,22 @@ namespace hsmm {
             // Equivalent to sampleFromState but uses conditioning.
             field<mat> sampleFromState2(int state, int size,
                     mt19937 &rand_generator) const {
-                field<mat> ret(size);
-                for(int i = 0; i < size; i++) {
-                    field<mat> empty_matrix;
-                    field<mat>& obs_so_far = empty_matrix;
-                    if (i > 0)
-                        obs_so_far = ret(span(0, i - 1), span::all);
-                    ret(i) = sampleNextObsGivenPastObs(state, size,
-                            obs_so_far, rand_generator);
-                }
-                return ret;
+                field<mat> no_obs;
+                return sampleNextObsGivenPastObs(state, size, no_obs,
+                        rand_generator);
             }
 
-            mat sampleNextObsGivenPastObs(int state, int seg_dur,
+            field<mat> sampleNextObsGivenPastObs(int state, int seg_dur,
                     const field<mat>& past_obs, std::mt19937 &rng) const {
                 assert(past_obs.n_elem < seg_dur);
 
                 // Making sure all the required matrices are already computed.
                 pair<int, int> p = make_pair(state, seg_dur);
                 generateCachedMatrices(p);
+
+                field<mat> ret(seg_dur);
+                for(int i = 0; i < past_obs.n_elem; i++)
+                    ret(i) = past_obs(i);
 
                 const FullProMP& promp = promps_.at(state);
                 const cube& Phis = getPhiCube(state, seg_dur);
@@ -478,9 +475,13 @@ namespace hsmm {
                     mu = mu + K(i) * (past_obs(i) - Phis.slice(i) * mu);
 
                 // Now i indexes the offset we want to sample from.
-                vector<vec> sample = random::sample_multivariate_normal(
-                        rng, {Phis.slice(i) * mu, inv(invS(i))}, 1);
-                return sample.at(0);
+                for(; i < seg_dur; i++) {
+                    vector<vec> sample = random::sample_multivariate_normal(
+                            rng, {Phis.slice(i) * mu, inv(invS(i))}, 1);
+                    ret(i) = sample.at(0);
+                    mu = mu + K(i) * (ret(i) - Phis.slice(i) * mu);
+                }
+                return ret;
             }
 
             nlohmann::json to_stream() const {

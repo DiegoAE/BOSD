@@ -71,22 +71,22 @@ namespace hsmm {
             AbstractEmissionOnlineSetting(int states, int dimension) :
                     AbstractEmission(states, dimension) {}
 
-            arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
-                    const arma::field<arma::mat>& past_obs);
+            arma::field<arma::mat> sampleNextObsGivenPastObs(int state,
+                    int seg_dur, const arma::field<arma::mat>& past_obs);
 
-            virtual arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
-                    const arma::field<arma::mat>& past_obs,
+            virtual arma::field<arma::mat> sampleNextObsGivenPastObs(int state,
+                    int seg_dur, const arma::field<arma::mat>& past_obs,
                     std::mt19937 &rng) const = 0;
 
             // Useful for transfering some information between consecutive
             // segments. Equivalent to an Autoregressive setting for sampling.
-            virtual arma::mat sampleFirstSegmentObsGivenLastSegment(
+            virtual arma::field<arma::mat> sampleFirstSegmentObsGivenLastSegment(
                     int curr_state, int curr_seg_dur,
                     const arma::field<arma::mat> &last_segment, int last_state,
                     std::mt19937 &rng) const;
 
-            arma::mat sampleFirstSegmentObsGivenLastSegment(int curr_state,
-                    int curr_seg_dur, const arma::field<
+            arma::field<arma::mat> sampleFirstSegmentObsGivenLastSegment(
+                    int curr_state, int curr_seg_dur, const arma::field<
                     arma::mat> &last_segment, int last_state);
     };
 
@@ -127,8 +127,8 @@ namespace hsmm {
             arma::field<arma::mat> sampleFromState(int state, int size,
                     std::mt19937 &rng) const;
 
-            arma::mat sampleNextObsGivenPastObs(int state, int seg_dur,
-                    const arma::field<arma::mat>& past_obs,
+            arma::field<arma::mat> sampleNextObsGivenPastObs(int state,
+                    int seg_dur, const arma::field<arma::mat>& past_obs,
                     std::mt19937 &rng) const;
 
         private:

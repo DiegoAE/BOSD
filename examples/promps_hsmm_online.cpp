@@ -101,12 +101,11 @@ int main(int argc, char *argv[]) {
         online_promp_hsmm.addNewObservation(obs_for_cond.col(c));
 
     int nsamples = vm["nsamples"].as<int>();
-    mat samples(njoints, nsamples);
-    for(int c = 0; c < nsamples; c++) {
-        mat sample = online_promp_hsmm.sampleNextObservation();
-        online_promp_hsmm.addNewObservation(sample);
-        samples.col(c) = sample;
-    }
+
+    field<mat> fsamples = online_promp_hsmm.sampleNextObservations(nsamples);
+    mat samples(njoints, fsamples.n_elem);
+    for(int c = 0; c < fsamples.n_elem; c++)
+        samples.col(c) = fsamples(c);
     mat whole_thing = join_horiz(obs_for_cond, samples);
     whole_thing.raw_print(cout);
     return 0;

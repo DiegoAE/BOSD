@@ -104,7 +104,7 @@ namespace hsmm {
     /*
      * AbstractEmissionOnlineSetting implementation
      */
-    mat AbstractEmissionOnlineSetting::sampleNextObsGivenPastObs(int state,
+    field<mat> AbstractEmissionOnlineSetting::sampleNextObsGivenPastObs(int state,
             int seg_dur, const field<mat>& past_obs) {
         return sampleNextObsGivenPastObs(state, seg_dur, past_obs,
                 rand_generator_);
@@ -112,7 +112,7 @@ namespace hsmm {
 
     // Default implementation. Disregards any information from the last
     // segment.
-    mat AbstractEmissionOnlineSetting::sampleFirstSegmentObsGivenLastSegment(
+    field<mat> AbstractEmissionOnlineSetting::sampleFirstSegmentObsGivenLastSegment(
             int curr_state, int curr_seg_dur, const field<mat> &last_segment,
             int last_state, std::mt19937 &rng) const {
         field<mat> empty_segment;
@@ -120,7 +120,7 @@ namespace hsmm {
                 empty_segment, rng);
     }
 
-    mat AbstractEmissionOnlineSetting::sampleFirstSegmentObsGivenLastSegment(
+    field<mat> AbstractEmissionOnlineSetting::sampleFirstSegmentObsGivenLastSegment(
             int curr_state, int curr_seg_dur, const field<mat> &last_segment,
             int last_state) {
         return sampleFirstSegmentObsGivenLastSegment(curr_state, curr_seg_dur,
@@ -258,10 +258,16 @@ namespace hsmm {
         return fromMatToField(ret);
     }
 
-    mat DummyGaussianEmission::sampleNextObsGivenPastObs(int state,
+    field<mat> DummyGaussianEmission::sampleNextObsGivenPastObs(int state,
             int seg_dur, const field<mat>& past_obs, mt19937 &rng) const {
         assert(past_obs.n_elem < seg_dur);
-        return randn<mat>(1, 1) * std_devs_(state) + means_(state);
+        field<mat> ret(seg_dur);
+        int idx = 0;
+        for(int i = 0; i < past_obs.n_elem; i++, idx++)
+            ret(i) = past_obs(i);
+        for(int i = idx; i < seg_dur; i++)
+            ret(i) = randn<mat>(1, 1) * std_devs_(state) + means_(state);
+        return ret;
     }
 
 

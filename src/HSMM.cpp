@@ -531,24 +531,24 @@ namespace hsmm {
         return;
     }
 
-    mat OnlineHSMM::sampleNextObservation() const {
-        if (observations_.empty()) {
-            int state = sampleFromCategorical(pi_.t());
-            int dur = sampleFromCategorical(duration_.row(state)) +
-                    min_duration_;
-            field<mat> no_obs;
-            return getOnlineEmission()->sampleNextObsGivenPastObs(state, dur,
-                    no_obs);
-        }
+    field<mat> OnlineHSMM::sampleNextObservations(int nobs) const {
+        assert(!observations_.empty());  // TODO: handle empty observations.
 
         // Sampling a triplet (d,s,i) from the current posterior.
         int d, s, i;
         sampleFromPosterior(d, s, i);
+        if (debug_) {
+            cout << "Posterior sample (" << d << ", " << s << ", " <<
+                    i << ")" << endl;
+        }
         field<mat> last_obs(s + 1);
         int tam = observations_.size();
         for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
             last_obs(j) = observations_.at(idx);
-        mat sample;
+        field<mat> ret(nobs);
+        int idx = 0;
+        field<mat> seg;
+        int curr_state;
         if (s == min_duration_ + d - 1) {
 
             // Handling the case when there is a transition
@@ -558,13 +558,36 @@ namespace hsmm {
                     transition_.row(i));
             int next_duration = sampleFromCategorical(
                     duration_.row(next_state)) + min_duration_;
-            sample =getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
+            seg = getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
                     next_state, next_duration, last_obs, i);
+            curr_state = next_state;
+            for(int j = 0; j < seg.n_elem; j++)
+                ret(idx++) = seg(j);
         }
-        else
-            sample = getOnlineEmission()->sampleNextObsGivenPastObs(i,
+        else {
+            seg = getOnlineEmission()->sampleNextObsGivenPastObs(i,
                     min_duration_ + d, last_obs);
-        return sample;
+            curr_state = i;
+            field<mat> suffix = seg.rows(last_obs.n_elem, seg.n_elem - 1);
+            idx = appendToField(ret, idx, suffix);
+        }
+
+        while(idx < ret.n_elem) {
+             int next_state = sampleFromCategorical(transition_.row(
+                         curr_state));
+             int next_duration =  sampleFromCategorical(duration_.row(
+                         next_state)) + min_duration_;
+             if (debug_) {
+                cout << "Next state and dur: " << next_state << " " <<
+                        next_duration << endl;
+             }
+             seg = getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
+                     next_state, next_duration, seg, curr_state);
+             curr_state = next_state;
+             idx = appendToField(ret, idx, seg);
+        }
+        assert(idx == nobs);
+        return ret;
     }
 
     void OnlineHSMM::printTopKFromPosterior(int k) const {
@@ -582,6 +605,13 @@ namespace hsmm {
                 }
         for(auto p: pq)
             cout << p.first << " " << p.second << endl;
+    }
+
+    int OnlineHSMM::appendToField(field<mat> &current_obs, int idx,
+            const field<mat> new_obs) const {
+        for(int j = 0; j < new_obs.n_elem && idx < current_obs.n_elem; j++)
+            current_obs(idx++) = new_obs(j);
+        return idx;
     }
 
 };
