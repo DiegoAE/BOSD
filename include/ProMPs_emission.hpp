@@ -484,6 +484,39 @@ namespace hsmm {
                 return ret;
             }
 
+            field<mat> sampleFirstSegmentObsGivenLastSegment(int curr_state,
+                    int curr_seg_dur, const field<mat> &last_segment,
+                    int last_state, std::mt19937 &rng) const {
+                mat last_obs = last_segment(last_segment.n_elem - 1);
+
+                // Making sure all the required matrices are already computed.
+                pair<int, int> p = make_pair(curr_state, curr_seg_dur);
+                generateCachedMatrices(p);
+                const FullProMP& promp = promps_.at(curr_state);
+                const cube& Phis = getPhiCube(curr_state, curr_seg_dur);
+                vec mu(promp.get_model().get_mu_w());
+                mat Sigma(promp.get_model().get_Sigma_w());
+                mat Sigma_y(promp.get_model().get_Sigma_y());
+
+                // Applying Kalman updating step with the last observation of
+                // the last segment. This is done to roughly ensure continuity.
+                const mat& Phi0 = Phis.slice(0);
+                const field<mat>& invS = cacheInvS_.at(p);
+                const field<mat>& K = cacheK_.at(p);
+
+                vec new_mu = mu + K(0) * (last_obs - Phi0 * mu);
+                mat new_Sigma = Sigma - K(0) * inv(invS(0)) * K(0).t();
+
+                // Notice that the sampling is done with the same Phi.
+                vector<vec> sample = random::sample_multivariate_normal(
+                        rng, {Phi0 * new_mu, Phi0 * new_Sigma * Phi0.t()}, 1);
+
+                // Providing only one observation to condition on.
+                field<mat> past_obs = {sample.at(0)};
+                return sampleNextObsGivenPastObs(curr_state, curr_seg_dur,
+                        past_obs, rng);
+            }
+
             nlohmann::json to_stream() const {
                 vector<nlohmann::json> array_emission_params;
                 for(int i = 0; i < getNumberStates(); i++) {
