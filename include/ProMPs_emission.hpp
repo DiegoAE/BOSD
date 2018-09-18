@@ -80,6 +80,7 @@ namespace hsmm {
                 cachePhis_.clear();
                 cacheInvS_.clear();
                 cacheK_.clear();
+                cachePosteriorSigma_.clear();
             }
 
             // This initialization mechanism assumes all the hidden states
@@ -140,7 +141,9 @@ namespace hsmm {
                 }
             }
 
-            void generateCachedMatrices(const pair<int, int> &p) const {
+            // Note that the method is returning the posterior covariance for
+            // the given state and duration which is independent of obs.
+            mat generateCachedMatrices(const pair<int, int> &p) const {
                 if (cacheInvS_.find(p) == cacheInvS_.end() ||
                         cacheK_.find(p) == cacheK_.end()) {
                     int state = p.first;
@@ -164,7 +167,9 @@ namespace hsmm {
                     // Caching the matrices for faster likelihood evaluation.
                     cacheInvS_[p] = invS;
                     cacheK_[p] = K;
+                    cachePosteriorSigma_[p] = Sigma;
                 }
+                return cachePosteriorSigma_.at(p);
             }
 
             double loglikelihood(int state, const field<mat>& obs) const {
@@ -491,7 +496,12 @@ namespace hsmm {
 
                 // Making sure all the required matrices are already computed.
                 pair<int, int> p = make_pair(curr_state, curr_seg_dur);
+                pair<int, int> last_p = make_pair(last_state,
+                        last_segment.n_elem);
                 generateCachedMatrices(p);
+                generateCachedMatrices(last_p);
+
+                // Finding the posterior over omega for the last segment.
                 const FullProMP& promp = promps_.at(curr_state);
                 const cube& Phis = getPhiCube(curr_state, curr_seg_dur);
                 vec mu(promp.get_model().get_mu_w());
@@ -674,6 +684,7 @@ namespace hsmm {
             mutable map<pair<int, int>, cube> cachePhis_;
             mutable map<pair<int, int>, field<mat>> cacheInvS_;
             mutable map<pair<int, int>, field<mat>> cacheK_;
+            mutable map<pair<int, int>, mat> cachePosteriorSigma_;
     };
 
 
