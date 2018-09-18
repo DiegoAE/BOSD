@@ -428,9 +428,15 @@ namespace hsmm {
 
             field<mat> sampleFromState(int state, int size,
                     mt19937 &rand_generator) const {
-                const ProMP& model = promps_.at(state).get_model();
+                return sampleFromProMP(promps_.at(state), size, rand_generator);
+            }
+
+            field<mat> sampleFromProMP(const FullProMP& fpromp, int size,
+                    mt19937 &rand_generator) const {
+                const ProMP& model = fpromp.get_model();
                 vector<vec> w_samples = random::sample_multivariate_normal(
-                        rand_generator, {model.get_mu_w(), model.get_Sigma_w()}, 1);
+                        rand_generator,
+                        {model.get_mu_w(), model.get_Sigma_w()}, 1);
                 vec w = w_samples.back();
 
                 vec noise_mean = zeros<vec>(getDimension());
@@ -443,7 +449,7 @@ namespace hsmm {
                 vec sample_locations = linspace<vec>(0, 1.0, size);
                 for(int i = 0; i < size; i++) {
                     double z = sample_locations(i);
-                    mat phi_z = promps_.at(state).get_phi_t(z);
+                    mat phi_z =fpromp.get_phi_t(z);
                     ret(i) = phi_z * w + output_noise.at(i);
                 }
                 return ret;
@@ -499,32 +505,33 @@ namespace hsmm {
                 pair<int, int> last_p = make_pair(last_state,
                         last_segment.n_elem);
                 generateCachedMatrices(p);
-                generateCachedMatrices(last_p);
+                mat last_p_Sigma = generateCachedMatrices(last_p);
 
-                // Finding the posterior over omega for the last segment.
-                const FullProMP& promp = promps_.at(curr_state);
-                const cube& Phis = getPhiCube(curr_state, curr_seg_dur);
-                vec mu(promp.get_model().get_mu_w());
-                mat Sigma(promp.get_model().get_Sigma_w());
-                mat Sigma_y(promp.get_model().get_Sigma_y());
+                // Finding the posterior omega mean for the last segment.
+                const cube& LPhis = getPhiCube(last_state, last_segment.n_elem);
+                vec last_p_mu(promps_.at(last_state).get_model().get_mu_w());
+                const field<mat>& last_K = cacheK_[last_p];
+                for(int i = 0; i < last_segment.n_elem; i++) {
+                    const mat& Phi = LPhis.slice(i);
+                    vec diff = last_segment(i) - Phi * last_p_mu;
+                    last_p_mu = last_p_mu + last_K(i) * diff;
+                }
+                FullProMP last_full_promp(promps_.at(last_state));
+                mat zeros_Sigma_y = zeros<mat>(getDimension(), getDimension());
+                ProMP last_p_promp(last_p_mu, last_p_Sigma, zeros_Sigma_y);
+                last_full_promp.set_model(last_p_promp);
 
-                // Applying Kalman updating step with the last observation of
-                // the last segment. This is done to roughly ensure continuity.
-                const mat& Phi0 = Phis.slice(0);
-                const field<mat>& invS = cacheInvS_.at(p);
-                const field<mat>& K = cacheK_.at(p);
+                // This gives the posterior distribution over q = (y, v) at the
+                // last time step of the last segment.
+                random::NormalDist last_pos_vel = last_full_promp.joint_dist(
+                        1.0, true, true, false);
+                vec last_p_pos = last_pos_vel.mean().head(getDimension());
+                vec last_p_vel = last_pos_vel.mean().tail(getDimension());
 
-                vec new_mu = mu + K(0) * (last_obs - Phi0 * mu);
-                mat new_Sigma = Sigma - K(0) * inv(invS(0)) * K(0).t();
-
-                // Notice that the sampling is done with the same Phi.
-                vector<vec> sample = random::sample_multivariate_normal(
-                        rng, {Phi0 * new_mu, Phi0 * new_Sigma * Phi0.t()}, 1);
-
-                // Providing only one observation to condition on.
-                field<mat> past_obs = {sample.at(0)};
-                return sampleNextObsGivenPastObs(curr_state, curr_seg_dur,
-                        past_obs, rng);
+                FullProMP promp = promps_.at(curr_state);
+                promp = promp.condition_current_state(0, 1.0, last_p_pos,
+                        last_p_vel);
+                return sampleFromProMP(promp, curr_seg_dur, rng);
             }
 
             nlohmann::json to_stream() const {
