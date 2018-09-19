@@ -27,6 +27,9 @@ int main(int argc, char *argv[]) {
                 "to this index")
         ("nsamples,n", po::value<int>()->default_value(1), "Number of samples "
                 "to generate after conditioning on the input observations")
+        ("ntimeseries,t", po::value<int>()->default_value(1), "Number of i.i.d."
+                " time series to generate conditioned on the same obs")
+        ("output,o", po::value<string>(), "Filename of the output samples")
         ("polybasisfun", po::value<int>()->default_value(2), "Order of the "
                 "poly basis functions")
         ("rbf", "Flag to activate the radial basis functions");
@@ -87,7 +90,7 @@ int main(int argc, char *argv[]) {
             dummy_pi, dummy_duration,
             min_duration);
     online_promp_hsmm.from_stream(current_params);
-
+    online_promp_hsmm.debug_ = true;
     mat obs;
     if (vm.count("input")) {
         obs.load(vm["input"].as<string>(), raw_ascii);
@@ -100,14 +103,23 @@ int main(int argc, char *argv[]) {
     for(int c = 0; c < obs_for_cond.n_cols; c++)
         online_promp_hsmm.addNewObservation(obs_for_cond.col(c));
 
+    online_promp_hsmm.printTopKFromPosterior(15);
+
     int nsamples = vm["nsamples"].as<int>();
 
-    field<mat> fsamples = online_promp_hsmm.sampleNextObservations(nsamples);
-    mat samples(njoints, fsamples.n_elem);
-    for(int c = 0; c < fsamples.n_elem; c++)
-        samples.col(c) = fsamples(c);
-    mat whole_thing = join_horiz(obs_for_cond, samples);
-    whole_thing.raw_print(cout);
+    for(int j = 0; j < vm["ntimeseries"].as<int>(); j++) {
+        field<mat> fsamples = online_promp_hsmm.sampleNextObservations(nsamples);
+        mat samples(njoints, fsamples.n_elem);
+        for(int c = 0; c < fsamples.n_elem; c++)
+            samples.col(c) = fsamples(c);
+        mat whole_ts = join_horiz(obs_for_cond, samples);
+        if (vm.count("output")) {
+            string filename = vm["output"].as<string>() + "." + to_string(j);
+            whole_ts.save(filename, raw_ascii);
+        }
+        else
+            whole_ts.raw_print(cout);
+    }
     return 0;
 }
 
