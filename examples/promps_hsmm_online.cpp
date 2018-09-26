@@ -32,7 +32,13 @@ int main(int argc, char *argv[]) {
         ("output,o", po::value<string>(), "Filename of the output samples")
         ("polybasisfun", po::value<int>()->default_value(2), "Order of the "
                 "poly basis functions")
-        ("rbf", "Flag to activate the radial basis functions");
+        ("rbf", "Flag to activate the radial basis functions")
+        ("output-states-marginal", po::value<string>(), "File name where a "
+                "matrix containing the state marginals will be stored.")
+        ("output-runlength-marginal", po::value<string>(), "File name where a "
+                "matrix containing the run length marginals will be stored.")
+        ("output-duration-marginal", po::value<string>(), "File name where a "
+                "matrix containing the duration marginals will be stored.");
     vector<string> required_fields = {"params"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -98,10 +104,28 @@ int main(int argc, char *argv[]) {
     }
     mat obs_for_cond(obs);
     if (!obs.is_empty() && vm.count("upto"))
-        obs_for_cond = obs.cols(0, vm["upto"].as<int>());
+        obs_for_cond = obs.cols(0, vm["upto"].as<int>() - 1);
 
-    for(int c = 0; c < obs_for_cond.n_cols; c++)
+    mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
+    mat runlength_marginals_over_time(min_duration + nduration,
+            obs_for_cond.n_cols);
+    mat duration_marginals_over_time(nduration, obs_for_cond.n_cols);
+
+    for(int c = 0; c < obs_for_cond.n_cols; c++) {
         online_promp_hsmm.addNewObservation(obs_for_cond.col(c));
+        if (vm.count("output-states-marginal")) {
+            vec s_marginal = online_promp_hsmm.getStateMarginal();
+            state_marginals_over_time.col(c) = s_marginal;
+        }
+        if (vm.count("output-runlength-marginal")) {
+            vec r_marginal = online_promp_hsmm.getRunlengthMarginal();
+            runlength_marginals_over_time.col(c) = r_marginal;
+        }
+        if (vm.count("output-duration-marginal")) {
+            vec d_marginal = online_promp_hsmm.getDurationMarginal();
+            duration_marginals_over_time.col(c) = d_marginal;
+        }
+    }
 
     online_promp_hsmm.printTopKFromPosterior(15);
 
@@ -120,6 +144,17 @@ int main(int argc, char *argv[]) {
         else
             whole_ts.raw_print(cout);
     }
+
+    // Saving the marginals if required.
+    if (vm.count("output-states-marginal"))
+        state_marginals_over_time.save(
+                vm["output-states-marginal"].as<string>(), raw_ascii);
+    if (vm.count("output-runlength-marginal"))
+        runlength_marginals_over_time.save(
+                vm["output-runlength-marginal"].as<string>(), raw_ascii);
+    if (vm.count("output-duration-marginal"))
+        duration_marginals_over_time.save(
+                vm["output-duration-marginal"].as<string>(), raw_ascii);
     return 0;
 }
 

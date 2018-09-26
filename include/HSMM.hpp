@@ -101,6 +101,12 @@ namespace hsmm {
 
             void printTopKFromPosterior(int k) const;
 
+            arma::vec getStateMarginal() const;
+
+            arma::vec getRunlengthMarginal() const;
+
+            arma::vec getDurationMarginal() const;
+
         protected:
 
             int appendToField(arma::field<arma::mat>& current_obs, int idx,

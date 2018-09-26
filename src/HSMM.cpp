@@ -607,6 +607,33 @@ namespace hsmm {
             cout << p.first << " " << p.second << endl;
     }
 
+    vec OnlineHSMM::getStateMarginal() const {
+        cube current_posterior = exp(last_log_posterior_);
+        mat tmp = sum(current_posterior, 0);
+        vec ret = vectorise(sum(tmp, 0));
+        assert(abs(sum(ret) - 1.0) < 1e-7);
+        assert(ret.n_elem == nstates_);
+        return ret;
+    }
+
+    vec OnlineHSMM::getRunlengthMarginal() const {
+        cube current_posterior = exp(last_log_posterior_);
+        mat tmp = sum(current_posterior, 0);
+        vec ret = vectorise(sum(tmp, 1));
+        assert(abs(sum(ret) - 1.0) < 1e-7);
+        assert(ret.n_elem == min_duration_ + ndurations_);
+        return ret;
+    }
+
+    vec OnlineHSMM::getDurationMarginal() const {
+        cube current_posterior = exp(last_log_posterior_);
+        mat tmp = sum(current_posterior, 2);
+        vec ret = vectorise(sum(tmp, 1));
+        assert(abs(sum(ret) - 1.0) < 1e-7);
+        assert(ret.n_elem == ndurations_);
+        return ret;
+    }
+
     int OnlineHSMM::appendToField(field<mat> &current_obs, int idx,
             const field<mat> new_obs) const {
         for(int j = 0; j < new_obs.n_elem && idx < current_obs.n_elem; j++)
