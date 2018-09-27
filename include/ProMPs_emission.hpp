@@ -87,6 +87,7 @@ namespace hsmm {
             // share the same basis functions and their hyperparameters.
             void init_params_from_data(int min_duration, int ndurations,
                     const arma::field<arma::field<arma::mat>>& mobs) {
+                vector<pair<double, vec>> pairs;
                 vector<double> noise_vars;
                 for(auto &obs : mobs) {
                     for(int t = 0; t < obs.n_elem; t++) {
@@ -98,37 +99,30 @@ namespace hsmm {
                             vec lsq_omega = least_squares_omega(0, segment);
                             double var = var_isotropic_gaussian_given_omega(0,
                                     lsq_omega, segment);
+                            pairs.push_back(make_pair(var, lsq_omega));
                             noise_vars.push_back(var);
                         }
                     }
                 }
-                vec vars = noise_vars;
+                sort(pairs.begin(), pairs.end(), [](const pair<double, vec>& a,
+                        const pair<double, vec>& b)
+                        {return a.first < b.first;});
+                int cutoff_index = (int)((pairs.size() - 1) *
+                        init_fraction_);
+                double threshold = pairs.at(cutoff_index).first;
+                cout << "Cuttoff index for init: " << cutoff_index <<
+                        " var: " << threshold << endl;
 
-                // TODO: make a less arbitrary decision about the cutoff.
-                vec histogram_cutoffs = linspace<vec>(0, max(vars), 80);
+                // Showing a histogram of the distribution of noise vars.
+                vec vars(noise_vars);
+                vec histogram_cutoffs = linspace<vec>(0, max(vars), 20);
                 uvec histogram = histc(vars, histogram_cutoffs);
                 cout << "Hist. of noise vars:" << endl << histogram << endl;
 
                 mat remaining_w(promps_.at(0).get_model().get_mu_w().n_rows,
                         histogram(0));
-                double threshold = histogram_cutoffs(1);
-                int idx = 0;
-                for(auto &obs : mobs) {
-                    for(int t = 0; t < obs.n_elem; t++) {
-                        for(int d = 0; d < ndurations; d++) {
-                            if (t + min_duration + d > obs.n_elem)
-                                break;
-                            int end_idx = t + min_duration + d - 1;
-                            auto &segment = obs.rows(t, end_idx);
-                            vec lsq_omega = least_squares_omega(0, segment);
-                            double var = var_isotropic_gaussian_given_omega(0,
-                                    lsq_omega, segment);
-                            if (var < threshold)
-                                remaining_w.col(idx++) = lsq_omega;
-                        }
-                    }
-                }
-                assert(idx == histogram(0));
+                for(int i = 0; i <= cutoff_index; i++)
+                    remaining_w.col(i) = pairs.at(i).second;
                 mat means;
                 kmeans(means, remaining_w, getNumberStates(), static_subset,
                         10, false);
@@ -529,8 +523,9 @@ namespace hsmm {
                 vec last_p_vel = last_pos_vel.mean().tail(getDimension());
 
                 FullProMP promp = promps_.at(curr_state);
-                promp = promp.condition_current_state(0, 1.0, last_p_pos,
-                        last_p_vel);
+                promp = promp.condition_current_position(0, 1.0, last_p_pos);
+                //promp = promp.condition_current_state(0, 1.0, last_p_pos,
+                //        last_p_vel);
                 return sampleFromProMP(promp, curr_seg_dur, rng);
             }
 
@@ -575,6 +570,11 @@ namespace hsmm {
                         std::move(prior));
                 int size_cov = promps_.at(0).get_model().get_Sigma_w().n_rows;
                 assert(size_cov == normal_inverse_prior_->getPhi().n_rows);
+            }
+
+            void setParamsForInitialization(double fraction) {
+                assert(fraction > 0 && fraction < 1.0);
+                init_fraction_ = fraction;
             }
 
 
@@ -686,6 +686,10 @@ namespace hsmm {
             std::shared_ptr<NormalInverseWishart> normal_inverse_prior_;
             double epsilon_ = 1e-15;
             bool diagonal_sigma_y_;
+
+            // Fraction of the total least squares omega estimates that will be
+            // used for initialization.
+            double init_fraction_ = 0.1;
 
             // Members for caching.
             mutable map<pair<int, int>, cube> cachePhis_;

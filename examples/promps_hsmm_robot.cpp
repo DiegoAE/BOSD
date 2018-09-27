@@ -81,6 +81,9 @@ int main(int argc, char *argv[]) {
         ("nodur", "Flag to deactivate the learning of durations")
         ("polybasisfun", po::value<int>()->default_value(1), "Order of the "
                 "poly basis functions")
+        ("noselftransitions", "Flag to deactive self transitions")
+        ("initfraction", po::value<double>()->default_value(0.1), "Fraction "
+                "of the least squares estimates for omega kept for init")
         ("norbf", "Flag to deactivate the radial basis functions");
     vector<string> required_fields = {"input", "output", "nstates", "mindur",
             "ndur", "viterbi"};
@@ -135,6 +138,10 @@ int main(int argc, char *argv[]) {
     int ndurations = vm["ndur"].as<int>();
     mat transition(nstates, nstates);
     transition.fill(1.0 / nstates );
+    if (vm.count("noselftransitions")) {
+        transition.fill(1.0 / (nstates - 1));
+        transition.diag().zeros();
+    }
     vec pi(nstates);
     pi.fill(1.0/nstates);
     mat durations(nstates, ndurations);
@@ -170,6 +177,9 @@ int main(int argc, char *argv[]) {
             n_basis_functions * njoints);
     NormalInverseWishart iw_prior(Phi, Phi.n_rows + 2);
     ptr_emission->set_Sigma_w_Prior(iw_prior);
+
+    // Settings for the initialization algorithm.
+    ptr_emission->setParamsForInitialization(vm["initfraction"].as<double>());
 
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
             transition, pi, durations, min_duration);
