@@ -84,6 +84,7 @@ int main(int argc, char *argv[]) {
         ("noselftransitions", "Flag to deactive self transitions")
         ("initfraction", po::value<double>()->default_value(0.1), "Fraction "
                 "of the least squares estimates for omega kept for init")
+        ("wpriorvar", po::value<double>(), "Prior variance for Sigma_w")
         ("norbf", "Flag to deactivate the radial basis functions");
     vector<string> required_fields = {"input", "output", "nstates", "mindur",
             "ndur", "viterbi"};
@@ -173,10 +174,12 @@ int main(int argc, char *argv[]) {
     shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
 
     // Creating a prior for Sigma_w.
-    mat Phi = 0.5 * eye<mat>(n_basis_functions * njoints,
-            n_basis_functions * njoints);
-    NormalInverseWishart iw_prior(Phi, Phi.n_rows + 2);
-    ptr_emission->set_Sigma_w_Prior(iw_prior);
+    if (vm.count("wpriorvar")) {
+        mat Phi = vm["wpriorvar"].as<double>() * eye<mat>(
+                n_basis_functions * njoints, n_basis_functions * njoints);
+        NormalInverseWishart iw_prior(Phi, Phi.n_rows + 2);
+        ptr_emission->set_Sigma_w_Prior(iw_prior);
+    }
 
     // Settings for the initialization algorithm.
     ptr_emission->setParamsForInitialization(vm["initfraction"].as<double>());
