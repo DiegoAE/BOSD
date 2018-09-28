@@ -330,6 +330,33 @@ namespace hsmm {
         return fit(mobs, mobserved_segments, max_iter, tol);
     }
 
+    // TODO: make this a const function.
+    double HSMM::loglikelihood(const field<field<mat>>& mobs) {
+        int nseq = mobs.n_elem;
+        assert(nseq >= 1);
+        double ll = 0.0;
+        for(int i = 0; i < nseq; i++) {
+            const field<mat>& obs = mobs(i);
+            int nobs = obs.n_elem;
+            mat alpha =  zeros<mat>(nstates_, nobs);
+            mat beta = zeros<mat>(nstates_, nobs);
+            mat alpha_s = zeros<mat>(nstates_, nobs);
+            mat beta_s = zeros<mat>(nstates_, nobs);
+            vec beta_s_0 =  zeros<vec>(nstates_);
+            cube eta = zeros<cube>(nstates_, ndurations_, nobs);
+            cube zeta = zeros<cube>(nstates_, nstates_, nobs - 1);
+            Labels no_labels;
+            cube logpdf = computeEmissionsLogLikelihood(obs);
+            mat ltransition = log(transition_);
+            vec lpi = log(pi_);
+            mat ldur = log(duration_);
+            logsFB(ltransition, lpi, ldur, logpdf, no_labels, alpha, beta,
+                    alpha_s, beta_s, beta_s_0, eta, zeta, min_duration_, nobs);
+            ll += logsumexp(alpha.col(nobs - 1));
+        }
+        return ll;
+    }
+
     // Computes the likelihoods w.r.t. the emission model.
     cube HSMM::computeEmissionsLikelihood(const field<mat>& obs) {
         return emission_->likelihoodCube(min_duration_, ndurations_, obs);

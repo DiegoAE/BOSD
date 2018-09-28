@@ -47,6 +47,9 @@ namespace hsmm {
                     arma::field<Labels> observed_segments, int max_iter,
                     double tol);
 
+            double loglikelihood(const arma::field<arma::field<
+                    arma::mat>>& obs);
+
             // Computes the likelihoods w.r.t. the emission model.
             arma::cube computeEmissionsLikelihood(
                     const arma::field<arma::mat>& obs);

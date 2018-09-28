@@ -224,6 +224,7 @@ int main(int argc, char *argv[]) {
             break;
 
     }
+    cout << "loglikelihood: " << promp_hsmm.loglikelihood(seq_obs) << endl;
     return 0;
 }
 
