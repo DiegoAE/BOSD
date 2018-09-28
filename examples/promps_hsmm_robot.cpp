@@ -85,6 +85,8 @@ int main(int argc, char *argv[]) {
         ("initfraction", po::value<double>()->default_value(0.1), "Fraction "
                 "of the least squares estimates for omega kept for init")
         ("wpriorvar", po::value<double>(), "Prior variance for Sigma_w")
+        ("trainingiter", po::value<int>()->default_value(10), "Training "
+                "iterations")
         ("norbf", "Flag to deactivate the radial basis functions");
     vector<string> required_fields = {"input", "output", "nstates", "mindur",
             "ndur", "viterbi"};
@@ -201,8 +203,8 @@ int main(int argc, char *argv[]) {
         initial_model["git_commit_id"] = vm["commitid"].as<string>();
     initial_params << std::setw(4) << initial_model << std::endl;
     initial_params.close();
-    for(int i = 0; i < 10; i++) {
-
+    for(int i = 0; i < vm["trainingiter"].as<int>(); i++) {
+        cout << "enter" << vm["trainingiter"].as<int>() << endl;
         // Reading the current parameters.
         std::ifstream current_params_stream(output_filename);
         nlohmann::json current_params;
