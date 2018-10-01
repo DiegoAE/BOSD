@@ -23,8 +23,8 @@ int main(int argc, char *argv[]) {
         ("help,h", "Produce help message")
         ("params,p", po::value<string>(), "Path to the input promp hsmm params")
         ("input,i", po::value<string>(), "Path to input obs. (optional)")
-        ("upto,u", po::value<int>(), "The model will condition on the obs. up "
-                "to this index")
+        ("upto,u", po::value<int>(), "The model will condition on this number "
+                "of observations")
         ("nsamples,n", po::value<int>()->default_value(1), "Number of samples "
                 "to generate after conditioning on the input observations")
         ("ntimeseries,t", po::value<int>()->default_value(1), "Number of i.i.d."

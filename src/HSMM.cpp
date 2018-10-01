@@ -588,7 +588,7 @@ namespace hsmm {
             seg = getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
                     next_state, next_duration, last_obs, i);
             curr_state = next_state;
-            for(int j = 0; j < seg.n_elem; j++)
+            for(int j = 0; j < seg.n_elem && idx < ret.n_elem; j++)
                 ret(idx++) = seg(j);
         }
         else {
