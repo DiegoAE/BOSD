@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
     initial_params << std::setw(4) << initial_model << std::endl;
     initial_params.close();
     for(int i = 0; i < vm["trainingiter"].as<int>(); i++) {
-        cout << "enter" << vm["trainingiter"].as<int>() << endl;
+
         // Reading the current parameters.
         std::ifstream current_params_stream(output_filename);
         nlohmann::json current_params;

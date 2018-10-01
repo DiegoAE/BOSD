@@ -71,7 +71,9 @@ int main(int argc, char *argv[]) {
         ("input,i", po::value<string>(), "Path to the input obs")
         ("params,p", po::value<string>(), "Path to the json input params")
         ("output,o", po::value<string>(), "Path to the output viterbi file(s)")
-        ("nbasis,b", po::value<int>(), "Number of basis functions used")
+        ("polybasisfun", po::value<int>()->default_value(1), "Order of the "
+                "poly basis functions")
+	    ("norbf", "Flag to deactivate the radial basis functions")
         ("nsequences,n", po::value<int>()->default_value(1),
                 "Number of sequences used for training");
     po::variables_map vm;
@@ -81,15 +83,13 @@ int main(int argc, char *argv[]) {
         cout << desc << endl;
         return 0;
     }
-    if (!vm.count("input") || !vm.count("output") || !vm.count("params") ||
-            !vm.count("nbasis")) {
+    if (!vm.count("input") || !vm.count("output") || !vm.count("params")) {
         cerr << "Error: You should provide input and output files" << endl;
         return 1;
     }
     string input_filename = vm["input"].as<string>();
     string output_filename = vm["output"].as<string>();
     string params = vm["params"].as<string>();
-    int n_basis_functions = vm["nbasis"].as<int>();
     int nseq = vm["nsequences"].as<int>();
 
     field<field<mat>> seq_obs(nseq);
@@ -123,9 +123,14 @@ int main(int argc, char *argv[]) {
     mat durations(nstates, ndurations);
     durations.fill(1.0 / ndurations);
 
-    // Setting polynomial basis function for the ProMP
-    int polynomial_order = n_basis_functions - 1;
-    shared_ptr<ScalarBasisFun> kernel{ new ScalarPolyBasis(polynomial_order)};
+    // Setting a combination of polynomial and rbf basis functions.
+    auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
+                {0.25,0.5,0.75},0.25));
+    auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
+    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    if (vm.count("norbf"))
+        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    int n_basis_functions = comb->dim();
 
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
@@ -136,7 +141,7 @@ int main(int argc, char *argv[]) {
                     n_basis_functions * njoints);
         mat Sigma_y = 0.01*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
-        FullProMP poly(kernel, promp, njoints);
+        FullProMP poly(comb, promp, njoints);
         promps.push_back(poly);
     }
 
