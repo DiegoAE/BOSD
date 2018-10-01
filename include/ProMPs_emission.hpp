@@ -120,7 +120,7 @@ namespace hsmm {
                 cout << "Hist. of noise vars:" << endl << histogram << endl;
 
                 mat remaining_w(promps_.at(0).get_model().get_mu_w().n_rows,
-                        histogram(0));
+                        cutoff_index + 1);
                 for(int i = 0; i <= cutoff_index; i++)
                     remaining_w.col(i) = pairs.at(i).second;
                 mat means;
