@@ -83,6 +83,13 @@ namespace hsmm {
                 cachePosteriorSigma_.clear();
             }
 
+            // Derived classes could implement a different kinf of dependence
+            // on the segment duration. Default implementation normalizes
+            // the input to be between 0 and 1.
+            virtual vec getSampleLocations(int length) const {
+                return linspace<vec>(0, 1.0, length);
+            }
+
             // This initialization mechanism assumes all the hidden states
             // share the same basis functions and their hyperparameters.
             void init_params_from_data(int min_duration, int ndurations,
@@ -203,7 +210,7 @@ namespace hsmm {
                 const FullProMP& promp = promps_.at(state);
 
                 // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, obs.n_elem);
+                vec sample_locations = getSampleLocations(obs.n_elem);
 
                 // Moment based parameterization.
                 vec mu(promp.get_model().get_mu_w());
@@ -440,7 +447,7 @@ namespace hsmm {
                 field<mat> ret(size);
 
                 // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, size);
+                vec sample_locations = getSampleLocations(size);
                 for(int i = 0; i < size; i++) {
                     double z = sample_locations(i);
                     mat phi_z =fpromp.get_phi_t(z);
@@ -634,7 +641,7 @@ namespace hsmm {
                 const FullProMP& promp = promps_.at(state);
 
                 // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, duration);
+                vec sample_locations = getSampleLocations(duration);
                 mat tmp = promp.get_phi_t(0);
                 int ncols = tmp.n_cols;
                 int nrows = tmp.n_rows;
@@ -718,7 +725,7 @@ namespace hsmm {
                 const FullProMP& promp = promps_.at(state);
 
                 // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, sequence.n_cols);
+                vec sample_locations = getSampleLocations(sequence.n_cols);
 
                 vec mu(promp.get_model().get_mu_w());
                 mat Sigma(promp.get_model().get_Sigma_w());
@@ -922,7 +929,7 @@ namespace hsmm {
                 mat joint_sample(getDimension(), size);
 
                 // The samples are assumed to be equally spaced.
-                vec sample_locations = linspace<vec>(0, 1.0, size);
+                vec sample_locations = getSampleLocations(size);
                 for(int i = 0; i < size; i++) {
                     double z = sample_locations(i);
                     mat phi_z = promps_.at(state).get_phi_t(z);
