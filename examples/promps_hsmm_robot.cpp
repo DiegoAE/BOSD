@@ -218,6 +218,22 @@ int main(int argc, char *argv[]) {
         initial_model["git_commit_id"] = vm["commitid"].as<string>();
     initial_params << std::setw(4) << initial_model << std::endl;
     initial_params.close();
+
+    // Leave one out.
+    field<field<mat>> t_seq;
+    if (vm.count("leaveoneout")) {
+        int omitted = vm["leaveoneout"].as<int>();
+        field<field<mat>> left_one_out(seq_obs.n_elem - 1);
+        int idx = 0;
+        for(int i = 0; i < seq_obs.n_elem; i++)
+            if (i != omitted)
+                left_one_out(idx++) = seq_obs(i);
+        t_seq = left_one_out;
+        cout << "Leaving one out of the training: " << omitted << endl;
+    }
+    else
+        t_seq = seq_obs;
+
     for(int i = 0; i < vm["trainingiter"].as<int>(); i++) {
 
         // Reading the current parameters.
@@ -226,19 +242,6 @@ int main(int argc, char *argv[]) {
         current_params_stream >> current_params;
         promp_hsmm.from_stream(current_params);
 
-        field<field<mat>> t_seq;
-        if (vm.count("leaveoneout")) {
-            int omitted = vm["leaveoneout"].as<int>();
-            field<field<mat>> left_one_out(seq_obs.n_elem - 1);
-            int idx = 0;
-            for(int i = 0; i < seq_obs.n_elem; i++)
-                if (i != omitted)
-                    left_one_out(idx++) = seq_obs(i);
-            t_seq = left_one_out;
-            cout << "Leaving one out of the training: " << omitted << endl;
-        }
-        else
-            t_seq = seq_obs;
 
         // Notice that the labels are not taken int account.
         bool convergence_reached = promp_hsmm.fit(t_seq, 5, 1e-5);
@@ -257,7 +260,12 @@ int main(int argc, char *argv[]) {
             break;
 
     }
-    cout << "loglikelihood: " << promp_hsmm.loglikelihood(seq_obs) << endl;
+    cout << "loglikelihood: " << promp_hsmm.loglikelihood(t_seq) << endl;
+    if (vm.count("leaveoneout")) {
+        int omitted = vm["leaveoneout"].as<int>();
+        field<field<mat>> test = {seq_obs(omitted)};
+        cout << "loglikelihoodtest: " << promp_hsmm.loglikelihood(test) << endl;
+    }
     return 0;
 }
 
