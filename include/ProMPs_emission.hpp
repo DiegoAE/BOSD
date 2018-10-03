@@ -85,7 +85,7 @@ namespace hsmm {
 
             // TODO: remove this once this behavior is moved to a subclass.
             void setDelta(double delta) {
-                assert(delta > 0);
+                //assert(delta > 0);
                 sample_locations_delta_ = delta;
             }
 
