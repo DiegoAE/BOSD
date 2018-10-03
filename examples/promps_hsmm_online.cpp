@@ -17,6 +17,13 @@ mat fieldToMat(int njoints, field<mat> &samples) {
     return ret;
 }
 
+field<mat> matToField(const mat& obs) {
+    field<mat> ret(obs.n_cols);
+    for(int i = 0; i < obs.n_cols; i++)
+        ret(i) = obs.col(i);
+    return ret;
+}
+
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
@@ -143,9 +150,13 @@ int main(int argc, char *argv[]) {
             string filename = vm["output"].as<string>() + "." + to_string(j);
             whole_ts.save(filename, raw_ascii);
         }
-        else
-            whole_ts.raw_print(cout);
     }
+
+    // Evaluation the likelihood of the observed data
+    field<mat> fobs = matToField(obs_for_cond);
+    field<field<mat>> field_obs = {fobs};
+    cout << "loglikelihood: " << online_promp_hsmm.loglikelihood(
+            field_obs) << endl;
 
     // Saving the marginals if required.
     if (vm.count("ms"))
