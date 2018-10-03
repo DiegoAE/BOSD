@@ -89,7 +89,10 @@ int main(int argc, char *argv[]) {
         ("wpriorvar", po::value<double>(), "Prior variance for Sigma_w")
         ("trainingiter", po::value<int>()->default_value(10), "Training "
                 "iterations")
-        ("norbf", "Flag to deactivate the radial basis functions");
+        ("norbf", "Flag to deactivate the radial basis functions")
+        ("delta", po::value<double>(), "If this is given a value, the model "
+                "switches to segment agnostic and the samples are generated "
+                "according to the provided delta");
     vector<string> required_fields = {"input", "output", "nstates", "mindur",
             "ndur", "viterbi"};
     po::variables_map vm;
@@ -188,6 +191,8 @@ int main(int argc, char *argv[]) {
         NormalInverseWishart iw_prior(Phi, Phi.n_rows + 2);
         ptr_emission->set_Sigma_w_Prior(iw_prior);
     }
+    if (vm.count("delta"))
+        ptr_emission->setDelta(vm["delta"].as<double>());
 
     // Settings for the initialization algorithm.
     ptr_emission->setParamsForInitialization(vm["initfraction"].as<double>());

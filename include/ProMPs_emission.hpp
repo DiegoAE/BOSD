@@ -83,11 +83,22 @@ namespace hsmm {
                 cachePosteriorSigma_.clear();
             }
 
+            // TODO: remove this once this behavior is moved to a subclass.
+            void setDelta(double delta) {
+                assert(delta > 0);
+                sample_locations_delta_ = delta;
+            }
+
             // Derived classes could implement a different kinf of dependence
             // on the segment duration. Default implementation normalizes
             // the input to be between 0 and 1.
+            // TODO: Implement the segment independent in a subclass.
             virtual vec getSampleLocations(int length) const {
-                return linspace<vec>(0, 1.0, length);
+                if (sample_locations_delta_ < 0)
+                    return linspace<vec>(0, 1.0, length);
+                else
+                    return linspace<vec>(0, (length-1)*sample_locations_delta_,
+                            length);
             }
 
             // This initialization mechanism assumes all the hidden states
@@ -693,6 +704,10 @@ namespace hsmm {
             std::shared_ptr<NormalInverseWishart> normal_inverse_prior_;
             double epsilon_ = 1e-15;
             bool diagonal_sigma_y_;
+
+            // Delta for emissions which are not dependent on the total
+            // duration.
+            double sample_locations_delta_ = -1;
 
             // Fraction of the total least squares omega estimates that will be
             // used for initialization.
