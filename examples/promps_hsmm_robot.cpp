@@ -92,7 +92,9 @@ int main(int argc, char *argv[]) {
         ("norbf", "Flag to deactivate the radial basis functions")
         ("delta", po::value<double>(), "If this is given a value, the model "
                 "switches to segment agnostic and the samples are generated "
-                "according to the provided delta");
+                "according to the provided delta")
+        ("leaveoneout", po::value<int>(), "Index of the sequence that will be"
+                " left out for validation");
     vector<string> required_fields = {"input", "output", "nstates", "mindur",
             "ndur", "viterbi"};
     po::variables_map vm;
@@ -223,7 +225,23 @@ int main(int argc, char *argv[]) {
         nlohmann::json current_params;
         current_params_stream >> current_params;
         promp_hsmm.from_stream(current_params);
-        bool convergence_reached = promp_hsmm.fit(seq_obs, seq_labels, 5, 1e-5);
+
+        field<field<mat>> t_seq;
+        if (vm.count("leaveoneout")) {
+            int omitted = vm["leaveoneout"].as<int>();
+            field<field<mat>> left_one_out(seq_obs.n_elem - 1);
+            int idx = 0;
+            for(int i = 0; i < seq_obs.n_elem; i++)
+                if (i != omitted)
+                    left_one_out(idx++) = seq_obs(i);
+            t_seq = left_one_out;
+            cout << "Leaving one out of the training: " << omitted << endl;
+        }
+        else
+            t_seq = seq_obs;
+
+        // Notice that the labels are not taken int account.
+        bool convergence_reached = promp_hsmm.fit(t_seq, 5, 1e-5);
 
         // Saving again the parameters after one training iteration.
         std::ofstream output_params(output_filename);
