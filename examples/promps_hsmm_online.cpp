@@ -23,8 +23,9 @@ int main(int argc, char *argv[]) {
         ("help,h", "Produce help message")
         ("params,p", po::value<string>(), "Path to the input promp hsmm params")
         ("input,i", po::value<string>(), "Path to input obs. (optional)")
-        ("upto,u", po::value<int>(), "The model will condition on this number "
-                "of observations")
+        ("upto,u", po::value<int>()->default_value(-1),
+                "The model will condition on this number of observations. "
+                "All of them by default.")
         ("nsamples,n", po::value<int>()->default_value(1), "Number of samples "
                 "to generate after conditioning on the input observations")
         ("ntimeseries,t", po::value<int>()->default_value(1), "Number of i.i.d."
@@ -33,11 +34,11 @@ int main(int argc, char *argv[]) {
         ("polybasisfun", po::value<int>()->default_value(2), "Order of the "
                 "poly basis functions")
         ("rbf", "Flag to activate the radial basis functions")
-        ("output-states-marginal", po::value<string>(), "File name where a "
+        ("ms", po::value<string>(), "File name where a "
                 "matrix containing the state marginals will be stored.")
-        ("output-runlength-marginal", po::value<string>(), "File name where a "
+        ("mr", po::value<string>(), "File name where a "
                 "matrix containing the run length marginals will be stored.")
-        ("output-duration-marginal", po::value<string>(), "File name where a "
+        ("md", po::value<string>(), "File name where a "
                 "matrix containing the duration marginals will be stored.");
     vector<string> required_fields = {"params"};
     po::variables_map vm;
@@ -103,8 +104,9 @@ int main(int argc, char *argv[]) {
         assert(obs.n_rows == njoints);
     }
     mat obs_for_cond(obs);
-    if (!obs.is_empty() && vm.count("upto"))
-        obs_for_cond = obs.cols(0, vm["upto"].as<int>() - 1);
+    int upto = vm["upto"].as<int>();
+    if (!obs.is_empty() && upto >= 0)
+        obs_for_cond = obs.cols(0, upto - 1);
 
     mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
     mat runlength_marginals_over_time(min_duration + nduration,
@@ -113,15 +115,15 @@ int main(int argc, char *argv[]) {
 
     for(int c = 0; c < obs_for_cond.n_cols; c++) {
         online_promp_hsmm.addNewObservation(obs_for_cond.col(c));
-        if (vm.count("output-states-marginal")) {
+        if (vm.count("ms")) {
             vec s_marginal = online_promp_hsmm.getStateMarginal();
             state_marginals_over_time.col(c) = s_marginal;
         }
-        if (vm.count("output-runlength-marginal")) {
+        if (vm.count("mr")) {
             vec r_marginal = online_promp_hsmm.getRunlengthMarginal();
             runlength_marginals_over_time.col(c) = r_marginal;
         }
-        if (vm.count("output-duration-marginal")) {
+        if (vm.count("md")) {
             vec d_marginal = online_promp_hsmm.getDurationMarginal();
             duration_marginals_over_time.col(c) = d_marginal;
         }
@@ -146,15 +148,12 @@ int main(int argc, char *argv[]) {
     }
 
     // Saving the marginals if required.
-    if (vm.count("output-states-marginal"))
-        state_marginals_over_time.save(
-                vm["output-states-marginal"].as<string>(), raw_ascii);
-    if (vm.count("output-runlength-marginal"))
-        runlength_marginals_over_time.save(
-                vm["output-runlength-marginal"].as<string>(), raw_ascii);
-    if (vm.count("output-duration-marginal"))
-        duration_marginals_over_time.save(
-                vm["output-duration-marginal"].as<string>(), raw_ascii);
+    if (vm.count("ms"))
+        state_marginals_over_time.save(vm["ms"].as<string>(), raw_ascii);
+    if (vm.count("mr"))
+        runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
+    if (vm.count("md"))
+        duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
     return 0;
 }
 
