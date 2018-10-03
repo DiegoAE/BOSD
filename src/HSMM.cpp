@@ -28,7 +28,7 @@ namespace hsmm {
      */
     HSMM::HSMM(shared_ptr<AbstractEmission> emission, mat transition,
             vec pi, mat duration, int min_duration) : emission_(emission),
-            learn_duration_(true), debug_(false) {
+            duration_learning_choice_("histogram"), debug_(false) {
         nstates_ = emission_->getNumberStates();
         ndurations_ = duration.n_cols;
         min_duration_ = min_duration;
@@ -60,6 +60,10 @@ namespace hsmm {
         assert(transition.n_rows == transition.n_cols);
         assert(transition.n_rows == nstates_);
         transition_ = transition;
+    }
+
+    void HSMM::setDurationLearningChoice(string choice) {
+        duration_learning_choice_ = choice;
     }
 
     field<mat> HSMM::sampleSegments(int nsegments, ivec& hiddenStates,
@@ -290,8 +294,14 @@ namespace hsmm {
                         D(i, d) -= denominator;
                 }
             }
-            if (learn_duration_)
+            if (!duration_learning_choice_.compare("histogram"))
                 log_estimated_duration = D;
+            else if (!duration_learning_choice_.compare("momentmatching"))
+                log_estimated_duration = gaussianMomentMatching(D);
+            else if (duration_learning_choice_.compare("nodur")) {
+                cout << "Duration learning not supported or invalid." << endl;
+                assert(false);
+            }
 
             // Lower bound after M step.
             if (debug_) {
@@ -412,6 +422,30 @@ namespace hsmm {
         setPi(pi);
         setTransition(transition);
         setDuration(duration);
+    }
+
+    mat HSMM::gaussianMomentMatching(mat duration) const {
+        duration = exp(duration);
+        mat ret = zeros(size(duration));
+        for(int i = 0; i < duration.n_rows; i++) {
+            double mean = 0;
+            for(int j = 0; j < duration.n_cols; j++)
+                mean += j * duration(i, j);
+            double var = 0;
+            for(int j = 0; j < duration.n_cols; j++)
+                var += (j - mean) * (j - mean) * duration(i, j);
+            for(int j = 0; j < duration.n_cols; j++) {
+                double tmp = (duration(i, j) - mean);
+                tmp = (tmp * tmp) / var;
+                tmp = -0.5 * tmp;
+                tmp = exp(tmp);
+                ret(i, j) = exp(tmp);
+            }
+
+            // Renormalizing.
+            ret.row(i) = ret.row(i) / sum(ret.row(i));
+        }
+        return log(ret);
     }
 
     // Debugging functions.

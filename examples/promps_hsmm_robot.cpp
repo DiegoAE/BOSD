@@ -79,6 +79,8 @@ int main(int argc, char *argv[]) {
                 "Number of files (sequences) to process")
         ("debug", "Flag for activating debug mode in HSMM")
         ("nodur", "Flag to deactivate the learning of durations")
+        ("durmomentmatching", "Flag to active the Gaussian moment matching"
+                " for the duration learning")
         ("polybasisfun", po::value<int>()->default_value(1), "Order of the "
                 "poly basis functions")
         ("noselftransitions", "Flag to deactive self transitions")
@@ -95,6 +97,10 @@ int main(int argc, char *argv[]) {
     po::notify(vm);
     if (vm.count("help")) {
         cout << desc << endl;
+        return 0;
+    }
+    if (vm.count("nodur") && vm.count("durmomentmatching")) {
+        cout << "Only one choice for duration learning is allowed" << endl;
         return 0;
     }
     for(auto s: required_fields) {
@@ -189,7 +195,9 @@ int main(int argc, char *argv[]) {
     HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
             transition, pi, durations, min_duration);
     if (vm.count("nodur"))
-        promp_hsmm.learn_duration_ = false;
+        promp_hsmm.setDurationLearningChoice("nodur");
+    if (vm.count("durmomentmatching"))
+        promp_hsmm.setDurationLearningChoice("momentmatching");
     if (vm.count("debug"))
         promp_hsmm.debug_ = true;
 

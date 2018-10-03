@@ -25,6 +25,8 @@ namespace hsmm {
 
             void setTransition(arma::mat transition);
 
+            void setDurationLearningChoice(std::string choice);
+
             arma::field<arma::mat> sampleSegments(int nsegments,
                     arma::ivec& hiddenStates,
                     arma::ivec& hiddenDurations);
@@ -71,10 +73,13 @@ namespace hsmm {
             int min_duration_;
             int nstates_;
             std::shared_ptr<AbstractEmission> emission_;
-            bool learn_duration_;
+            std::string duration_learning_choice_;
             bool debug_;
 
         protected:
+
+            // Approximates a discrete (truncate) Gaussian to a given duration.
+            arma::mat gaussianMomentMatching(arma::mat duration) const;
 
             double lower_bound_term_transition(const arma::field<
                     arma::cube> &zetas, const arma::mat& log_transition) const;
