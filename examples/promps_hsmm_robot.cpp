@@ -87,6 +87,8 @@ int main(int argc, char *argv[]) {
         ("initfraction", po::value<double>()->default_value(0.1), "Fraction "
                 "of the least squares estimates for omega kept for init")
         ("wpriorvar", po::value<double>(), "Prior variance for Sigma_w")
+        ("alphadurprior", po::value<int>()->default_value(1),
+                "Alpha for Dirichlet prior for the duration")
         ("trainingiter", po::value<int>()->default_value(10), "Training "
                 "iterations")
         ("norbf", "Flag to deactivate the radial basis functions")
@@ -205,6 +207,11 @@ int main(int argc, char *argv[]) {
         promp_hsmm.setDurationLearningChoice("nodur");
     if (vm.count("durmomentmatching"))
         promp_hsmm.setDurationLearningChoice("momentmatching");
+    if (vm.count("alphadurprior")) {
+        mat alphas = ones<mat>(nstates, ndurations) *
+            vm["alphadurprior"].as<int>();
+        promp_hsmm.setDurationDirichletPrior(alphas);
+    }
     if (vm.count("debug"))
         promp_hsmm.debug_ = true;
 

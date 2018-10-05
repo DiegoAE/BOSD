@@ -452,7 +452,7 @@ namespace hsmm {
             for(int j = 0; j < duration.n_cols; j++)
                 var += (j - mean) * (j - mean) * duration(i, j);
             for(int j = 0; j < duration.n_cols; j++) {
-                double tmp = (duration(i, j) - mean);
+                double tmp = (j - mean);
                 tmp = (tmp * tmp) / var;
                 tmp = -0.5 * tmp;
                 tmp = exp(tmp);
