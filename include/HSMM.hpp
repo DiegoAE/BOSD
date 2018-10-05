@@ -27,6 +27,8 @@ namespace hsmm {
 
             void setDurationLearningChoice(std::string choice);
 
+            void setDurationDirichletPrior(arma::mat alphas);
+
             arma::field<arma::mat> sampleSegments(int nsegments,
                     arma::ivec& hiddenStates,
                     arma::ivec& hiddenDurations);
@@ -72,6 +74,11 @@ namespace hsmm {
             int ndurations_;
             int min_duration_;
             int nstates_;
+
+            // Parameters of the Dirichlet prior assumed over the duration.
+            // By default no prior is assumed \alpha = 1.
+            arma::mat dirichlet_alphas_;
+
             std::shared_ptr<AbstractEmission> emission_;
             std::string duration_learning_choice_;
             bool debug_;

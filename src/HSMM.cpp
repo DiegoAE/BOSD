@@ -38,6 +38,8 @@ namespace hsmm {
         setDuration(duration);
         setPi(pi);
         setTransition(transition);
+        mat default_dirichlet_parameters = ones<mat>(nstates_, ndurations_);
+        setDurationDirichletPrior(default_dirichlet_parameters);
     }
 
     void HSMM::setDuration(mat duration) {
@@ -60,6 +62,14 @@ namespace hsmm {
         assert(transition.n_rows == transition.n_cols);
         assert(transition.n_rows == nstates_);
         transition_ = transition;
+    }
+
+    void HSMM::setDurationDirichletPrior(mat alphas) {
+        assert(alphas.n_rows == nstates_);
+        assert(alphas.n_cols == ndurations_);
+        for(auto alpha: alphas)
+            assert(alpha > 1.0 - 1e-7);
+        dirichlet_alphas_ = alphas;
     }
 
     void HSMM::setDurationLearningChoice(string choice) {
@@ -282,6 +292,13 @@ namespace hsmm {
                             den.push_back(eta(i, d, t));
                         }
                     }
+
+                    // Taking into account the Dirichlet prior.
+                    double log_alpha_minus_one = log(dirichlet_alphas_(
+                                i, d) - 1);
+                    ts.push_back(log_alpha_minus_one);
+                    den.push_back(log_alpha_minus_one);
+
                     vec ts_v(ts);
                     D(i, d) = logsumexp(ts_v);
                 }
