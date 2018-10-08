@@ -44,6 +44,7 @@ if (ROB_LIB)
     add_executable(promps_hsmm_robot examples/promps_hsmm_robot.cpp)
     add_executable(promps_hmm_example examples/promps_hmm_example.cpp)
     add_executable(promps_hmm_robot examples/promps_hmm_robot.cpp)
+    add_executable(promps_hsmm_synth_exp examples/promps_hsmm_synth_exp.cpp)
     target_link_libraries(promps_hsmm_example
         ${PROJECT_NAME}
         ${ROB_LIB}
@@ -73,6 +74,11 @@ if (ROB_LIB)
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES})
     target_link_libraries(promps_hmm_robot
+        ${PROJECT_NAME}
+        ${ROB_LIB}
+        ${ARMADILLO_LIBRARIES}
+        ${Boost_LIBRARIES})
+    target_link_libraries(promps_hsmm_synth_exp
         ${PROJECT_NAME}
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}

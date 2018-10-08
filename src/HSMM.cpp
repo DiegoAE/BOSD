@@ -456,7 +456,7 @@ namespace hsmm {
                 tmp = (tmp * tmp) / var;
                 tmp = -0.5 * tmp;
                 tmp = exp(tmp);
-                ret(i, j) = exp(tmp);
+                ret(i, j) = tmp;
             }
 
             // Renormalizing.
