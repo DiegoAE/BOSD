@@ -36,7 +36,10 @@ int main(int argc, char *argv[]) {
     desc.add_options()
         ("help,h", "Produce help message")
         ("output,o", po::value<string>(), "Filename to store the obs")
-        ("vit,v", po::value<string>(), "Filename to store the viterbi output");
+        ("vit,v", po::value<string>(), "Filename to store the viterbi output")
+        ("ms", po::value<string>(), "state marginals file name")
+        ("mr", po::value<string>(), "runlength marginals file name")
+        ("md", po::value<string>(), "duration marginals file name ");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -78,9 +81,11 @@ int main(int argc, char *argv[]) {
     }
 
     // Creating the ProMP emission.
-    shared_ptr<AbstractEmission> ptr_emission(new ProMPsEmission(promps));
+    shared_ptr<AbstractEmissionOnlineSetting> ptr_emission(new ProMPsEmission(
+                promps));
 
-    HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
+    OnlineHSMM promp_hsmm(ptr_emission, transition, pi, durations,
+            min_duration);
 
     int nseq = 1;
     int nsegments = 10;
@@ -95,11 +100,32 @@ int main(int argc, char *argv[]) {
     json params = promp_hsmm.to_stream();
     cout << params.dump(4) << endl;
 
-    if (vm.count("output")) {
-        mat obs = fieldToMat(njoints, multiple_toy_obs(0));
+    mat obs = fieldToMat(njoints, multiple_toy_obs(0));
+    if (vm.count("output"))
         obs.save(vm["output"].as<string>(), raw_ascii);
-    }
     if (vm.count("vit"))
         viterbi.save(vm["vit"].as<string>(), raw_ascii);
+
+    mat state_marginals_over_time(nstates, obs.n_cols);
+    mat runlength_marginals_over_time(min_duration + ndurations,
+            obs.n_cols);
+    mat duration_marginals_over_time(ndurations, obs.n_cols);
+    for(int c = 0; c < obs.n_cols; c++) {
+        promp_hsmm.addNewObservation(obs.col(c));
+        vec s_marginal = promp_hsmm.getStateMarginal();
+        state_marginals_over_time.col(c) = s_marginal;
+        vec r_marginal = promp_hsmm.getRunlengthMarginal();
+        runlength_marginals_over_time.col(c) = r_marginal;
+        vec d_marginal = promp_hsmm.getDurationMarginal();
+        duration_marginals_over_time.col(c) = d_marginal;
+    }
+
+    // Saving the marginals if required.
+    if (vm.count("ms"))
+        state_marginals_over_time.save(vm["ms"].as<string>(), raw_ascii);
+    if (vm.count("mr"))
+        runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
+    if (vm.count("md"))
+        duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
     return 0;
 }
