@@ -39,7 +39,8 @@ int main(int argc, char *argv[]) {
         ("vit,v", po::value<string>(), "Filename to store the viterbi output")
         ("ms", po::value<string>(), "state marginals file name")
         ("mr", po::value<string>(), "runlength marginals file name")
-        ("md", po::value<string>(), "duration marginals file name ");
+        ("md", po::value<string>(), "duration marginals file name ")
+        ("delta", po::value<double>(), "delta between sample locations");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -105,6 +106,11 @@ int main(int argc, char *argv[]) {
         obs.save(vm["output"].as<string>(), raw_ascii);
     if (vm.count("vit"))
         viterbi.save(vm["vit"].as<string>(), raw_ascii);
+
+    // Note that delta only affects the online filtering, not the generation.
+    if (vm.count("delta"))
+        std::static_pointer_cast<ProMPsEmission>(
+                ptr_emission)->setDelta(vm["delta"].as<double>());
 
     mat state_marginals_over_time(nstates, obs.n_cols);
     mat runlength_marginals_over_time(min_duration + ndurations,
