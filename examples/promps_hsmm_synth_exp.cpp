@@ -55,15 +55,17 @@ int main(int argc, char *argv[]) {
                 40, 16, ndurations, min_duration));
     durations.row(1) = conv_to<rowvec>::from(pmfFromGaussian(
                 50, 16, ndurations, min_duration));
-    int n_basis_functions = 4;
     int njoints = 1;
+
+    // Setting a combination of polynomial and rbf basis functions.
+    auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
+                {0.0,0.2,0.4,0.6,0.8,1.0}, 0.25));
+    auto poly = make_shared<ScalarPolyBasis>(1);
+    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    int n_basis_functions = comb->dim();
     int nparameters = n_basis_functions * njoints;
 
-    // Setting a third order polynomial basis function for the ProMP
-    int polynomial_order = n_basis_functions - 1;
-    shared_ptr<ScalarBasisFun> kernel{ new ScalarPolyBasis(polynomial_order)};
-
-    mat promp_means = {{1,0,2,0.5}, {0,1,0,3}};
+    mat promp_means = {{0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0}};
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
@@ -71,7 +73,7 @@ int main(int argc, char *argv[]) {
         mat Sigma_w = eye<mat>(nparameters, nparameters);
         mat Sigma_y = 0.00001*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
-        FullProMP poly(kernel, promp, njoints);
+        FullProMP poly(comb, promp, njoints);
         promps.push_back(poly);
     }
 
@@ -81,7 +83,7 @@ int main(int argc, char *argv[]) {
     HSMM promp_hsmm(ptr_emission, transition, pi, durations, min_duration);
 
     int nseq = 1;
-    int nsegments = 5;
+    int nsegments = 10;
     field<ivec> hidden_states, hidden_durations;
     field<field<mat>> multiple_toy_obs = promp_hsmm.sampleMultipleSequences(
             nseq, nsegments, hidden_states, hidden_durations);
