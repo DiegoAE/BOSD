@@ -40,6 +40,8 @@ int main(int argc, char *argv[]) {
         ("ms", po::value<string>(), "state marginals file name")
         ("mr", po::value<string>(), "runlength marginals file name")
         ("md", po::value<string>(), "duration marginals file name ")
+        ("imd", po::value<string>(), "implicit duration marginals file name."
+                " This means it is computed from the runlength and state")
         ("delta", po::value<double>(), "delta between sample locations");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -116,6 +118,7 @@ int main(int argc, char *argv[]) {
     mat runlength_marginals_over_time(min_duration + ndurations,
             obs.n_cols);
     mat duration_marginals_over_time(ndurations, obs.n_cols);
+    mat implicit_duration_marginals_over_time(ndurations, obs.n_cols);
     for(int c = 0; c < obs.n_cols; c++) {
         promp_hsmm.addNewObservation(obs.col(c));
         vec s_marginal = promp_hsmm.getStateMarginal();
@@ -124,6 +127,10 @@ int main(int argc, char *argv[]) {
         runlength_marginals_over_time.col(c) = r_marginal;
         vec d_marginal = promp_hsmm.getDurationMarginal();
         duration_marginals_over_time.col(c) = d_marginal;
+        if (vm.count("imd")) {
+            vec indirect_d_marginal = promp_hsmm.getImplicitDurationMarginal();
+            implicit_duration_marginals_over_time.col(c) = indirect_d_marginal;
+        }
     }
 
     // Saving the marginals if required.
@@ -133,5 +140,8 @@ int main(int argc, char *argv[]) {
         runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
     if (vm.count("md"))
         duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
+    if (vm.count("imd"))
+        implicit_duration_marginals_over_time.save(vm["imd"].as<string>(),
+                raw_ascii);
     return 0;
 }

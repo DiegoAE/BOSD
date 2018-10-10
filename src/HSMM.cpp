@@ -712,6 +712,36 @@ namespace hsmm {
         return ret;
     }
 
+    vec OnlineHSMM::getImplicitDurationMarginal() const {
+        cube current_posterior = exp(last_log_posterior_);
+        mat runlength_state_posterior = sum(current_posterior, 0);
+
+        vec ret(ndurations_, fill::zeros);
+        mat dur_suffix_sum = getDurationSuffixSum();
+        for(int i = 0; i < nstates_; i++) {
+            for(int r = 0; r < min_duration_ + ndurations_; r++) {
+                for(int d = 0; d < ndurations_; d++) {
+                    if (r < min_duration_ + d) {
+                        double value = runlength_state_posterior(r, i) *
+                                duration_(i, d) /
+                                dur_suffix_sum(i, max(0,r - min_duration_+ 1));
+                        ret(d) += value;
+                    }
+                }
+            }
+        }
+        assert(abs(sum(ret) - 1.0) < 1e-7);
+        return ret;
+    }
+
+    // TODO: This could be cached.
+    mat OnlineHSMM::getDurationSuffixSum() const {
+        mat suffix_sum(duration_);
+        for(int i = suffix_sum.n_cols - 2; i >= 0; i--)
+            suffix_sum.col(i) += suffix_sum.col(i + 1);
+        return suffix_sum;
+    }
+
     int OnlineHSMM::appendToField(field<mat> &current_obs, int idx,
             const field<mat> new_obs) const {
         for(int j = 0; j < new_obs.n_elem && idx < current_obs.n_elem; j++)

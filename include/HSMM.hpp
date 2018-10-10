@@ -122,7 +122,11 @@ namespace hsmm {
 
             arma::vec getDurationMarginal() const;
 
+            arma::vec getImplicitDurationMarginal() const;
+
         protected:
+
+            arma::mat getDurationSuffixSum() const;
 
             int appendToField(arma::field<arma::mat>& current_obs, int idx,
                     const arma::field<arma::mat> new_obs) const;
