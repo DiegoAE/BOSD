@@ -264,12 +264,15 @@ namespace hsmm {
 
             // Reestimating the initial state pmf.
             vec tmp_pi(size(pi_), fill::zeros);
-            for(const vec& beta_s_0 : mbeta_s_0) {
-                // TODO: fix the following line to take into account the labels.
-                vec current_log_estimated_pi = beta_s_0 + log_estimated_pi;
-                // double mllh = log(sum(estimated_pi));
-                current_log_estimated_pi = current_log_estimated_pi -
-                        logsumexp(current_log_estimated_pi);
+            for(const cube& eta : meta) {
+                vec current_log_estimated_pi(nstates_);
+                for(int i = 0; i < nstates_; i++) {
+                    vector<double> terms;
+                    for(int d = 0; d < ndurations_; d++)
+                        terms.push_back(eta(i, d, min_duration_ + d - 1));
+                    vec vterms(terms);
+                    current_log_estimated_pi(i) = logsumexp(vterms);
+                }
                 vec current_pi = exp(current_log_estimated_pi);
                 assert(abs(sum(current_pi) - 1) < 1e-7);
                 tmp_pi += current_pi;
