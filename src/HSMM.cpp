@@ -514,9 +514,7 @@ namespace hsmm {
             static_pointer_cast<AbstractEmission>(emission), transition,
             pi, duration, min_duration),
             last_log_posterior_(ndurations_, min_duration_ + ndurations_,
-            nstates_) {
-        alpha_posteriors_.push_back(log(pi_));
-    }
+            nstates_) {}
 
     shared_ptr<AbstractEmissionOnlineSetting> OnlineHSMM::getOnlineEmission(
             ) const {
@@ -524,6 +522,8 @@ namespace hsmm {
     }
 
     void OnlineHSMM::addNewObservation(const mat& obs) {
+        if (observations_.empty())
+             alpha_posteriors_.push_back(log(pi_));
         observations_.push_back(obs);
         mat log_duration = log(duration_);
         mat log_transition = log(transition_);
