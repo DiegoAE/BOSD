@@ -446,6 +446,7 @@ namespace hsmm {
             field<mat> sampleFromProMP(const FullProMP& fpromp, int size,
                     mt19937 &rand_generator) const {
                 const ProMP& model = fpromp.get_model();
+                assert(model.get_mu_w().n_rows == model.get_Sigma_w().n_rows);
                 vector<vec> w_samples = random::sample_multivariate_normal(
                         rand_generator,
                         {model.get_mu_w(), model.get_Sigma_w()}, 1);

@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
         ("help,h", "Produce help message")
+        ("params,p", po::value<string>(), "JSON input params (optional)")
         ("output,o", po::value<string>(), "Filename to store the obs")
         ("vit,v", po::value<string>(), "Filename to store the viterbi output")
         ("ms", po::value<string>(), "state marginals file name")
@@ -42,6 +43,9 @@ int main(int argc, char *argv[]) {
         ("md", po::value<string>(), "duration marginals file name ")
         ("imd", po::value<string>(), "implicit duration marginals file name."
                 " This means it is computed from the runlength and state")
+        ("polybasisfun", po::value<int>()->default_value(1), "Order of the"
+                " poly basis")
+        ("norbf", "Flag to deactivate the radial basis functions")
         ("delta", po::value<double>(), "delta between sample locations");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -62,20 +66,34 @@ int main(int argc, char *argv[]) {
     durations.row(1) = conv_to<rowvec>::from(pmfFromGaussian(
                 50, 16, ndurations, min_duration));
     int njoints = 1;
+    json input_params;
+    if (vm.count("params")) {
+        string params = vm["params"].as<string>();
+        ifstream input_params_file(params);
+        input_params_file >> input_params;
+        min_duration = input_params["min_duration"];
+        nstates = input_params["nstates"];
+        ndurations = input_params["ndurations"];
+        transition = eye<mat>(nstates, nstates);
+        pi = eye<vec>(nstates, 1);
+        durations = eye<mat>(nstates, ndurations);
+        njoints = input_params["emission_params"][0]["num_joints"];
+    }
 
     // Setting a combination of polynomial and rbf basis functions.
     auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
-                {0.0,0.2,0.4,0.6,0.8,1.0}, 0.25));
-    auto poly = make_shared<ScalarPolyBasis>(1);
+                {0.25, 0.5, 0.75}, 0.25));
+    auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
     auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    if (vm.count("norbf"))
+        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
     int n_basis_functions = comb->dim();
     int nparameters = n_basis_functions * njoints;
 
-    mat promp_means = {{0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0}};
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
-        vec mu_w = conv_to<vec>::from(promp_means.row(i));
+        vec mu_w = zeros<vec>(nparameters);
         mat Sigma_w = eye<mat>(nparameters, nparameters);
         mat Sigma_y = 0.00001*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
@@ -89,6 +107,8 @@ int main(int argc, char *argv[]) {
 
     OnlineHSMM promp_hsmm(ptr_emission, transition, pi, durations,
             min_duration);
+    if (vm.count("params"))
+        promp_hsmm.from_stream(input_params);
 
     int nseq = 1;
     int nsegments = 10;
