@@ -578,7 +578,7 @@ namespace hsmm {
             current_marginal_posterior(i) = logsumexp(terms);
         }
 
-        // Pushing back the computed posterior.
+        // Pushing back the computed posterior. NOTE: it isn't a pmf.
         alpha_posteriors_.push_back(current_marginal_posterior);
     }
 
