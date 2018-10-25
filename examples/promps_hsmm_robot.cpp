@@ -79,6 +79,8 @@ int main(int argc, char *argv[]) {
                 "Number of files (sequences) to process")
         ("debug", "Flag for activating debug mode in HSMM")
         ("nodur", "Flag to deactivate the learning of durations")
+        ("notrans", "Flag to deactivate the learning of transitions")
+        ("nopi", "Flag to deactivate the learning of initial pmf")
         ("durmomentmatching", "Flag to active the Gaussian moment matching"
                 " for the duration learning")
         ("polybasisfun", po::value<int>()->default_value(1), "Order of the "
@@ -91,7 +93,8 @@ int main(int argc, char *argv[]) {
                 "Alpha for Dirichlet prior for the duration")
         ("trainingiter", po::value<int>()->default_value(10), "Training "
                 "iterations")
-        ("norbf", "Flag to deactivate the radial basis functions")
+        ("rbfbasisfun", po::value<int>()->default_value(3), "Number of radial"
+                " basis functions to use between 0 and 1. 0 and 1 are removed.")
         ("delta", po::value<double>(), "If this is given a value, the model "
                 "switches to segment agnostic and the samples are generated "
                 "according to the provided delta")
@@ -164,12 +167,16 @@ int main(int argc, char *argv[]) {
     durations.fill(1.0 / ndurations);
 
     // Setting a combination of polynomial and rbf basis functions.
-    auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
-                {0.25,0.5,0.75},0.25));
     auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
-    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
-    if (vm.count("norbf"))
-        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    int nrbf = vm["rbfbasisfun"].as<int>();
+    if (nrbf > 0) {
+        vec centers = linspace<vec>(0, 1.0, nrbf + 2);
+        centers = centers.subvec(1, centers.n_elem - 2);
+        auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(centers,
+                    0.25));
+        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    }
     int n_basis_functions = comb->dim();
 
     // Instantiating as many ProMPs as hidden states.
@@ -212,6 +219,10 @@ int main(int argc, char *argv[]) {
             vm["alphadurprior"].as<int>();
         promp_hsmm.setDurationDirichletPrior(alphas);
     }
+    if (vm.count("notrans"))
+        promp_hsmm.learning_transitions_ = false;
+    if (vm.count("nopi"))
+        promp_hsmm.learning_pi_ = false;
     if (vm.count("debug"))
         promp_hsmm.debug_ = true;
 
@@ -277,6 +288,7 @@ int main(int argc, char *argv[]) {
     if (vm.count("leaveoneout")) {
         int omitted = vm["leaveoneout"].as<int>();
         field<field<mat>> test = {seq_obs(omitted)};
+        field<Labels> test_labels = {seq_labels(omitted)};
         cout << "loglikelihoodtest: " << promp_hsmm.loglikelihood(test) << endl;
     }
     return 0;

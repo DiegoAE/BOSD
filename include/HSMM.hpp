@@ -54,6 +54,10 @@ namespace hsmm {
             double loglikelihood(const arma::field<arma::field<
                     arma::mat>>& obs);
 
+            double loglikelihood(
+                    const arma::field<arma::field<arma::mat>>& obs,
+                    const arma::field<Labels> &observed_segments);
+
             // Computes the likelihoods w.r.t. the emission model.
             arma::cube computeEmissionsLikelihood(
                     const arma::field<arma::mat>& obs);
@@ -81,6 +85,8 @@ namespace hsmm {
 
             std::shared_ptr<AbstractEmission> emission_;
             std::string duration_learning_choice_;
+            bool learning_transitions_;
+            bool learning_pi_;
             bool debug_;
 
         protected:

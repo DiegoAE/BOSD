@@ -28,7 +28,8 @@ namespace hsmm {
      */
     HSMM::HSMM(shared_ptr<AbstractEmission> emission, mat transition,
             vec pi, mat duration, int min_duration) : emission_(emission),
-            duration_learning_choice_("histogram"), debug_(false) {
+            duration_learning_choice_("histogram"), debug_(false),
+            learning_transitions_(true), learning_pi_(true) {
         nstates_ = emission_->getNumberStates();
         ndurations_ = duration.n_cols;
         min_duration_ = min_duration;
@@ -260,7 +261,8 @@ namespace hsmm {
                     }
                 }
             }
-            log_estimated_transition = tmp_transition;
+            if (learning_transitions_)
+                log_estimated_transition = tmp_transition;
 
             // Reestimating the initial state pmf.
             vec tmp_pi(size(pi_), fill::zeros);
@@ -277,7 +279,8 @@ namespace hsmm {
                 assert(abs(sum(current_pi) - 1) < 1e-7);
                 tmp_pi += current_pi;
             }
-            log_estimated_pi = log(tmp_pi / nseq);
+            if (learning_pi_)
+                log_estimated_pi = log(tmp_pi / nseq);
 
             // Reestimating durations.
             // D(j, d) represents the expected number of times that state
@@ -360,8 +363,14 @@ namespace hsmm {
         return fit(mobs, mobserved_segments, max_iter, tol);
     }
 
-    // TODO: make this a const function.
     double HSMM::loglikelihood(const field<field<mat>>& mobs) {
+        field<Labels> no_labels(mobs.n_elem);  // empty.
+        return loglikelihood(mobs, no_labels);
+    }
+
+    // TODO: make this a const function.
+    double HSMM::loglikelihood(const field<field<mat>>& mobs,
+            const field<Labels>& labels) {
         int nseq = mobs.n_elem;
         assert(nseq >= 1);
         double ll = 0.0;
@@ -375,12 +384,11 @@ namespace hsmm {
             vec beta_s_0 =  zeros<vec>(nstates_);
             cube eta = zeros<cube>(nstates_, ndurations_, nobs);
             cube zeta = zeros<cube>(nstates_, nstates_, nobs - 1);
-            Labels no_labels;
             cube logpdf = computeEmissionsLogLikelihood(obs);
             mat ltransition = log(transition_);
             vec lpi = log(pi_);
             mat ldur = log(duration_);
-            logsFB(ltransition, lpi, ldur, logpdf, no_labels, alpha, beta,
+            logsFB(ltransition, lpi, ldur, logpdf, labels(i), alpha, beta,
                     alpha_s, beta_s, beta_s_0, eta, zeta, min_duration_, nobs);
             ll += logsumexp(alpha.col(nobs - 1));
         }
