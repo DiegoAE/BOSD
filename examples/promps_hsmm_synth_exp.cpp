@@ -45,7 +45,8 @@ int main(int argc, char *argv[]) {
                 " This means it is computed from the runlength and state")
         ("polybasisfun", po::value<int>()->default_value(1), "Order of the"
                 " poly basis")
-        ("norbf", "Flag to deactivate the radial basis functions")
+        ("rbfbasisfun", po::value<int>()->default_value(3), "Number of radial"
+                " basis functions to use between 0 and 1. 0,1 are excluded.")
         ("delta", po::value<double>(), "delta between sample locations");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -81,12 +82,16 @@ int main(int argc, char *argv[]) {
     }
 
     // Setting a combination of polynomial and rbf basis functions.
-    auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
-                {0.25, 0.5, 0.75}, 0.25));
     auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
-    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
-    if (vm.count("norbf"))
-        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
+    int nrbf = vm["rbfbasisfun"].as<int>();
+    if (nrbf > 0) {
+        vec centers = linspace<vec>(0, 1.0, nrbf + 2);
+        centers = centers.subvec(1, centers.n_elem - 2);
+        auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(centers,
+                    0.25));
+        comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    }
     int n_basis_functions = comb->dim();
     int nparameters = n_basis_functions * njoints;
 
