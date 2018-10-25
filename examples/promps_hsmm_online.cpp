@@ -40,7 +40,8 @@ int main(int argc, char *argv[]) {
         ("output,o", po::value<string>(), "Filename of the output samples")
         ("polybasisfun", po::value<int>()->default_value(2), "Order of the "
                 "poly basis functions")
-        ("rbf", "Flag to activate the radial basis functions")
+        ("rbfbasisfun", po::value<int>()->default_value(3), "Number of radial"
+                " basis functions to use between 0 and 1. 0 and 1 are removed.")
         ("ms", po::value<string>(), "File name where a "
                 "matrix containing the state marginals will be stored.")
         ("mr", po::value<string>(), "File name where a "
@@ -72,12 +73,16 @@ int main(int argc, char *argv[]) {
     int min_duration = current_params["min_duration"];
 
     // Setting a combination of polynomial and rbf basis functions.
-    auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(
-                {0.25,0.5,0.75},0.25));
     auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
     auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({poly}));
-    if (vm.count("rbf"))
+    int nrbf = vm["rbfbasisfun"].as<int>();
+    if (nrbf > 0) {
+        vec centers = linspace<vec>(0, 1.0, nrbf + 2);
+        centers = centers.subvec(1, centers.n_elem - 2);
+        auto rbf = shared_ptr<ScalarGaussBasis>(new ScalarGaussBasis(centers,
+                    0.25));
         comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis({rbf, poly}));
+    }
     int n_basis_functions = comb->dim();
 
     // Instantiating as many ProMPs as hidden states.
