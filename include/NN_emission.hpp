@@ -6,15 +6,20 @@
 // The following include will be redundant in the newer versions of mlpack.
 #include <mlpack/methods/ann/layer/layer.hpp>
 #include <mlpack/methods/ann/ffn.hpp>
+#include <mlpack/methods/ann/init_rules/random_init.hpp>
+#include <mlpack/methods/ann/loss_functions/mean_squared_error.hpp>
 #include <armadillo>
 #include <emissions.hpp>
 
 
 namespace hsmm {
 
+    typedef mlpack::ann::FFN<mlpack::ann::MeanSquaredError<>,
+            mlpack::ann::RandomInitialization> NNmodel;
+
     class NNEmission : public AbstractEmissionOnlineSetting {
         public:
-            NNEmission(std::vector<mlpack::ann::FFN<>> ffns, int njoints) :
+            NNEmission(std::vector<NNmodel> ffns, int njoints) :
                     AbstractEmissionOnlineSetting(ffns.size(), njoints),
                     ffns_(ffns) {}
 
@@ -35,7 +40,7 @@ namespace hsmm {
                     std::mt19937 &rng) const;
 
         protected:
-           std::vector<mlpack::ann::FFN<>> ffns_;
+           std::vector<NNmodel> ffns_;
     };
 
 };
