@@ -21,7 +21,7 @@ namespace hsmm {
         public:
             NNEmission(std::vector<NNmodel> ffns, int njoints) :
                     AbstractEmissionOnlineSetting(ffns.size(), njoints),
-                    ffns_(ffns) {}
+                    ffns_(ffns), noise_var_(njoints, arma::fill::ones) {}
 
             NNEmission* clone() const;
 
@@ -40,7 +40,15 @@ namespace hsmm {
                     std::mt19937 &rng) const;
 
         protected:
-           std::vector<NNmodel> ffns_;
+
+            arma::vec getSampleLocations(int length) const;
+
+            std::vector<NNmodel> ffns_;
+            arma::vec noise_var_;
+
+            // Delta for emissions which are not dependent on the total
+            // duration.
+            double sample_locations_delta_ = -1;
     };
 
 };

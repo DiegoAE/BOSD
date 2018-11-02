@@ -27,8 +27,20 @@ namespace hsmm {
 
     field<mat> NNEmission::sampleNextObsGivenPastObs(int state, int seg_dur,
             const field<mat>& past_obs, mt19937 &rng) const {
+        //vec sample_locations = getSampleLocations(seg_dur);
+        //mat sample;
+        //ffns_.at(state).Predict(sample_locations, sample);
+        //cout << sample << endl;
         field<mat> ret;
         return ret; //TODO
+    }
+
+    vec NNEmission::getSampleLocations(int length) const {
+        if (sample_locations_delta_ < 0)
+            return linspace<vec>(0, 1.0, length);
+        else
+            return linspace<vec>(0, (length-1)*sample_locations_delta_,
+                    length);
     }
 
 };
