@@ -24,6 +24,7 @@ target_link_libraries(hsmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES}
 target_link_libraries(hmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 
 find_library(ROB_LIB NAMES robotics)
+find_library(MLPACK_LIB NAMES mlpack)
 
 add_subdirectory(tests)
 enable_testing()
@@ -89,3 +90,32 @@ else()
     message(WARNING "librobotics was not found. Therefore ProMPs are not supported.")
 endif()
 
+if (MLPACK_LIB)
+    find_path(MLPACK_INCLUDE_DIR NAMES mlpack/core.hpp mlpack/prereqs.hpp)
+    include_directories(${MLPACK_INCLUDE_DIR})
+    find_package(OpenMP)
+    if (OPENMP_FOUND)
+        set(flag "OpenMP::OpenMP_CXX")
+    else()
+        set(flag "")
+    endif()
+    add_library(NN_emission
+        src/NN_emission.cpp
+    )
+    target_link_libraries(NN_emission
+        ${flag}
+        ${PROJECT_NAME}
+        ${MLPACK_LIB}
+        ${ARMADILLO_LIBRARIES}
+    )
+    add_executable(nn_example examples/NN_example.cpp)
+    target_link_libraries(nn_example
+        ${flag}
+        NN_emission
+        ${PROJECT_NAME}
+        ${MLPACK_LIB}
+        ${ARMADILLO_LIBRARIES}
+    )
+else()
+    message(WARNING "mlpack was not found.")
+endif()
