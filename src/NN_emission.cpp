@@ -1,10 +1,23 @@
 #include <NN_emission.hpp>
 
 using namespace arma;
+using namespace mlpack::ann;
 using namespace std;
 
 
 namespace hsmm {
+
+    NNEmission::NNEmission(int nstates, int njoints) :
+            AbstractEmissionOnlineSetting(nstates, njoints),
+            noise_var_(njoints, nstates, arma::fill::ones) {
+        for(int i = 0; i < nstates; i++) {
+            NNmodel model;
+            model.Add<Linear<> >(1, 10);
+            model.Add<SigmoidLayer<> >();
+            model.Add<Linear<> >(10, njoints);
+            ffns_.push_back(model);
+        }
+    }
 
     NNEmission* NNEmission::clone() const {
         return new NNEmission(*this);
