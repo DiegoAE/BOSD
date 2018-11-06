@@ -47,7 +47,10 @@ int main(int argc, char *argv[]) {
                 " poly basis")
         ("rbfbasisfun", po::value<int>()->default_value(3), "Number of radial"
                 " basis functions to use between 0 and 1. 0,1 are excluded.")
-        ("delta", po::value<double>(), "delta between sample locations");
+        ("delta", po::value<double>(), "delta between sample locations")
+        ("print_ll_vit", "If set then the ll from each hs for"
+                " every ground truth segment is printed. Intended for "
+                "debugging purposes");
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -139,6 +142,25 @@ int main(int argc, char *argv[]) {
         std::static_pointer_cast<ProMPsEmission>(
                 ptr_emission)->setDelta(vm["delta"].as<double>());
 
+    if (vm.count("print_ll_vit")) {
+        int idx = 0;
+        for(int i = 0; i < viterbi.n_rows; i++) {
+            int dur = viterbi(i, 1);
+            int hs = viterbi(i, 0);
+            cout << "Segment #" << i << ": (" << hs << "," << dur << ")" <<
+                    endl;
+            const field<mat>& segment = multiple_toy_obs(0).rows(idx,
+                    idx + dur - 1);
+            idx += dur;
+            for(int i = 0; i < nstates; i++) {
+                double ll = promp_hsmm.emission_->loglikelihood(i, segment);
+                double lld = ll + promp_hsmm.duration_(i, dur - min_duration);
+                cout << "State " << i << ": " << ll << " with dur: " << lld <<
+                        endl;
+            }
+        }
+    }
+
     mat state_marginals_over_time(nstates, obs.n_cols);
     mat runlength_marginals_over_time(min_duration + ndurations,
             obs.n_cols);
@@ -155,6 +177,10 @@ int main(int argc, char *argv[]) {
         if (vm.count("imd")) {
             vec indirect_d_marginal = promp_hsmm.getImplicitDurationMarginal();
             implicit_duration_marginals_over_time.col(c) = indirect_d_marginal;
+        }
+        if (vm.count("print_ll_vit")) {
+            cout << "Obs idx: " << c << endl;
+            promp_hsmm.printTopKFromPosterior(40);
         }
     }
 
