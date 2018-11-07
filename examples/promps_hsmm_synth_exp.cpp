@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
             idx += dur;
             for(int i = 0; i < nstates; i++) {
                 double ll = promp_hsmm.emission_->loglikelihood(i, segment);
-                double lld = ll + promp_hsmm.duration_(i, dur - min_duration);
+                double lld = ll + log(promp_hsmm.duration_(i, dur - min_duration));
                 cout << "State " << i << ": " << ll << " with dur: " << lld <<
                         endl;
             }
