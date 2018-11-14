@@ -116,6 +116,15 @@ if (MLPACK_LIB)
         ${MLPACK_LIB}
         ${ARMADILLO_LIBRARIES}
     )
+    add_executable(nn_standard_fit examples/NN_standard_fit.cpp)
+    target_link_libraries(nn_standard_fit
+        ${flag}
+        NN_emission
+        ${PROJECT_NAME}
+        ${MLPACK_LIB}
+        ${ARMADILLO_LIBRARIES}
+        ${Boost_LIBRARIES}
+    )
 else()
     message(WARNING "mlpack was not found.")
 endif()
