@@ -34,6 +34,23 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
+    string input_filename = vm["input"].as<string>();
+    string viterbi_filename = vm["viterbi"].as<string>();
+    int nseq = vm["nfiles"].as<int>();
+    for(int i = 0; i < nseq; i++) {
+        string iname = input_filename;
+        string vname = viterbi_filename;
+        if (nseq != 1) {
+            iname += string(".") + to_string(i);
+            vname += string(".") + to_string(i);
+        }
+        mat obs;
+        obs.load(iname, raw_ascii);
+        imat vit;
+        vit.load(vname, raw_ascii);
+        cout << obs.n_rows << " " << obs.n_cols << endl;
+        cout << vit.n_rows << " " << vit.n_cols << endl;
+    }
     int njoints = 3;
     int hidden_units = 10;
     FFN<MeanSquaredError<>, RandomInitialization> neural_network;
