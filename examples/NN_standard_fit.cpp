@@ -29,6 +29,7 @@ mat join_mats(vector<mat> v) {
 }
 
 int main(int argc, char *argv[]) {
+    mlpack::Log::Info.ignoreInput = false;  // Turning mlpack verbose output on.
     po::options_description desc("Options");
     desc.add_options()
         ("help,h", "Produce help message")
@@ -92,13 +93,19 @@ int main(int argc, char *argv[]) {
         mat outputs = join_mats(obs_for_each_state[i]);
         assert (outputs.n_rows == njoints);
         assert(outputs.n_cols == inputs.n_cols);
-        cout << "Inputs " << inputs.n_rows << " " << inputs.n_cols << endl;
-        cout << "Outputs " << outputs.n_rows << " " << outputs.n_cols << endl;
+
+        // Defining the architecture of the NN.
         neural_network[i].Add<Linear<>>(1, hidden_units);
         neural_network[i].Add<SigmoidLayer<>>();
         neural_network[i].Add<Linear<>>(hidden_units, njoints);
-        cout << "OK" << endl;
+
+        // Training the NN.
+        neural_network[i].Train(inputs, outputs);
+
+        // Evaluating the loss.
+        mat test_input = linspace<rowvec>(0,1,100);
+        mat test_output;
+        neural_network[i].Predict(test_input, test_output);
     }
     return 0;
 }
-
