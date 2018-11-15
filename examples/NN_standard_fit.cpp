@@ -12,6 +12,22 @@ using namespace mlpack::ann;
 using namespace std;
 namespace po = boost::program_options;
 
+mat join_mats(vector<mat> v) {
+    int total_cols = 0;
+    int total_rows = v.at(0).n_rows;
+    for(auto& m: v)
+        total_cols += m.n_cols;
+    mat ret(total_rows, total_cols);
+    int idx = 0;
+    for(auto& m: v) {
+        int d = m.n_cols;
+        ret.cols(idx, idx + d - 1) = m;
+        idx += d;
+    }
+    assert(idx == total_cols);
+    return ret;
+}
+
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
@@ -19,6 +35,8 @@ int main(int argc, char *argv[]) {
         ("input,i", po::value<string>(), "Path to the input obs")
         ("viterbi,v", po::value<string>(), "Path to the input viterbi file")
         ("nstates,s", po::value<int>(), "Number of states (NNs)")
+        ("hiddenunits,u", po::value<int>()->default_value(10),
+                "Number of hidden units")
         ("nfiles,n", po::value<int>()->default_value(1),
                 "Number of input files to process");
     vector<string> required_fields = {"input", "viterbi", "nfiles",
@@ -40,8 +58,9 @@ int main(int argc, char *argv[]) {
     string viterbi_filename = vm["viterbi"].as<string>();
     int nseq = vm["nfiles"].as<int>();
     int nstates = vm["nstates"].as<int>();
+    int hidden_units = vm["hiddenunits"].as<int>();
     vector<mat> obs_for_each_state[nstates];
-    // TODO: generate the time indexes.
+    vector<mat> times_for_each_state[nstates];
     for(int i = 0; i < nseq; i++) {
         string iname = input_filename;
         string vname = viterbi_filename;
@@ -59,18 +78,27 @@ int main(int argc, char *argv[]) {
         for(int j = 0; j < dur.n_rows; j++) {
             mat segment = obs.cols(idx, idx + dur(j) - 1);
             obs_for_each_state[hs(j)].push_back(segment);
+            rowvec times = linspace<rowvec>(0, 1.0, dur(j));
+            times_for_each_state[hs(j)].push_back(times);
             idx += dur(j);
         }
     }
-    for(int i = 0; i < nstates; i++)
-        cout << obs_for_each_state[i].size() << endl;
-    int njoints = 3;
-    int hidden_units = 10;
-    FFN<MeanSquaredError<>, RandomInitialization> neural_network;
-    neural_network.Add<Linear<>>(1, hidden_units);
-    neural_network.Add<SigmoidLayer<>>();
-    neural_network.Add<Linear<>>(hidden_units, njoints);
-    cout << "OK" << endl;
+
+    // There should be at least one segment for the hidden state 0.
+    int njoints = obs_for_each_state[0].at(0).n_rows;
+    FFN<MeanSquaredError<>, RandomInitialization> neural_network[nstates];
+    for(int i = 0; i < nstates; i++) {
+        mat inputs = join_mats(times_for_each_state[i]);
+        mat outputs = join_mats(obs_for_each_state[i]);
+        assert (outputs.n_rows == njoints);
+        assert(outputs.n_cols == inputs.n_cols);
+        cout << "Inputs " << inputs.n_rows << " " << inputs.n_cols << endl;
+        cout << "Outputs " << outputs.n_rows << " " << outputs.n_cols << endl;
+        neural_network[i].Add<Linear<>>(1, hidden_units);
+        neural_network[i].Add<SigmoidLayer<>>();
+        neural_network[i].Add<Linear<>>(hidden_units, njoints);
+        cout << "OK" << endl;
+    }
     return 0;
 }
 
