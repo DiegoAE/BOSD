@@ -99,6 +99,13 @@ if (MLPACK_LIB)
     else()
         set(flag "")
     endif()
+    add_executable(nn_standard_fit examples/NN_standard_fit.cpp)
+    target_link_libraries(nn_standard_fit
+        ${flag}
+        ${MLPACK_LIB}
+        ${ARMADILLO_LIBRARIES}
+        ${Boost_LIBRARIES}
+    )
     add_library(NN_emission
         src/NN_emission.cpp
     )
@@ -108,23 +115,17 @@ if (MLPACK_LIB)
         ${MLPACK_LIB}
         ${ARMADILLO_LIBRARIES}
     )
-    add_executable(nn_example examples/NN_example.cpp)
-    target_link_libraries(nn_example
-        ${flag}
-        NN_emission
-        ${PROJECT_NAME}
-        ${MLPACK_LIB}
-        ${ARMADILLO_LIBRARIES}
-    )
-    add_executable(nn_standard_fit examples/NN_standard_fit.cpp)
-    target_link_libraries(nn_standard_fit
-        ${flag}
-        NN_emission
-        ${PROJECT_NAME}
-        ${MLPACK_LIB}
-        ${ARMADILLO_LIBRARIES}
-        ${Boost_LIBRARIES}
-    )
+    if (ROB_LIB)
+        add_executable(nn_example examples/NN_example.cpp)
+        target_link_libraries(nn_example
+            ${flag}
+            NN_emission
+            ${PROJECT_NAME}
+            ${ROB_LIB}
+            ${MLPACK_LIB}
+            ${ARMADILLO_LIBRARIES}
+        )
+    endif()
 else()
     message(WARNING "mlpack was not found.")
 endif()

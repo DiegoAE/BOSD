@@ -1,6 +1,7 @@
 #include <iostream>
 #include <NN_emission.hpp>
 #include <armadillo>
+#include <NN_basis_function.hpp>
 #include <json.hpp>
 #include <HSMM.hpp>
 
@@ -36,6 +37,7 @@ int main() {
     //ivec hidden_states, hidden_durations;
     //field<mat> seq = online_promp_hsmm.sampleSegments(1, hidden_states,
     //        hidden_durations);
+    ScalarNNBasis prueba(10);
     return 0;
 }
 
