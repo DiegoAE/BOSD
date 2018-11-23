@@ -31,6 +31,7 @@ namespace hsmm {
 
     vec ScalarNNBasis::deriv(double time, unsigned int order) const {
         vec ret;
+        throw std::logic_error("Not implemented yet.");
         return ret;
     }
 
@@ -40,6 +41,7 @@ namespace hsmm {
 
     nlohmann::json ScalarNNBasis::to_stream() const {
         nlohmann::json ret;
+        throw std::logic_error("Not implemented yet.");
         return ret;
     }
 

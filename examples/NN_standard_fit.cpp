@@ -1,3 +1,8 @@
+/**
+ *  This example shows how to use MLPACK neural networks isolatedly from the
+ *  hsmm framework.
+ */
+
 #include <mlpack/core.hpp>
 #include <mlpack/methods/ann/layer/layer.hpp>
 #include <mlpack/methods/ann/ffn.hpp>

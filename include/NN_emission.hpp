@@ -1,3 +1,8 @@
+/**
+ * NOTE: This emission process is not being used for now. The NN basis function
+ * is used instead.
+ */
+
 #ifndef NN_EMISSION_H
 #define NN_EMISSION_H
 
