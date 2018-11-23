@@ -116,10 +116,20 @@ if (MLPACK_LIB)
         ${ARMADILLO_LIBRARIES}
     )
     if (ROB_LIB)
+        add_library(NN_basis_function
+            src/NN_basis_function.cpp
+        )
+        target_link_libraries(NN_basis_function
+            ${flag}
+            ${ROB_LIB}
+            ${MLPACK_LIB}
+            ${ARMADILLO_LIBRARIES}
+        )
         add_executable(nn_example examples/NN_example.cpp)
         target_link_libraries(nn_example
             ${flag}
             NN_emission
+            NN_basis_function
             ${PROJECT_NAME}
             ${ROB_LIB}
             ${MLPACK_LIB}
