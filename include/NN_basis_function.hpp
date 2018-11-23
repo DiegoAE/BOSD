@@ -17,7 +17,11 @@ namespace hsmm {
 
     class ScalarNNBasis : public robotics::ScalarBasisFun {
         public:
-            ScalarNNBasis(int number_hidden_units);
+            ScalarNNBasis(int number_hidden_units, int njoints);
+
+            NNmodel& getNeuralNet() const;
+
+            void setNeuralNet(NNmodel &neural_net);
 
             arma::vec eval(double t) const;
 
@@ -32,7 +36,7 @@ namespace hsmm {
 
         private:
             int number_hidden_units_;
-            NNmodel neural_net_;
+            mutable NNmodel neural_net_;
     };
 
 };

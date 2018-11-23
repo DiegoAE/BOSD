@@ -106,15 +106,6 @@ if (MLPACK_LIB)
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES}
     )
-    add_library(NN_emission
-        src/NN_emission.cpp
-    )
-    target_link_libraries(NN_emission
-        ${flag}
-        ${PROJECT_NAME}
-        ${MLPACK_LIB}
-        ${ARMADILLO_LIBRARIES}
-    )
     if (ROB_LIB)
         add_library(NN_basis_function
             src/NN_basis_function.cpp
@@ -128,12 +119,12 @@ if (MLPACK_LIB)
         add_executable(nn_example examples/NN_example.cpp)
         target_link_libraries(nn_example
             ${flag}
-            NN_emission
             NN_basis_function
             ${PROJECT_NAME}
             ${ROB_LIB}
             ${MLPACK_LIB}
             ${ARMADILLO_LIBRARIES}
+            ${Boost_LIBRARIES}
         )
     endif()
 else()
