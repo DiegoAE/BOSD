@@ -3,9 +3,13 @@
 #include <armadillo>
 #include <boost/program_options.hpp>
 #include <iostream>
+#include <robotics.hpp>
+#include <HSMM.hpp>
+#include <ProMPs_emission.hpp>
 
 using namespace arma;
 using namespace hsmm;
+using namespace robotics;
 using namespace std;
 namespace po = boost::program_options;
 
@@ -33,12 +37,15 @@ int main(int argc, char *argv[]) {
         ("input,i", po::value<string>(), "Path to the input obs")
         ("viterbi,v", po::value<string>(), "Path to the input viterbi file")
         ("nstates,s", po::value<int>(), "Number of states (NNs)")
+        ("mindur", po::value<int>(), "Minimum duration of a segment")
+        ("ndur", po::value<int>(), "Number of different durations supported")
+        ("noselftransitions", "Flag to deactive self transitions")
         ("hiddenunits,u", po::value<int>()->default_value(10),
                 "Number of hidden units")
         ("nfiles,n", po::value<int>()->default_value(1),
                 "Number of input files to process");
     vector<string> required_fields = {"input", "viterbi", "nfiles",
-            "nstates"};
+            "nstates", "mindur", "ndur"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -84,7 +91,7 @@ int main(int argc, char *argv[]) {
 
     // There should be at least one segment for the hidden state 0.
     int njoints = obs_for_each_state[0].at(0).n_rows;
-    vector<ScalarNNBasis> nns;
+    vector<shared_ptr<ScalarNNBasis>> nns;
     for(int i = 0; i < nstates; i++) {
         mat inputs = join_mats(times_for_each_state[i]);
         mat outputs = join_mats(obs_for_each_state[i]);
@@ -92,21 +99,54 @@ int main(int argc, char *argv[]) {
         assert(outputs.n_cols == inputs.n_cols);
 
         // Defining the architecture of the NN.
-        ScalarNNBasis nn(hidden_units, njoints);
+        auto nn = make_shared<ScalarNNBasis>(hidden_units, njoints);
 
         // Training the NN.
-        nn.getNeuralNet().Train(inputs, outputs);
+        nn->getNeuralNet().Train(inputs, outputs);
 
         // Predicting.
         vec test_input = linspace<vec>(0,1,100);
         vector<mat> test_output;
         for(int j = 0; j < test_input.n_elem; j++) {
-            vec input = nn.eval(test_input(j));
+            vec input = nn->eval(test_input(j));
             test_output.push_back(input);
         }
         mat mat_test_output = join_mats(test_output);
-        mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
+        //mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
         nns.push_back(nn);
     }
+    int n_basis_functions = nns.at(0)->dim();
+
+    // Instantiating as many ProMPs as hidden states.
+    vector<FullProMP> promps;
+    for(int i = 0; i < nstates; i++) {
+        vec mu_w(n_basis_functions * njoints);
+        mu_w.randn();
+        mat Sigma_w = eye<mat>(n_basis_functions * njoints,
+                    n_basis_functions * njoints);
+        mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
+        ProMP promp(mu_w, Sigma_w, Sigma_y);
+        FullProMP nn_promp(nns.at(i), promp, njoints);
+        promps.push_back(nn_promp);
+    }
+
+    int min_duration = vm["mindur"].as<int>();
+    int ndurations = vm["ndur"].as<int>();
+    mat transition(nstates, nstates);
+    transition.fill(1.0 / nstates );
+    if (vm.count("noselftransitions")) {
+        transition.fill(1.0 / (nstates - 1));
+        transition.diag().zeros();
+    }
+    vec pi(nstates);
+    pi.fill(1.0/nstates);
+    mat durations(nstates, ndurations);
+    durations.fill(1.0 / ndurations);
+
+    // Creating the ProMP emission.
+    shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
+
+    HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
+            transition, pi, durations, min_duration);
     return 0;
 }
