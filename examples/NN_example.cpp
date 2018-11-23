@@ -98,10 +98,14 @@ int main(int argc, char *argv[]) {
         nn.getNeuralNet().Train(inputs, outputs);
 
         // Predicting.
-        mat test_input = linspace<rowvec>(0,1,100);
-        mat test_output;
-        nn.getNeuralNet().Predict(test_input, test_output);
-        // test_output.save("prediction.txt." + to_string(i) , raw_ascii);
+        vec test_input = linspace<vec>(0,1,100);
+        vector<mat> test_output;
+        for(int j = 0; j < test_input.n_elem; j++) {
+            vec input = nn.eval(test_input(j));
+            test_output.push_back(input);
+        }
+        mat mat_test_output = join_mats(test_output);
+        mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
         nns.push_back(nn);
     }
     return 0;

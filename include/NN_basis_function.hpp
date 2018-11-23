@@ -36,6 +36,9 @@ namespace hsmm {
 
         private:
             int number_hidden_units_;
+
+            // TODO. Get this number from the neural network itself.
+            int number_layers_ = 3;
             mutable NNmodel neural_net_;
     };
 

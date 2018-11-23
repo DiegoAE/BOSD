@@ -21,11 +21,12 @@ namespace hsmm {
         neural_net_ = neural_net;
     }
 
-    // TODO. Eval up to the second-to-last layer.
     vec ScalarNNBasis::eval(double t) const {
         mat input = {t};
         mat output;
-        neural_net_.Predict(input, output);
+
+        // Eval up to the second-to-last layer.
+        neural_net_.Forward(input, output, 0, number_layers_ - 2);
         return output;
     }
 
