@@ -113,7 +113,13 @@ int main(int argc, char *argv[]) {
                 "switches to segment agnostic and the samples are generated "
                 "according to the provided delta")
         ("leaveoneout", po::value<int>(), "Index of the sequence that will be"
-                " left out for validation");
+                " left out for validation")
+        ("ms", po::value<string>(), "File name where a "
+                "matrix containing the state marginals will be stored.")
+        ("mr", po::value<string>(), "File name where a "
+                "matrix containing the run length marginals will be stored.")
+        ("md", po::value<string>(), "File name where a "
+                "matrix containing the duration marginals will be stored.");
     vector<string> required_fields = {"input", "output", "viterbi", "nfiles",
             "nstates", "mindur", "ndur"};
     po::variables_map vm;
@@ -230,7 +236,8 @@ int main(int argc, char *argv[]) {
     if (vm.count("delta"))
         ptr_emission->setDelta(vm["delta"].as<double>());
 
-    HSMM promp_hsmm(std::static_pointer_cast<AbstractEmission>(ptr_emission),
+    OnlineHSMM promp_hsmm(std::static_pointer_cast<
+            AbstractEmissionOnlineSetting>(ptr_emission),
             transition, pi, durations, min_duration);
 
     if (vm.count("nodur"))
@@ -308,6 +315,44 @@ int main(int argc, char *argv[]) {
         field<field<mat>> test = {seq_obs(omitted)};
         field<Labels> test_labels = {seq_labels(omitted)};
         cout << "loglikelihoodtest: " << promp_hsmm.loglikelihood(test) << endl;
+    }
+
+    if (vm.count("leaveoneout")) {
+        int omitted = vm["leaveoneout"].as<int>();
+        string test_filename = input_filename + "." + to_string(omitted);
+        mat obs_for_cond;
+        obs_for_cond.load(test_filename, raw_ascii);
+        mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
+        mat runlength_marginals_over_time(min_duration + ndurations,
+                obs_for_cond.n_cols);
+        mat duration_marginals_over_time(ndurations, obs_for_cond.n_cols);
+        for(int c = 0; c < obs_for_cond.n_cols; c++) {
+            promp_hsmm.addNewObservation(obs_for_cond.col(c));
+            if (vm.count("ms")) {
+                vec s_marginal = promp_hsmm.getStateMarginal();
+                state_marginals_over_time.col(c) = s_marginal;
+            }
+            if (vm.count("mr")) {
+                vec r_marginal = promp_hsmm.getRunlengthMarginal();
+                runlength_marginals_over_time.col(c) = r_marginal;
+            }
+            if (vm.count("md")) {
+                vec d_marginal = promp_hsmm.getDurationMarginal();
+                duration_marginals_over_time.col(c) = d_marginal;
+            }
+        }
+        // Evaluation the likelihood of the left-out trajectory.
+        field<field<mat>> field_obs = {seq_obs(omitted)};
+        double onlinell = promp_hsmm.loglikelihood(field_obs);
+        cout << "onlineloglikelihood: " << onlinell << endl;
+
+        // Saving the marginals if required.
+        if (vm.count("ms"))
+            state_marginals_over_time.save(vm["ms"].as<string>(), raw_ascii);
+        if (vm.count("mr"))
+            runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
+        if (vm.count("md"))
+            duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
     }
     return 0;
 }
