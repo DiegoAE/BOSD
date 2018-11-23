@@ -2,6 +2,7 @@
 #define NN_BASIS_FUNCTION_H
 
 #include <armadillo>
+#include <json.hpp>
 #include <robotics/basis_functions.hpp>
 
 
@@ -22,6 +23,12 @@ class ScalarNNBasis : public robotics::ScalarBasisFun {
 
         unsigned int dim() const {
             return number_hidden_units_;
+        }
+
+        nlohmann::json to_stream() const {
+            // TODO.
+            nlohmann::json ret;
+            return ret;
         }
 
         ~ScalarNNBasis() = default;
