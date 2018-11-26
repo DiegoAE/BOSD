@@ -89,7 +89,9 @@ int main(int argc, char *argv[]) {
         ("help,h", "Produce help message")
         ("input,i", po::value<string>(), "Path to the input obs")
         ("output,o", po::value<string>(), "Path to the json output params")
-        ("viterbi,v", po::value<string>(), "Path to the input viterbi file")
+        ("viterbilabels,l", po::value<string>(), "Path to the input viterbi "
+                "files (labels). Note that the format is viterbi (not labels)")
+        ("viterbi,v", po::value<string>(), "Path to the output viterbi file")
         ("nstates,s", po::value<int>(), "Number of states (NNs)")
         ("mindur", po::value<int>(), "Minimum duration of a segment")
         ("ndur", po::value<int>(), "Number of different durations supported")
@@ -120,8 +122,8 @@ int main(int argc, char *argv[]) {
                 "matrix containing the run length marginals will be stored.")
         ("md", po::value<string>(), "File name where a "
                 "matrix containing the duration marginals will be stored.");
-    vector<string> required_fields = {"input", "output", "viterbi", "nfiles",
-            "nstates", "mindur", "ndur"};
+    vector<string> required_fields = {"input", "output", "viterbilabels",
+            "nfiles", "nstates", "mindur", "ndur", "viterbi"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -137,7 +139,7 @@ int main(int argc, char *argv[]) {
     }
     string input_filename = vm["input"].as<string>();
     string output_filename = vm["output"].as<string>();
-    string viterbi_filename = vm["viterbi"].as<string>();
+    string viterbi_filename = vm["viterbilabels"].as<string>();
     int nseq = vm["nfiles"].as<int>();
     int nstates = vm["nstates"].as<int>();
     int hidden_units = vm["hiddenunits"].as<int>();
