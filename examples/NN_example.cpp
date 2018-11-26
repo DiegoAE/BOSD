@@ -96,7 +96,9 @@ int main(int argc, char *argv[]) {
         ("mindur", po::value<int>(), "Minimum duration of a segment")
         ("ndur", po::value<int>(), "Number of different durations supported")
         ("hiddenunits,u", po::value<int>()->default_value(10),
-                "Number of hidden units")
+                "Number of hidden units per hidden layer")
+        ("nlayers", po::value<int>()->default_value(1),
+                "Number of hidden layers")
         ("nfiles,n", po::value<int>()->default_value(1),
                 "Number of input files to process")
         ("debug", "Flag for activating debug mode in HSMM")
@@ -143,6 +145,7 @@ int main(int argc, char *argv[]) {
     int nseq = vm["nfiles"].as<int>();
     int nstates = vm["nstates"].as<int>();
     int hidden_units = vm["hiddenunits"].as<int>();
+    int nlayers = vm["nlayers"].as<int>();
     vector<mat> obs_for_each_state[nstates];
     vector<mat> times_for_each_state[nstates];
     field<field<mat>> seq_obs(nseq);
@@ -182,7 +185,8 @@ int main(int argc, char *argv[]) {
         assert(outputs.n_cols == inputs.n_cols);
 
         // Defining the architecture of the NN.
-        auto nn = make_shared<ScalarNNBasis>(hidden_units, njoints);
+        ivec hidden_units_per_layer = ones<ivec>(nlayers) * hidden_units;
+        auto nn = make_shared<ScalarNNBasis>(hidden_units_per_layer, njoints);
 
         // Training the NN.
         nn->getNeuralNet().Train(inputs, outputs);

@@ -17,9 +17,12 @@ namespace hsmm {
 
     class ScalarNNBasis : public robotics::ScalarBasisFun {
         public:
-            ScalarNNBasis(int number_hidden_units, int njoints);
+            ScalarNNBasis(arma::ivec hidden_units_per_layer, int njoints);
 
             NNmodel& getNeuralNet() const;
+
+            // Takes into account also the input and output layers.
+            int getNumberLayers() const;
 
             void setNeuralNet(NNmodel &neural_net);
 
@@ -35,10 +38,7 @@ namespace hsmm {
             ~ScalarNNBasis() = default;
 
         private:
-            int number_hidden_units_;
-
-            // TODO. Get this number from the neural network itself.
-            int number_layers_ = 3;
+            arma::ivec hidden_units_per_layer_;
             mutable NNmodel neural_net_;
     };
 

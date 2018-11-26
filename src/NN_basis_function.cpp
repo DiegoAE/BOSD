@@ -6,15 +6,28 @@ using namespace std;
 
 namespace hsmm {
     
-    ScalarNNBasis::ScalarNNBasis(int number_hidden_units, int njoints) :
-            number_hidden_units_(number_hidden_units) {
-        neural_net_.Add<Linear<> >(1, number_hidden_units_);
+    ScalarNNBasis::ScalarNNBasis(ivec hidden_units_per_layer, int njoints) :
+            hidden_units_per_layer_(hidden_units_per_layer) {
+        assert(hidden_units_per_layer_.n_elem > 0);
+        neural_net_.Add<Linear<> >(1, hidden_units_per_layer_(0));
         neural_net_.Add<SigmoidLayer<> >();
-        neural_net_.Add<Linear<> >(number_hidden_units_, njoints);
+        for(int i = 1; i < hidden_units_per_layer_.n_elem; i++) {
+            int last_number_units = hidden_units_per_layer_(i - 1);
+            int current_number_units = hidden_units_per_layer_(i);
+            neural_net_.Add<Linear<> >(last_number_units, current_number_units);
+            neural_net_.Add<SigmoidLayer<> >();
+        }
+
+        // Connecting the last hidden layer with the output layer.
+        neural_net_.Add<Linear<> >(dim(), njoints);
     }
 
     NNmodel& ScalarNNBasis::getNeuralNet() const {
         return neural_net_;
+    }
+
+    int ScalarNNBasis::getNumberLayers() const {
+        return hidden_units_per_layer_.n_elem + 2;
     }
 
     void ScalarNNBasis::setNeuralNet(NNmodel &neural_net) {
@@ -26,7 +39,7 @@ namespace hsmm {
         mat output;
 
         // Eval up to the second-to-last layer.
-        neural_net_.Forward(input, output, 0, number_layers_ - 2);
+        neural_net_.Forward(input, output, 0, getNumberLayers() - 2);
         return output;
     }
 
@@ -37,7 +50,7 @@ namespace hsmm {
     }
 
     unsigned int ScalarNNBasis::dim() const {
-        return number_hidden_units_;
+        return hidden_units_per_layer_(hidden_units_per_layer_.n_elem - 1);
     }
 
     nlohmann::json ScalarNNBasis::to_stream() const {
