@@ -191,6 +191,11 @@ int main(int argc, char *argv[]) {
         // Training the NN.
         nn->getNeuralNet().Train(inputs, outputs);
 
+        // Extracting the parameters from the output layer.
+        pair<mat,vec> out_params = nn->getOutputLayerParams();
+        cout << "Weights " << endl << out_params.first << endl;
+        cout << "Bias " << endl << out_params.second << endl;
+
         // Predicting.
         vec test_input = linspace<vec>(0,1,100);
         vector<mat> test_output;

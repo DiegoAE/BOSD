@@ -7,7 +7,8 @@ using namespace std;
 namespace hsmm {
     
     ScalarNNBasis::ScalarNNBasis(ivec hidden_units_per_layer, int njoints) :
-            hidden_units_per_layer_(hidden_units_per_layer) {
+            hidden_units_per_layer_(hidden_units_per_layer),
+            neural_net_outputs_(njoints) {
         assert(hidden_units_per_layer_.n_elem > 0);
         neural_net_.Add<Linear<> >(1, hidden_units_per_layer_(0));
         neural_net_.Add<SigmoidLayer<> >();
@@ -19,7 +20,8 @@ namespace hsmm {
         }
 
         // Connecting the last hidden layer with the output layer.
-        neural_net_.Add<Linear<> >(dim(), njoints);
+        output_layer_ = new Linear<>(dim(), neural_net_outputs_);
+        neural_net_.Add(output_layer_);
     }
 
     NNmodel& ScalarNNBasis::getNeuralNet() const {
@@ -28,6 +30,15 @@ namespace hsmm {
 
     int ScalarNNBasis::getNumberLayers() const {
         return hidden_units_per_layer_.n_elem + 2;
+    }
+
+    pair<mat, vec> ScalarNNBasis::getOutputLayerParams() const {
+        mat params = output_layer_->Parameters();
+        mat last_layer_weigths = mat(params.memptr(), neural_net_outputs_,
+                dim());
+        vec last_layer_bias = mat(params.memptr() + last_layer_weigths.n_elem,
+                neural_net_outputs_, 1);
+        return make_pair(last_layer_weigths, last_layer_bias);
     }
 
     void ScalarNNBasis::setNeuralNet(NNmodel &neural_net) {

@@ -24,6 +24,8 @@ namespace hsmm {
             // Takes into account also the input and output layers.
             int getNumberLayers() const;
 
+            std::pair<arma::mat, arma::vec> getOutputLayerParams() const;
+
             void setNeuralNet(NNmodel &neural_net);
 
             arma::vec eval(double t) const;
@@ -39,7 +41,9 @@ namespace hsmm {
 
         private:
             arma::ivec hidden_units_per_layer_;
+            mlpack::ann::Linear<>* output_layer_ = nullptr;
             mutable NNmodel neural_net_;
+            int neural_net_outputs_;
     };
 
 };
