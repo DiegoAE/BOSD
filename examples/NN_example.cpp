@@ -107,6 +107,8 @@ int main(int argc, char *argv[]) {
         ("nopi", "Flag to deactivate the learning of initial pmf")
         ("durmomentmatching", "Flag to active the Gaussian moment matching"
                 " for the duration learning")
+        ("polybasisfun", po::value<int>()->default_value(0), "Order of the "
+                "poly basis functions")
         ("noselftransitions", "Flag to deactive self transitions")
         ("wpriorvar", po::value<double>(), "Prior variance for Sigma_w")
         ("alphadurprior", po::value<int>()->default_value(1),
@@ -177,7 +179,8 @@ int main(int argc, char *argv[]) {
 
     // There should be at least one segment for the hidden state 0.
     int njoints = obs_for_each_state[0].at(0).n_rows;
-    vector<shared_ptr<ScalarNNBasis>> nns;
+    vector<shared_ptr<ScalarCombBasis>> basis;
+    vector<vec> means;
     for(int i = 0; i < nstates; i++) {
         mat inputs = join_mats(times_for_each_state[i]);
         mat outputs = join_mats(obs_for_each_state[i]);
@@ -193,8 +196,16 @@ int main(int argc, char *argv[]) {
 
         // Extracting the parameters from the output layer.
         pair<mat,vec> out_params = nn->getOutputLayerParams();
+        mat joint_params = join_horiz(out_params.first, out_params.second);
+        vec flattened_params = conv_to<vec>::from(vectorise(joint_params, 1));
+        means.push_back(flattened_params);
         cout << "Weights " << endl << out_params.first << endl;
         cout << "Bias " << endl << out_params.second << endl;
+
+        // Adding polynomial terms to the NN basis.
+        auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
+        auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis(
+                    {nn, poly}));
 
         // Predicting.
         vec test_input = linspace<vec>(0,1,100);
@@ -205,20 +216,20 @@ int main(int argc, char *argv[]) {
         }
         mat mat_test_output = join_mats(test_output);
         //mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
-        nns.push_back(nn);
+        basis.push_back(comb);
     }
-    int n_basis_functions = nns.at(0)->dim();
+    int n_basis_functions = basis.at(0)->dim();
 
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
-        vec mu_w(n_basis_functions * njoints);
-        mu_w.randn();
+        vec mu_w = means.at(i);
+        assert(mu_w.n_elem == n_basis_functions * njoints);
         mat Sigma_w = eye<mat>(n_basis_functions * njoints,
                     n_basis_functions * njoints);
         mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
-        FullProMP nn_promp(nns.at(i), promp, njoints);
+        FullProMP nn_promp(basis.at(i), promp, njoints);
         promps.push_back(nn_promp);
     }
     int min_duration = vm["mindur"].as<int>();
