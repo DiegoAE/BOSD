@@ -112,5 +112,25 @@ int main(int argc, char *argv[]) {
         mat test_output;
         neural_network[i].Predict(test_input, test_output);
     }
+
+    for(int i = 0; i < nstates; i++) {
+        mat input = linspace<rowvec>(0,1,10);
+        mat first_output;
+        neural_network[i].Predict(input, first_output);
+        mat old_params = neural_network[i].Parameters();
+
+        // Changing the params.
+        mat new_params(size(old_params), fill::ones);
+        neural_network[i].Parameters() = new_params;
+        mat second_output;
+        neural_network[i].Predict(input, second_output);
+
+        // Changing the params back to the old ones.
+        neural_network[i].Parameters() = old_params;
+        mat third_output;
+        neural_network[i].Forward(input, third_output, 0, 2);
+
+        assert(approx_equal(first_output, third_output, "reldiff", 1e-7));
+    }
     return 0;
 }
