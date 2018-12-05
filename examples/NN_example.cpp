@@ -125,7 +125,9 @@ int main(int argc, char *argv[]) {
         ("mr", po::value<string>(), "File name where a "
                 "matrix containing the run length marginals will be stored.")
         ("md", po::value<string>(), "File name where a "
-                "matrix containing the duration marginals will be stored.");
+                "matrix containing the duration marginals will be stored.")
+        ("savebasisfunparams", po::value<string>(), "File where the NN weights"
+                " will be saved after training");
     vector<string> required_fields = {"input", "output", "viterbilabels",
             "nfiles", "nstates", "mindur", "ndur", "viterbi"};
     po::variables_map vm;
@@ -181,6 +183,7 @@ int main(int argc, char *argv[]) {
     int njoints = obs_for_each_state[0].at(0).n_rows;
     vector<shared_ptr<ScalarCombBasis>> basis;
     vector<vec> means;
+    vector<nlohmann::json> basis_fun_params;
     for(int i = 0; i < nstates; i++) {
         mat inputs = join_mats(times_for_each_state[i]);
         mat outputs = join_mats(obs_for_each_state[i]);
@@ -194,6 +197,7 @@ int main(int argc, char *argv[]) {
         // Training the NN.
         nn1->getNeuralNet().Train(inputs, outputs);
         auto serialized = nn1->to_stream();
+        basis_fun_params.push_back(serialized);
 
         // Testing the NN building from serialized parameters.
         auto nn = make_shared<ScalarNNBasis>(serialized);
@@ -225,6 +229,13 @@ int main(int argc, char *argv[]) {
         basis.push_back(comb);
     }
     int n_basis_functions = basis.at(0)->dim();
+
+    if (vm.count("savebasisfunparams")) {
+        nlohmann::json basisfunparams = basis_fun_params;
+        std::ofstream basis_fun_file(vm["savebasisfunparams"].as<string>());
+        basis_fun_file << std::setw(4) << basisfunparams << std::endl;
+        basis_fun_file.close();
+    }
 
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
