@@ -189,10 +189,14 @@ int main(int argc, char *argv[]) {
 
         // Defining the architecture of the NN.
         ivec hidden_units_per_layer = ones<ivec>(nlayers) * hidden_units;
-        auto nn = make_shared<ScalarNNBasis>(hidden_units_per_layer, njoints);
+        auto nn1 = make_shared<ScalarNNBasis>(hidden_units_per_layer, njoints);
 
         // Training the NN.
-        nn->getNeuralNet().Train(inputs, outputs);
+        nn1->getNeuralNet().Train(inputs, outputs);
+        auto serialized = nn1->to_stream();
+
+        // Testing the NN building from serialized parameters.
+        auto nn = make_shared<ScalarNNBasis>(serialized);
 
         // Extracting the parameters from the output layer.
         pair<mat,vec> out_params = nn->getOutputLayerParams();
@@ -211,8 +215,10 @@ int main(int argc, char *argv[]) {
         vec test_input = linspace<vec>(0,1,100);
         vector<mat> test_output;
         for(int j = 0; j < test_input.n_elem; j++) {
-            vec input = nn->eval(test_input(j));
-            test_output.push_back(input);
+            vec output = nn->eval(test_input(j));
+            vec output2 = nn1->eval(test_input(j));
+            assert(approx_equal(output, output2, "reldiff", 1e-8));
+            test_output.push_back(output);
         }
         mat mat_test_output = join_mats(test_output);
         //mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);

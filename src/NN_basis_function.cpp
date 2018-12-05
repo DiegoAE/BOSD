@@ -24,6 +24,17 @@ namespace hsmm {
         neural_net_.Add(output_layer_);
     }
 
+    ScalarNNBasis::ScalarNNBasis(nlohmann::json &stream) : ScalarNNBasis(
+            conv_to<ivec>::from(
+            stream["hidden_units_per_layer"].get<vector<int>>()),
+            stream["noutputs"].get<int>()) {
+        vec parameters = conv_to<vec>::from(stream["parameters"].get<vector<
+                double>>());
+        neural_net_.ResetParameters();
+        assert(neural_net_.Parameters().n_rows == parameters.n_rows);
+        neural_net_.Parameters() = parameters;
+    }
+
     NNmodel& ScalarNNBasis::getNeuralNet() const {
         return neural_net_;
     }
@@ -66,7 +77,11 @@ namespace hsmm {
 
     nlohmann::json ScalarNNBasis::to_stream() const {
         nlohmann::json ret;
-        throw std::logic_error("Not implemented yet.");
+        ret["hidden_units_per_layer"] = conv_to<vector<int>>::from(
+                hidden_units_per_layer_);
+        ret["noutputs"] = neural_net_outputs_;
+        ret["parameters"] = conv_to<vector<double>>::from(
+                neural_net_.Parameters());
         return ret;
     }
 

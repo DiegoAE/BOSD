@@ -19,6 +19,8 @@ namespace hsmm {
         public:
             ScalarNNBasis(arma::ivec hidden_units_per_layer, int njoints);
 
+            ScalarNNBasis(nlohmann::json &stream);
+
             NNmodel& getNeuralNet() const;
 
             // Takes into account also the input and output layers.
