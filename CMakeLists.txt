@@ -126,6 +126,18 @@ if (MLPACK_LIB)
             ${ARMADILLO_LIBRARIES}
             ${Boost_LIBRARIES}
         )
+        add_executable(nn_promps_model_from_labels
+            examples/NN_promps_hsmm_output_model_from_labels.cpp
+        )
+        target_link_libraries(nn_promps_model_from_labels
+            ${flag}
+            NN_basis_function
+            ${PROJECT_NAME}
+            ${ROB_LIB}
+            ${MLPACK_LIB}
+            ${ARMADILLO_LIBRARIES}
+            ${Boost_LIBRARIES}
+        )
     endif()
 else()
     message(WARNING "mlpack was not found.")
