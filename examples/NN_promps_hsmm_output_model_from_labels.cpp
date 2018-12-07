@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     int nstates = vm["nstates"].as<int>();
     int hidden_units = vm["hiddenunits"].as<int>();
     int nlayers = vm["nlayers"].as<int>();
-    double delta = vm["delta"].as<double>()
+    double delta = vm["delta"].as<double>();
     vector<mat> obs_for_each_state[nstates];
     vector<mat> times_for_each_state[nstates];
     field<field<mat>> seq_obs(nseq);
