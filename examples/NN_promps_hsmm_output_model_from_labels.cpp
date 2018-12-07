@@ -62,13 +62,20 @@ int main(int argc, char *argv[]) {
         ("polybasisfun", po::value<int>()->default_value(0), "Order of the "
                 "poly basis functions")
         ("noselftransitions", "Flag to deactive self transitions")
-	("delta", po::value<double>(), "If this is given a value, the model "
-                "switches to segment agnostic and the samples are generated "
-                "according to the provided delta")
+	    ("delta", po::value<double>()->default_value(-1), "If this is given "
+                "a value, the model switches to segment agnostic and the "
+                "samples are generated according to the provided delta")
+        ("ms", po::value<string>(), "File name where a "
+                "matrix containing the state marginals will be stored.")
+        ("mr", po::value<string>(), "File name where a "
+                "matrix containing the run length marginals will be stored.")
+        ("md", po::value<string>(), "File name where a "
+                "matrix containing the duration marginals will be stored.")
         ("savebasisfunparams", po::value<string>(), "File where the NN weights"
-                " will be saved after training");
-    vector<string> required_fields = {"input", "output", "viterbilabels",
-            "nfiles", "nstates", "mindur", "ndur"};
+                " will be saved after training")
+        ("test,t", po::value<string>(), "Path to the test observation file");
+    vector<string> required_fields = {"input", "test", "viterbilabels",
+            "nfiles", "nstates", "mindur", "ndur", "ms", "mr", "md"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -83,12 +90,12 @@ int main(int argc, char *argv[]) {
         }
     }
     string input_filename = vm["input"].as<string>();
-    string output_filename = vm["output"].as<string>();
     string viterbi_filename = vm["viterbilabels"].as<string>();
     int nseq = vm["nfiles"].as<int>();
     int nstates = vm["nstates"].as<int>();
     int hidden_units = vm["hiddenunits"].as<int>();
     int nlayers = vm["nlayers"].as<int>();
+    double delta = vm["delta"].as<double>()
     vector<mat> obs_for_each_state[nstates];
     vector<mat> times_for_each_state[nstates];
     field<field<mat>> seq_obs(nseq);
@@ -114,8 +121,10 @@ int main(int argc, char *argv[]) {
             mat segment = obs.cols(idx, idx + dur(j) - 1);
             obs_for_each_state[hs(j)].push_back(segment);
 
-            // TODO: take into account delta. Normalizing the time for now.
+            // NOTE: the training time steps are generated according to delta.
             rowvec times = linspace<rowvec>(0, 1.0, dur(j));
+            if (delta > 0)
+                times = linspace<rowvec>(0, (dur(j)-1)*delta, dur(j));
             times_for_each_state[hs(j)].push_back(times);
             idx += dur(j);
             seq_labels(i).setLabel(idx - 1, dur(j), hs(j));
@@ -239,12 +248,57 @@ int main(int argc, char *argv[]) {
     // Creating the ProMP emission.
     shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
 
-    if (vm.count("delta"))
-        ptr_emission->setDelta(vm["delta"].as<double>());
+    if (delta > 0.0)
+        ptr_emission->setDelta(delta);
 
     OnlineHSMM promp_hsmm(std::static_pointer_cast<
             AbstractEmissionOnlineSetting>(ptr_emission),
             transition, pi, durations, min_duration);
+
+    // Saving the model in a json file.
+    if (vm.count("output")) {
+        string output_filename = vm["output"].as<string>();
+        std::ofstream initial_params(output_filename);
+        nlohmann::json initial_model = promp_hsmm.to_stream();
+        initial_params << std::setw(4) << initial_model << std::endl;
+        initial_params.close();
+    }
+
+    // Testing the online inference algorithm.
+    mat obs_for_cond;
+    obs_for_cond.load(vm["test"].as<string>(), raw_ascii);
+    mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
+    mat runlength_marginals_over_time(min_duration + ndurations,
+            obs_for_cond.n_cols);
+    mat duration_marginals_over_time(ndurations, obs_for_cond.n_cols);
+    for(int c = 0; c < obs_for_cond.n_cols; c++) {
+        promp_hsmm.addNewObservation(obs_for_cond.col(c));
+        if (vm.count("ms")) {
+            vec s_marginal = promp_hsmm.getStateMarginal();
+            state_marginals_over_time.col(c) = s_marginal;
+        }
+        if (vm.count("mr")) {
+            vec r_marginal = promp_hsmm.getRunlengthMarginal();
+            runlength_marginals_over_time.col(c) = r_marginal;
+        }
+        if (vm.count("md")) {
+            vec d_marginal = promp_hsmm.getDurationMarginal();
+            duration_marginals_over_time.col(c) = d_marginal;
+        }
+    }
+
+    // Saving the marginals if required.
+    if (vm.count("ms"))
+        state_marginals_over_time.save(vm["ms"].as<string>(), raw_ascii);
+    if (vm.count("mr"))
+        runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
+    if (vm.count("md"))
+        duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
+
+    // Evaluation the likelihood of the test observation.
+    field<field<mat>> field_obs = {fromMatToField(obs_for_cond)};
+    double onlinell = promp_hsmm.loglikelihood(field_obs);
+    cout << "onlineloglikelihood: " << onlinell << endl;
     return 0;
 }
 
