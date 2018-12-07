@@ -59,8 +59,6 @@ int main(int argc, char *argv[]) {
         ("nodur", "Flag to deactivate the learning of durations")
         ("notrans", "Flag to deactivate the learning of transitions")
         ("nopi", "Flag to deactivate the learning of initial pmf")
-        ("durmomentmatching", "Flag to active the Gaussian moment matching"
-                " for the duration learning")
         ("polybasisfun", po::value<int>()->default_value(0), "Order of the "
                 "poly basis functions")
         ("noselftransitions", "Flag to deactive self transitions")
@@ -95,6 +93,7 @@ int main(int argc, char *argv[]) {
     vector<mat> times_for_each_state[nstates];
     field<field<mat>> seq_obs(nseq);
     field<Labels> seq_labels(nseq);
+    vector<imat> vit_file_for_each_obs;
     for(int i = 0; i < nseq; i++) {
         string iname = input_filename;
         string vname = viterbi_filename;
@@ -109,6 +108,7 @@ int main(int argc, char *argv[]) {
         vit.load(vname, raw_ascii);
         ivec hs = vit.col(0);
         ivec dur = vit.col(1);
+        vit_file_for_each_obs.push_back(vit);
         int idx = 0;
         for(int j = 0; j < dur.n_rows; j++) {
             mat segment = obs.cols(idx, idx + dur(j) - 1);
@@ -179,6 +179,72 @@ int main(int argc, char *argv[]) {
         basis_fun_file << std::setw(4) << basisfunparams << std::endl;
         basis_fun_file.close();
     }
+
+    // Instantiating as many ProMPs as hidden states.
+    vector<FullProMP> promps;
+    for(int i = 0; i < nstates; i++) {
+        vec mu_w = means.at(i);
+        assert(mu_w.n_elem == n_basis_functions * njoints);
+        mat Sigma_w = eye<mat>(n_basis_functions * njoints,
+                    n_basis_functions * njoints);
+        mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
+        ProMP promp(mu_w, Sigma_w, Sigma_y);
+        FullProMP nn_promp(basis.at(i), promp, njoints);
+        promps.push_back(nn_promp);
+    }
+    int min_duration = vm["mindur"].as<int>();
+    int ndurations = vm["ndur"].as<int>();
+    mat transition(nstates, nstates);
+    transition.fill(1.0 / nstates );
+    if (vm.count("noselftransitions")) {
+        transition.fill(1.0 / (nstates - 1));
+        transition.diag().zeros();
+    }
+    vec pi(nstates);
+    pi.fill(1.0/nstates);
+    mat durations(nstates, ndurations);
+    durations.fill(1.0 / ndurations);
+
+    // Computing the required statistics from the provided labels if required.
+    // NOTE: pmfs with zero mass are allowed in the transtion and duration
+    // matrices.
+    if (!vm.count("nopi")) {
+        pi.fill(0.0);
+        for(const auto& vit: vit_file_for_each_obs)
+            pi(vit(0, 0)) += 1.0;
+        pi = pi * (1.0/accu(pi));
+    }
+    cout << "Initial pmf" << endl << pi << endl;
+    if (!vm.count("notrans")) {
+        transition.fill(0.0);
+        for(const auto& vit: vit_file_for_each_obs)
+            for(int i = 0; i < vit.col(0).n_elem - 1; i++)
+                transition(vit(i, 0), vit(i + 1, 0)) += 1.0;
+        for(int i = 0; i < nstates; i++)
+            if (accu(transition.row(i)) > 1e-7)
+                transition.row(i) *= (1.0/accu(transition.row(i)));
+    }
+    cout << "Transition matrix" << endl << transition << endl;
+    if (!vm.count("nodur")) {
+        durations.fill(0.0);
+        for(const auto& vit: vit_file_for_each_obs)
+            for(int i = 0; i < vit.n_rows; i++)
+                durations(vit(i,0), vit(i,1) - min_duration) += 1.0;
+        for(int i = 0; i < nstates; i++)
+            if (accu(durations.row(i)) > 1e-7)
+                durations.row(i) *= (1.0/accu(durations.row(i)));
+    }
+    cout << "Duration matrix" << endl << durations << endl;
+
+    // Creating the ProMP emission.
+    shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
+
+    if (vm.count("delta"))
+        ptr_emission->setDelta(vm["delta"].as<double>());
+
+    OnlineHSMM promp_hsmm(std::static_pointer_cast<
+            AbstractEmissionOnlineSetting>(ptr_emission),
+            transition, pi, durations, min_duration);
     return 0;
 }
 
