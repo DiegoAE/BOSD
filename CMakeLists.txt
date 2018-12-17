@@ -46,6 +46,7 @@ if (ROB_LIB)
     add_executable(promps_hmm_example examples/promps_hmm_example.cpp)
     add_executable(promps_hmm_robot examples/promps_hmm_robot.cpp)
     add_executable(promps_hsmm_synth_exp examples/promps_hsmm_synth_exp.cpp)
+    add_executable(promps_hsmm_sleep_data examples/promps_hsmm_sleep_data.cpp)
     target_link_libraries(promps_hsmm_example
         ${PROJECT_NAME}
         ${ROB_LIB}
@@ -81,6 +82,15 @@ if (ROB_LIB)
         ${Boost_LIBRARIES})
     target_link_libraries(promps_hsmm_synth_exp
         ${PROJECT_NAME}
+        ${ROB_LIB}
+        ${ARMADILLO_LIBRARIES}
+        ${Boost_LIBRARIES})
+    add_library(Gaussian_emission_promp
+        src/Multivariate_Gaussian_emission.cpp
+    )
+    target_link_libraries(promps_hsmm_sleep_data
+        ${PROJECT_NAME}
+        Gaussian_emission_promp
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES})
