@@ -5,17 +5,15 @@
 #include <emissions.hpp>
 #include <iostream>
 #include <robotics/utils/random.hpp>
-
-using namespace arma;
-using namespace std;
+#include <vector>
 
 namespace hsmm {
 
     class MultivariateGaussianEmission : public
                                          AbstractEmissionObsCondIIDgivenState {
         public:
-            MultivariateGaussianEmission(std::vector<arma::vec> means,
-                    std::vector<arma::mat> covs);
+            MultivariateGaussianEmission(
+                    std::vector<robotics::random::NormalDist> states_);
 
             double loglikelihood(int state,
                     const arma::mat &single_obs) const;
@@ -24,8 +22,7 @@ namespace hsmm {
                     arma::ivec &labels);
 
         private:
-            std::vector<arma::vec> means_;
-            std::vector<arma::mat> covs_;
+            std::vector<robotics::random::NormalDist> states_;
     };
 
 };

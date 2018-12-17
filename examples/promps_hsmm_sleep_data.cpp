@@ -3,18 +3,20 @@
 
 using namespace arma;
 using namespace hsmm;
+using namespace robotics::random;
 using namespace std;
 
 int main(int argc, char *argv[]) {
     int nstates = 5;
     int ndimension = 10;
-    vector<vec> means;
-    vector<mat> covariances;
+    vector<NormalDist> states;
     for(int i = 0; i < nstates; i++) {
-        means.push_back(zeros<vec>(ndimension));
-        covariances.push_back(eye<mat>(ndimension, ndimension));
+        vec mean = ones<vec>(ndimension) * i;
+        mat cov = eye(ndimension, ndimension);
+        NormalDist a(mean, cov);
+        states.push_back(a);
     }
-    MultivariateGaussianEmission emission(means, covariances);
+    MultivariateGaussianEmission emission(states);
     cout << "OK" << endl;
     return 0;
 }
