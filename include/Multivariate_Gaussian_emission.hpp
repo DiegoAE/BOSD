@@ -18,8 +18,8 @@ namespace hsmm {
             double loglikelihood(int state,
                     const arma::mat &single_obs) const;
 
-            void fitFromLabels(arma::field<arma::mat> &observations,
-                    arma::ivec &labels);
+            void fitFromLabels(const arma::field<arma::vec> &observations,
+                    const arma::ivec &labels);
 
         private:
             std::vector<robotics::random::NormalDist> states_;
