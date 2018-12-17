@@ -159,6 +159,38 @@ namespace hsmm {
             arma::mat means_;
     };
 
+
+    class AbstractEmissionObsCondIIDgivenState {
+        public:
+            AbstractEmissionObsCondIIDgivenState(int nstates, int dimension) :
+                    nstates_(nstates), dimension_(dimension) {}
+
+            virtual double loglikelihood(int state,
+                    const arma::mat &observation) const = 0;
+
+        protected:
+            int nstates_;
+            int dimension_;
+    };
+
+
+    class MultivariateGaussianEmission : public
+                                         AbstractEmissionObsCondIIDgivenState {
+        public:
+            MultivariateGaussianEmission(std::vector<arma::vec> means,
+                    std::vector<arma::mat> covs);
+
+            double loglikelihood(int state,
+                    const arma::mat &single_obs) const;
+
+            void fitFromLabels(arma::field<arma::mat> &observations,
+                    arma::ivec &labels);
+
+        private:
+            std::vector<arma::vec> means_;
+            std::vector<arma::mat> covs_;
+    };
+
 };
 
 #endif

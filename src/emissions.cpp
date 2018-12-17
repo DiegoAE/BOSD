@@ -312,5 +312,33 @@ namespace hsmm {
             ret.row(i) += linspace<rowvec>(0.0, 1.0, size) + means_(state, i);
         return fromMatToField(ret);
     }
+
+
+    /**
+     * MultivariateGaussianEmission implementation.
+     */
+    MultivariateGaussianEmission::MultivariateGaussianEmission(
+            vector<vec> means, vector<mat> covs) : means_(means), covs_(covs),
+            AbstractEmissionObsCondIIDgivenState(means.size(),
+            means.at(0).n_elem) {
+        assert(means_.size() == covs_.size());
+        for(auto& v: means_)
+            assert(v.n_elem == dimension_);
+        for(auto& m: covs_)
+            assert(m.n_rows == dimension_ && m.n_cols == dimension_);
+    }
+
+    double MultivariateGaussianEmission::loglikelihood(int state,
+            const mat &single_obs) const {
+        //TODO
+        return 0.0;
+    }
+
+    void MultivariateGaussianEmission::fitFromLabels(field<mat> &observations,
+            ivec &labels) {
+        // TODO
+        return;
+    }
+
 };
 
