@@ -165,8 +165,12 @@ namespace hsmm {
             AbstractEmissionObsCondIIDgivenState(int nstates, int dimension) :
                     nstates_(nstates), dimension_(dimension) {}
 
+            int getNumberStates() const {
+                return nstates_;
+            }
+
             virtual double loglikelihood(int state,
-                    const arma::mat &observation) const = 0;
+                    const arma::vec &observation) const = 0;
 
         protected:
             int nstates_;

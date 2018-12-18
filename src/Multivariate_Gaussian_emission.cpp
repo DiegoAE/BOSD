@@ -23,9 +23,8 @@ namespace hsmm {
     }
 
     double MultivariateGaussianEmission::loglikelihood(int state,
-            const mat &single_obs) const {
-        return random::log_normal_density(states_.at(state),
-                conv_to<vec>::from(single_obs));
+            const vec &single_obs) const {
+        return random::log_normal_density(states_.at(state), single_obs);
     }
 
     void MultivariateGaussianEmission::fitFromLabels(

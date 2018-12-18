@@ -54,6 +54,18 @@ field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
     return features;
 }
 
+ivec predict_labels(const MultivariateGaussianEmission& e,
+        const field<vec>& test_input) {
+    ivec ret(test_input.n_elem);
+    for(int i = 0; i < test_input.n_elem; i++) {
+        vec loglikelihoods(e.getNumberStates());
+        for(int j = 0; j < e.getNumberStates(); j++)
+            loglikelihoods(j) = e.loglikelihood(j, test_input(i));
+        ret(i) = (int) loglikelihoods.index_max();
+    }
+    return ret;
+}
+
 int main(int argc, char *argv[]) {
     mt19937 gen(0);
     po::options_description desc("Options");
@@ -63,8 +75,11 @@ int main(int argc, char *argv[]) {
         ("eeg2", po::value<string>(), "Path to input obs")
         ("emg", po::value<string>(), "Path to input obs")
         ("labels,l", po::value<string>(), "Path to input labels")
-        ("prediction,p", po::value<string>(), "Path to predicted labels");
-    vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels"};
+        ("prediction,p", po::value<string>(), "Path to predicted labels")
+        ("groundtruth,g", po::value<string>(), "Path to where the true labels"
+                " are stored");
+    vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels",
+            "prediction", "groundtruth"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -124,5 +139,9 @@ int main(int argc, char *argv[]) {
 
     // Training the emission based on the labels.
     emission.fitFromLabels(train_features, train_labels);
+
+    ivec prediction = predict_labels(emission, test_features);
+    prediction.save(vm["prediction"].as<string>(), raw_ascii);
+    test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
     return 0;
 }
