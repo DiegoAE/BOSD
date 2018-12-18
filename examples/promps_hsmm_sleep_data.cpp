@@ -9,6 +9,51 @@ using namespace robotics::random;
 using namespace std;
 namespace po = boost::program_options;
 
+
+// Equivalent to np.fft.rfftfreq(512, 1.0 / 128.0) in Python.
+vec discreteFourierTransformSampleFrequencies() {
+    return linspace(0, 64, 257);
+}
+
+vec extract_frequency_features(vec input) {
+    vec nu = discreteFourierTransformSampleFrequencies();
+    uvec delta_band = find(nu > 0.4 && nu < 4.1);
+    uvec theta_band = find(nu > 5.9 && nu < 10.1);
+    uvec alpha_band = find(nu > 10 && nu < 15.1);
+    uvec all_bands = find(nu > 3.9 && nu < 40.1);
+
+    cx_mat t = fft(input);
+
+    // Ensuring the same size as np.fft.rfft(input).
+    t = t.head_rows(input.n_elem / 2 + 1);
+    mat norm = abs(t);
+    norm = norm % norm;
+    vec features = {accu(norm.elem(delta_band)), accu(norm.elem(theta_band)),
+            accu(norm.elem(alpha_band)), accu(norm.elem(all_bands))};
+    return features;
+}
+
+vec extract_eeg_features(vec eeg) {
+    return extract_frequency_features(eeg).head_rows(3);
+}
+
+vec extract_emg_features(vec emg) {
+    return extract_frequency_features(emg).tail_rows(1);
+}
+
+field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
+    int nobs = eeg1.n_cols;
+    assert(nobs == eeg2.n_cols);
+    assert(nobs == emg.n_cols);
+    field<vec> features(nobs);
+    for(int i = 0; i < nobs; i++) {
+        vec f = join_vert(extract_eeg_features(eeg1.col(i)),
+                extract_eeg_features(eeg2.col(i)));
+        features(i) = join_vert(f, extract_emg_features(emg.col(i)));
+    }
+    return features;
+}
+
 int main(int argc, char *argv[]) {
     mt19937 gen(0);
     po::options_description desc("Options");
@@ -17,7 +62,8 @@ int main(int argc, char *argv[]) {
         ("eeg1", po::value<string>(), "Path to input obs")
         ("eeg2", po::value<string>(), "Path to input obs")
         ("emg", po::value<string>(), "Path to input obs")
-        ("labels,l", po::value<string>(), "Path to input labels");
+        ("labels,l", po::value<string>(), "Path to input labels")
+        ("prediction,p", po::value<string>(), "Path to predicted labels");
     vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -35,14 +81,23 @@ int main(int argc, char *argv[]) {
 
     // Reading inputs and labels.
     mat eeg1, eeg2, emg;
+    ivec gt_labels;
     eeg1.load(vm["eeg1"].as<string>(), raw_ascii);
     eeg2.load(vm["eeg2"].as<string>(), raw_ascii);
     emg.load(vm["emg"].as<string>(), raw_ascii);
-    ivec gt_labels;
     gt_labels.load(vm["labels"].as<string>(), raw_ascii);
 
-    int nstates = 5;
-    int ndimension = 10;
+    // Computing the FFT features.
+    field<vec> features = getFeatureVectors(eeg1, eeg2, emg);
+    const field<vec>& train_features = features.rows(0, 21600 * 2 - 1);
+    const ivec& train_labels = gt_labels.head(21600 * 2);
+    const field<vec>& test_features = features.rows(21600 * 2,
+            features.n_elem - 1);
+    const ivec& test_labels = gt_labels.tail(21600);
+
+    // Creating the emission process.
+    int nstates = 3;
+    int ndimension = features.at(0).n_elem;
     vector<NormalDist> states;
     vector<vec> samples;
     vector<int> labels;
@@ -60,12 +115,14 @@ int main(int argc, char *argv[]) {
         labels.insert(labels.end(), l.begin(), l.end());
     }
     MultivariateGaussianEmission emission(states);
+
+    // Toy data handling.
     ivec labels_vec = conv_to<ivec>::from(labels);
     field<vec> obs_field(samples.size());
     for(int i = 0; i < samples.size(); i++)
         obs_field(i) = samples.at(i);
 
-    // TODO: plug in the inputs and labels.
-    emission.fitFromLabels(obs_field, labels_vec);
+    // Training the emission based on the labels.
+    emission.fitFromLabels(train_features, train_labels);
     return 0;
 }
