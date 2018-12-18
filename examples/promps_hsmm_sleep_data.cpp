@@ -55,12 +55,14 @@ field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
 }
 
 ivec predict_labels(const MultivariateGaussianEmission& e,
-        const field<vec>& test_input) {
+        const field<vec>& test_input, const vec& class_prior) {
+    assert(class_prior.n_elem == e.getNumberStates());
     ivec ret(test_input.n_elem);
     for(int i = 0; i < test_input.n_elem; i++) {
         vec loglikelihoods(e.getNumberStates());
         for(int j = 0; j < e.getNumberStates(); j++)
-            loglikelihoods(j) = e.loglikelihood(j, test_input(i));
+            loglikelihoods(j) = e.loglikelihood(j,
+                    test_input(i)) + log(class_prior(j));
         ret(i) = (int) loglikelihoods.index_max();
     }
     return ret;
@@ -140,7 +142,17 @@ int main(int argc, char *argv[]) {
     // Training the emission based on the labels.
     emission.fitFromLabels(train_features, train_labels);
 
-    ivec prediction = predict_labels(emission, test_features);
+    // Defining the prior over hidden states.
+    vec labels_prior(nstates, fill::zeros);
+    for(int i = 0; i < train_labels.n_elem; i++)
+        labels_prior(train_labels(i))++;
+    labels_prior = labels_prior / accu(labels_prior);
+
+    // Setting uniform prior.
+    // labels_prior = ones<vec>(nstates) / nstates;
+    cout << labels_prior << endl;
+
+    ivec prediction = predict_labels(emission, test_features, labels_prior);
     prediction.save(vm["prediction"].as<string>(), raw_ascii);
     test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
     return 0;
