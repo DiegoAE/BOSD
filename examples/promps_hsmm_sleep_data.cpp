@@ -1,5 +1,6 @@
 #include <armadillo>
 #include <boost/program_options.hpp>
+#include <HSMM.hpp>
 #include <Multivariate_Gaussian_emission.hpp>
 #include <random>
 
@@ -54,14 +55,14 @@ field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
     return features;
 }
 
-ivec predict_labels(const MultivariateGaussianEmission& e,
+ivec predict_labels(shared_ptr<MultivariateGaussianEmission> e,
         const field<vec>& test_input, const vec& class_prior) {
-    assert(class_prior.n_elem == e.getNumberStates());
+    assert(class_prior.n_elem == e->getNumberStates());
     ivec ret(test_input.n_elem);
     for(int i = 0; i < test_input.n_elem; i++) {
-        vec loglikelihoods(e.getNumberStates());
-        for(int j = 0; j < e.getNumberStates(); j++)
-            loglikelihoods(j) = e.loglikelihood(j,
+        vec loglikelihoods(e->getNumberStates());
+        for(int j = 0; j < e->getNumberStates(); j++)
+            loglikelihoods(j) = e->loglikelihood(j,
                     test_input(i)) + log(class_prior(j));
         ret(i) = (int) loglikelihoods.index_max();
     }
@@ -112,7 +113,6 @@ int main(int argc, char *argv[]) {
             features.n_elem - 1);
     const ivec& test_labels = gt_labels.tail(21600);
 
-    // Creating the emission process.
     int nstates = 3;
     int ndimension = features.at(0).n_elem;
     vector<NormalDist> states;
@@ -131,7 +131,9 @@ int main(int argc, char *argv[]) {
         samples.insert(samples.end(), s.begin(), s.end());
         labels.insert(labels.end(), l.begin(), l.end());
     }
-    MultivariateGaussianEmission emission(states);
+    // Creating the emission process.
+    shared_ptr<MultivariateGaussianEmission> emission(
+            new MultivariateGaussianEmission(states));
 
     // Toy data handling.
     ivec labels_vec = conv_to<ivec>::from(labels);
@@ -140,7 +142,7 @@ int main(int argc, char *argv[]) {
         obs_field(i) = samples.at(i);
 
     // Training the emission based on the labels.
-    emission.fitFromLabels(train_features, train_labels);
+    emission->fitFromLabels(train_features, train_labels);
 
     // Defining the prior over hidden states.
     vec labels_prior(nstates, fill::zeros);
@@ -155,5 +157,9 @@ int main(int argc, char *argv[]) {
     ivec prediction = predict_labels(emission, test_features, labels_prior);
     prediction.save(vm["prediction"].as<string>(), raw_ascii);
     test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
+
+    // Creating the online HSMM whose emission process doesnt take into account
+    // the total segment duration.
+    //OnlineHSMMRunlengthBased model()
     return 0;
 }
