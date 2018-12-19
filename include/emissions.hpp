@@ -160,21 +160,32 @@ namespace hsmm {
     };
 
 
-    class AbstractEmissionObsCondIIDgivenState {
+    class AbstractEmissionObsCondIIDgivenState : public AbstractEmission {
         public:
             AbstractEmissionObsCondIIDgivenState(int nstates, int dimension) :
-                    nstates_(nstates), dimension_(dimension) {}
-
-            int getNumberStates() const {
-                return nstates_;
-            }
+                    AbstractEmission(nstates, dimension) {}
 
             virtual double loglikelihood(int state,
                     const arma::vec &observation) const = 0;
 
-        protected:
-            int nstates_;
-            int dimension_;
+            // TODO: implement it based on the other loglikelihood function.
+            double loglikelihood(int state,
+                    const arma::field<arma::mat>& obs) const {
+                return 0;
+            }
+
+            // TODO: throw a not implemented exception.
+            void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::field<arma::mat>>& mobs) {}
+
+            // TODO throw a not implemented exception;
+            arma::field<arma::mat> sampleFromState(int state, int size,
+                    std::mt19937 &rng) const {
+                arma::field<arma::mat> ret;
+                return ret;
+            }
+
     };
 
 };

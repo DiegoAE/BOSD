@@ -15,6 +15,8 @@ namespace hsmm {
             MultivariateGaussianEmission(
                     std::vector<robotics::random::NormalDist> states_);
 
+            MultivariateGaussianEmission* clone() const;
+
             double loglikelihood(int state,
                     const arma::vec &single_obs) const;
 

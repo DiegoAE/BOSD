@@ -760,4 +760,21 @@ namespace hsmm {
         return idx;
     }
 
+
+    /*
+     * Online OnlineHSMMRunlengthBased implementation. The emission doesn't
+     * take into account the total segment duration.
+     */
+    OnlineHSMMRunlengthBased::OnlineHSMMRunlengthBased(
+            shared_ptr<AbstractEmissionObsCondIIDgivenState> emission,
+            mat transition, vec pi, mat duration, int min_duration) : HSMM(
+            static_pointer_cast<AbstractEmission>(emission), transition,
+            pi, duration, min_duration),
+            last_log_posterior_(min_duration_ + ndurations_, nstates_) {}
+
+    void OnlineHSMMRunlengthBased::addNewObservation(const mat& obs) {
+        // TODO.
+        return;
+    }
+
 };

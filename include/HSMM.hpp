@@ -144,6 +144,23 @@ namespace hsmm {
             std::deque<arma::vec> alpha_posteriors_;
     };
 
+
+    class OnlineHSMMRunlengthBased : public HSMM {
+        public:
+            OnlineHSMMRunlengthBased(std::shared_ptr<
+                    AbstractEmissionObsCondIIDgivenState> emission,
+                    arma::mat transition, arma::vec pi, arma::mat duration,
+                    int min_duration);
+
+            void addNewObservation(const arma::mat& obs);
+
+        protected:
+
+            // Logposterior over (r (runlength a.k.a. offset), i (hidden state))
+            arma::mat last_log_posterior_;
+            std::vector<arma::mat> observations_;
+    };
+
 };
 
 #endif

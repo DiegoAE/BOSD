@@ -19,7 +19,11 @@ namespace hsmm {
             AbstractEmissionObsCondIIDgivenState(states.size(),
             states.at(0).mean().n_elem) {
         for(auto& dist: states_)
-            assert(dist.mean().n_elem == dimension_);
+            assert(dist.mean().n_elem == getDimension());
+    }
+
+    MultivariateGaussianEmission* MultivariateGaussianEmission::clone() const {
+        return new MultivariateGaussianEmission(*this);
     }
 
     double MultivariateGaussianEmission::loglikelihood(int state,
