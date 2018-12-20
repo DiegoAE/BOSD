@@ -17,6 +17,10 @@ namespace hsmm {
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
 
+            // Inits all the pmfs with the uniform distribution.
+            HSMM(std::shared_ptr<AbstractEmission> emission, int nstates,
+                    int ndurations, int min_duration);
+
             void setDuration(arma::mat duration);
 
             void setEmission(std::shared_ptr<AbstractEmission> emission);
@@ -162,12 +166,20 @@ namespace hsmm {
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
 
+            OnlineHSMMRunlengthBased(std::shared_ptr<
+                    AbstractEmissionObsCondIIDgivenState> emission,
+                    int nstates, int ndurations, int min_duration);
+
             void addNewObservation(const arma::mat& obs);
+
+            arma::vec getRunlengthMarginal() const;
+
+            arma::vec getStateMarginal() const;
 
         protected:
 
             // Logposterior over (r (runlength a.k.a. offset), i (hidden state))
-            arma::mat last_log_posterior_;
+            arma::mat last_posterior_;
             std::vector<arma::mat> observations_;
     };
 

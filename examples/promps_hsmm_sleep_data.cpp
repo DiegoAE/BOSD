@@ -114,6 +114,8 @@ int main(int argc, char *argv[]) {
     const ivec& test_labels = gt_labels.tail(21600);
 
     int nstates = 3;
+    int ndurations = 10;
+    int min_duration = 1;
     int ndimension = features.at(0).n_elem;
     vector<NormalDist> states;
     vector<vec> samples;
@@ -159,7 +161,10 @@ int main(int argc, char *argv[]) {
     test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
 
     // Creating the online HSMM whose emission process doesnt take into account
-    // the total segment duration.
-    //OnlineHSMMRunlengthBased model()
+    // the total segment duration. The pmfs are uniformly initialized.
+    OnlineHSMMRunlengthBased model(emission, nstates, ndurations, min_duration);
+    model.addNewObservation(test_features(0));
+    cout << "runlength:" << model.getRunlengthMarginal() << endl;
+    cout << "state:" << endl << model.getStateMarginal() << endl;
     return 0;
 }

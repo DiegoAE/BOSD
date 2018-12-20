@@ -43,6 +43,13 @@ namespace hsmm {
         setDurationDirichletPrior(default_dirichlet_parameters);
     }
 
+    HSMM::HSMM(shared_ptr<AbstractEmission> emission, int nstates, int ndurations,
+            int min_duration) : HSMM(emission,
+            ones<mat>(nstates, nstates) * (1.0/nstates),
+            ones<vec>(nstates) * (1.0/nstates),
+            ones<mat>(nstates, ndurations) * (1.0/ndurations), min_duration)
+    {}
+
     void HSMM::setDuration(mat duration) {
         assert(duration.n_rows == nstates_);
         assert(duration.n_cols == ndurations_);
@@ -833,11 +840,36 @@ namespace hsmm {
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), transition,
             pi, duration, min_duration),
-            last_log_posterior_(min_duration_ + ndurations_, nstates_) {}
+            last_posterior_(min_duration + duration.n_cols, pi.n_elem) {}
+
+    OnlineHSMMRunlengthBased::OnlineHSMMRunlengthBased(
+            shared_ptr<AbstractEmissionObsCondIIDgivenState> emission,
+            int nstates, int ndurations, int min_duration) : HSMM(
+            static_pointer_cast<AbstractEmission>(emission), nstates,
+            ndurations, min_duration),
+            last_posterior_(min_duration + ndurations, nstates) {}
 
     void OnlineHSMMRunlengthBased::addNewObservation(const mat& obs) {
-        // TODO.
+        if (observations_.empty()) {
+            last_posterior_.zeros();
+            last_posterior_.row(0) = conv_to<rowvec>::from(pi_);
+        }
+        observations_.push_back(obs);
         return;
+    }
+
+    vec OnlineHSMMRunlengthBased::getRunlengthMarginal() const {
+        vec marginal = conv_to<vec>::from(sum(last_posterior_, 1));
+        assert(abs(accu(marginal) - 1.0) < 1e-7);
+        assert(marginal.n_elem == min_duration_ + ndurations_);
+        return marginal;
+    }
+
+    vec OnlineHSMMRunlengthBased::getStateMarginal() const {
+        vec marginal = conv_to<vec>::from(sum(last_posterior_, 0));
+        assert(abs(accu(marginal) - 1.0) < 1e-7);
+        assert(marginal.n_elem == nstates_);
+        return marginal;
     }
 
 };
