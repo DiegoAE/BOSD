@@ -50,3 +50,26 @@ BOOST_AUTO_TEST_CASE( OnlineHSMM_test ) {
     cout << "Hidden duration " << endl << hiddenDurations << endl;
 }
 
+BOOST_AUTO_TEST_CASE( fitting_from_fully_labeled_sequences ) {
+    shared_ptr<AbstractEmissionOnlineSetting> ptr_emission(new DummyGaussianEmission(
+            means, std_devs));
+    OnlineHSMM dhsmm(ptr_emission, transition, pi, duration, min_duration);
+    ivec hiddenStates, hiddenDurations;
+    int nSampledSegments = 10000;
+    field<mat> samples = dhsmm.sampleSegments(nSampledSegments, hiddenStates,
+            hiddenDurations);
+    vector<int> sequence_states;
+    for(int i = 0; i < hiddenStates.n_elem; i++)
+        for(int j = 0; j < hiddenDurations(i); j++)
+            sequence_states.push_back(hiddenStates(i));\
+    ivec hs_seq = conv_to<ivec>::from(sequence_states);
+    field<ivec> seqs = {hs_seq};
+    dhsmm.setPiFromLabels(seqs);
+    dhsmm.setTransitionFromLabels(seqs);
+    dhsmm.setDurationFromLabels(seqs);
+
+    // TODO: compare with the actual parameters.
+    cout << "Pi:" << endl << dhsmm.pi_ << endl;
+    cout << "Transition:" << endl << dhsmm.transition_ << endl;
+    cout << "Duration:" << endl << dhsmm.duration_ << endl;
+}

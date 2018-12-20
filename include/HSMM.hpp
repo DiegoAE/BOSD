@@ -29,6 +29,12 @@ namespace hsmm {
 
             void setDurationDirichletPrior(arma::mat alphas);
 
+            void setPiFromLabels(arma::field<arma::ivec> seqs);
+
+            void setTransitionFromLabels(arma::field<arma::ivec> seqs);
+
+            void setDurationFromLabels(arma::field<arma::ivec> seqs);
+
             arma::field<arma::mat> sampleSegments(int nsegments,
                     arma::ivec& hiddenStates,
                     arma::ivec& hiddenDurations);
@@ -90,6 +96,10 @@ namespace hsmm {
             bool debug_;
 
         protected:
+
+            std::pair<arma::ivec, arma::ivec>
+                    computeViterbiStateDurationSequenceFromLabels(
+                    arma::ivec seq);
 
             // Approximates a discrete (truncate) Gaussian to a given duration.
             arma::mat gaussianMomentMatching(arma::mat duration) const;

@@ -65,6 +65,46 @@ namespace hsmm {
         transition_ = transition;
     }
 
+    void HSMM::setPiFromLabels(field<ivec> seqs) {
+        vec new_pi(nstates_, fill::zeros);
+        for(auto& s: seqs)
+            new_pi(s(0))++;
+        new_pi = new_pi / accu(new_pi);
+        setPi(new_pi);
+    }
+
+    void HSMM::setTransitionFromLabels(field<ivec> seqs) {
+        mat new_transition(nstates_, nstates_, fill::zeros);
+        for(auto& s: seqs) {
+            const ivec& hs = computeViterbiStateDurationSequenceFromLabels(
+                    s).first;
+            for(int i = 0; i < hs.n_elem - 1; i++)
+                new_transition(hs(i), hs(i + 1))++;
+        }
+        for(int i = 0; i < nstates_; i++) {
+            auto row = new_transition.row(i);
+            new_transition.row(i) = row / accu(row);
+        }
+        setTransition(new_transition);
+    }
+
+    void HSMM::setDurationFromLabels(field<ivec> seqs) {
+        mat new_duration(nstates_, ndurations_, fill::zeros);
+        for(auto& s: seqs) {
+            pair<ivec,ivec> p = computeViterbiStateDurationSequenceFromLabels(
+                    s);
+            const ivec& hs = p.first;
+            const ivec& dur = p.second;
+            for(int i = 0; i < dur.n_elem; i++)
+                new_duration(hs(i), dur(i) - min_duration_)++;
+        }
+        for(int i = 0; i < nstates_; i++) {
+            auto row = new_duration.row(i);
+            new_duration.row(i) = row / accu(row);
+        }
+        setDuration(new_duration);
+    }
+
     void HSMM::setDurationDirichletPrior(mat alphas) {
         assert(alphas.n_rows == nstates_);
         assert(alphas.n_cols == ndurations_);
@@ -450,6 +490,29 @@ namespace hsmm {
         setPi(pi);
         setTransition(transition);
         setDuration(duration);
+    }
+
+    pair<ivec,ivec> HSMM::computeViterbiStateDurationSequenceFromLabels(
+            ivec seq) {
+        assert(seq.n_elem > 0);
+        int last_state = seq(0);
+        int current_dur = 1;
+        vector<int> hs, dur;
+        for(int i = 1; i < seq.n_elem; i++) {
+            if (seq(i) == last_state)
+                current_dur++;
+            else {
+                hs.push_back(last_state);
+                dur.push_back(current_dur);
+                last_state = seq(i);
+                current_dur = 1;
+            }
+        }
+        hs.push_back(last_state);
+        dur.push_back(current_dur);
+        ivec hs_v = conv_to<ivec>::from(hs);
+        ivec dur_v = conv_to<ivec>::from(dur);
+        return make_pair(hs_v, dur_v);
     }
 
     mat HSMM::gaussianMomentMatching(mat duration) const {
