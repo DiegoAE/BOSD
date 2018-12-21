@@ -69,8 +69,42 @@ ivec predict_labels(shared_ptr<MultivariateGaussianEmission> e,
     return ret;
 }
 
-int main(int argc, char *argv[]) {
+vector<NormalDist> get_normal_distributions(int nstates, int ndurations,
+        int min_duration, int ndimension) {
     mt19937 gen(0);
+    vector<NormalDist> states;
+    vector<vec> samples;
+    vector<int> labels;
+    for(int i = 0; i < nstates; i++) {
+        vec mean = ones<vec>(ndimension) * i * 10;
+        mat cov = eye(ndimension, ndimension);
+        NormalDist a(mean, cov);
+        states.push_back(a);
+
+        // Generating toy data.
+        int nsamples = 100;
+        vector<vec> s = sample_multivariate_normal(gen, a, nsamples);
+        vector<int> l = conv_to<vector<int>>::from(ones<ivec>(nsamples) * i);
+        samples.insert(samples.end(), s.begin(), s.end());
+        labels.insert(labels.end(), l.begin(), l.end());
+    }
+
+    // Toy data handling.
+    ivec labels_vec = conv_to<ivec>::from(labels);
+    field<vec> obs_field(samples.size());
+    for(int i = 0; i < samples.size(); i++)
+        obs_field(i) = samples.at(i);
+
+    // Debug
+    shared_ptr<MultivariateGaussianEmission> emission(
+            new MultivariateGaussianEmission(states));
+    OnlineHSMMRunlengthBased model(emission, nstates, ndurations, min_duration);
+    for(int i = 0; i < samples.size(); i++)
+        model.addNewObservation(samples.at(i));
+    return states;
+}
+
+int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
         ("help,h", "Produce help message")
@@ -80,7 +114,9 @@ int main(int argc, char *argv[]) {
         ("labels,l", po::value<string>(), "Path to input labels")
         ("prediction,p", po::value<string>(), "Path to predicted labels")
         ("groundtruth,g", po::value<string>(), "Path to where the true labels"
-                " are stored");
+                " are stored")
+        ("mr", po::value<string>(), "Runlength marginals output filename")
+        ("ms", po::value<string>(), "States marginals output filename");
     vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels",
             "prediction", "groundtruth"};
     po::variables_map vm;
@@ -96,6 +132,14 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
+    int nstates = 3;
+    int ndurations = 10;
+    int min_duration = 1;
+    int ndimension = 7;
+
+    // Creating normal distributions for the emission process.
+    vector<NormalDist> states = get_normal_distributions(nstates, ndurations,
+            min_duration, ndimension);
 
     // Reading inputs and labels.
     mat eeg1, eeg2, emg;
@@ -113,35 +157,11 @@ int main(int argc, char *argv[]) {
             features.n_elem - 1);
     const ivec& test_labels = gt_labels.tail(21600);
 
-    int nstates = 3;
-    int ndurations = 10;
-    int min_duration = 1;
-    int ndimension = features.at(0).n_elem;
-    vector<NormalDist> states;
-    vector<vec> samples;
-    vector<int> labels;
-    for(int i = 0; i < nstates; i++) {
-        vec mean = ones<vec>(ndimension) * i * 10;
-        mat cov = eye(ndimension, ndimension);
-        NormalDist a(mean, cov);
-        states.push_back(a);
+    assert(features.at(0).n_elem == ndimension);
 
-        // Generating toy data.
-        int nsamples = 100;
-        vector<vec> s = sample_multivariate_normal(gen, a, nsamples);
-        vector<int> l = conv_to<vector<int>>::from(ones<ivec>(nsamples) * i);
-        samples.insert(samples.end(), s.begin(), s.end());
-        labels.insert(labels.end(), l.begin(), l.end());
-    }
     // Creating the emission process.
     shared_ptr<MultivariateGaussianEmission> emission(
             new MultivariateGaussianEmission(states));
-
-    // Toy data handling.
-    ivec labels_vec = conv_to<ivec>::from(labels);
-    field<vec> obs_field(samples.size());
-    for(int i = 0; i < samples.size(); i++)
-        obs_field(i) = samples.at(i);
 
     // Training the emission based on the labels.
     emission->fitFromLabels(train_features, train_labels);
@@ -154,7 +174,6 @@ int main(int argc, char *argv[]) {
 
     // Setting uniform prior.
     // labels_prior = ones<vec>(nstates) / nstates;
-    cout << labels_prior << endl;
 
     ivec prediction = predict_labels(emission, test_features, labels_prior);
     prediction.save(vm["prediction"].as<string>(), raw_ascii);
@@ -163,8 +182,16 @@ int main(int argc, char *argv[]) {
     // Creating the online HSMM whose emission process doesnt take into account
     // the total segment duration. The pmfs are uniformly initialized.
     OnlineHSMMRunlengthBased model(emission, nstates, ndurations, min_duration);
-    model.addNewObservation(test_features(0));
-    cout << "runlength:" << model.getRunlengthMarginal() << endl;
-    cout << "state:" << endl << model.getStateMarginal() << endl;
+    mat runlength_marginals(min_duration + ndurations, test_features.n_elem);
+    mat state_marginals(nstates, test_features.n_elem);
+    for(int i = 0; i < test_features.n_elem; i++) {
+        model.addNewObservation(test_features.at(i));
+        runlength_marginals.col(i) = model.getRunlengthMarginal();
+        state_marginals.col(i) = model.getStateMarginal();
+    }
+    if (vm.count("mr"))
+        runlength_marginals.save(vm["mr"].as<string>(), raw_ascii);
+    if (vm.count("ms"))
+        state_marginals.save(vm["ms"].as<string>(), raw_ascii);
     return 0;
 }

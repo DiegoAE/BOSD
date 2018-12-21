@@ -849,12 +849,47 @@ namespace hsmm {
             ndurations, min_duration),
             last_posterior_(min_duration + ndurations, nstates) {}
 
+    shared_ptr<AbstractEmissionObsCondIIDgivenState>
+            OnlineHSMMRunlengthBased::getOnlineDurationAgnosticEmission(
+            ) const {
+        return static_pointer_cast<AbstractEmissionObsCondIIDgivenState>(
+                emission_);
+    }
+
     void OnlineHSMMRunlengthBased::addNewObservation(const mat& obs) {
         if (observations_.empty()) {
             last_posterior_.zeros();
             last_posterior_.row(0) = conv_to<rowvec>::from(pi_);
         }
         observations_.push_back(obs);
+        int max_duration = min_duration_ + ndurations_ - 1;
+        mat new_posterior(size(last_posterior_), fill::zeros);
+        mat hazard = getHazardFunction_();
+        for(int r = 0; r < max_duration; r++) {
+
+            // Segment transition.
+            for(int i = 0; i < nstates_; i++) {
+                if (!is_finite(hazard(i, r)))
+                    continue;
+                for(int j = 0; j < nstates_; j++)
+                    new_posterior(0, j) += hazard(i, r) * transition_(i, j) *
+                        loglikelihood_(j, obs) * last_posterior_(r, i);
+            }
+
+            // Segment continuation.
+            if (r + 1 < max_duration) {
+                for(int i = 0; i < nstates_; i++)
+                    if (is_finite(hazard(i, r)))
+                        new_posterior(r + 1, i) = last_posterior_(r, i) *
+                                (1 - hazard(i, r)) * loglikelihood_(i, obs);
+            }
+        }
+
+        // Normalizing the current posterior.
+        new_posterior = new_posterior / accu(new_posterior);
+        assert(abs(accu(new_posterior) - 1.0) < 1e-7);
+
+        last_posterior_ = new_posterior;
         return;
     }
 
@@ -870,6 +905,26 @@ namespace hsmm {
         assert(abs(accu(marginal) - 1.0) < 1e-7);
         assert(marginal.n_elem == nstates_);
         return marginal;
+    }
+
+    double OnlineHSMMRunlengthBased::loglikelihood_(int state,
+            const mat& obs) const {
+
+        // TODO: assuming for now that the input can be converted into a vec.
+        vec obs_v = conv_to<vec>::from(obs);
+        getOnlineDurationAgnosticEmission()->loglikelihood(state, obs_v);
+    }
+
+    mat OnlineHSMMRunlengthBased::getHazardFunction_() const {
+        mat suffix_sum(duration_);
+        for(int i = suffix_sum.n_cols - 2; i >= 0; i--)
+            suffix_sum.col(i) += suffix_sum.col(i + 1);
+        mat hazard = duration_ / suffix_sum;
+        if (min_duration_ > 1)
+            hazard = join_horiz(zeros<mat>(nstates_,min_duration_ -1), hazard);
+        assert(hazard.n_rows == nstates_ && hazard.n_cols == min_duration_
+                + ndurations_ - 1);
+        return hazard;
     }
 
 };
