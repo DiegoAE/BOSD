@@ -96,6 +96,9 @@ if (ROB_LIB)
         ${Boost_LIBRARIES})
     add_test(NAME ProMPs_test COMMAND ProMPs_test WORKING_DIRECTORY
         ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME OnlineHSMMRunlengthBased_MVN_test
+        COMMAND OnlineHSMMRunlengthBased_MVN_test WORKING_DIRECTORY
+        ${CMAKE_CURRENT_SOURCE_DIR})
 else()
     message(WARNING "librobotics was not found. Therefore ProMPs are not supported.")
 endif()

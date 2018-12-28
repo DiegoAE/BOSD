@@ -39,4 +39,14 @@ if (ROB_LIB)
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}
         )
+    add_executable(OnlineHSMMRunlengthBased_MVN_test
+        OnlineHSMMRunlengthBased_MVN_test.cpp
+      )
+    target_link_libraries(OnlineHSMMRunlengthBased_MVN_test
+        ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+        ${PROJECT_NAME}
+        Gaussian_emission_promp
+        ${ROB_LIB}
+        ${ARMADILLO_LIBRARIES}
+        )
 endif()
