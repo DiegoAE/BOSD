@@ -55,7 +55,7 @@ field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
     return features;
 }
 
-ivec predict_labels(shared_ptr<MultivariateGaussianEmission> e,
+ivec predict_labels_iid(shared_ptr<MultivariateGaussianEmission> e,
         const field<vec>& test_input, const vec& class_prior) {
     assert(class_prior.n_elem == e->getNumberStates());
     ivec ret(test_input.n_elem);
@@ -108,6 +108,10 @@ int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options()
         ("help,h", "Produce help message")
+        ("output,o", po::value<string>(), "Path to the json output params")
+        ("nstates", po::value<int>(), "Number of hidden states for the HSMM")
+        ("mindur", po::value<int>(), "Minimum duration of a segment")
+        ("ndur", po::value<int>(), "Number of different durations supported")
         ("eeg1", po::value<string>(), "Path to input obs")
         ("eeg2", po::value<string>(), "Path to input obs")
         ("emg", po::value<string>(), "Path to input obs")
@@ -118,7 +122,7 @@ int main(int argc, char *argv[]) {
         ("mr", po::value<string>(), "Runlength marginals output filename")
         ("ms", po::value<string>(), "States marginals output filename");
     vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels",
-            "prediction", "groundtruth"};
+            "prediction", "groundtruth", "nstates", "mindur", "ndur"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -132,9 +136,9 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-    int nstates = 3;
-    int ndurations = 10;
-    int min_duration = 1;
+    int nstates = vm["nstates"].as<int>();
+    int ndurations = vm["ndur"].as<int>();
+    int min_duration = vm["mindur"].as<int>();
     int ndimension = 7;
 
     // Creating normal distributions for the emission process.
@@ -175,13 +179,26 @@ int main(int argc, char *argv[]) {
     // Setting uniform prior.
     // labels_prior = ones<vec>(nstates) / nstates;
 
-    ivec prediction = predict_labels(emission, test_features, labels_prior);
+    ivec prediction = predict_labels_iid(emission, test_features, labels_prior);
     prediction.save(vm["prediction"].as<string>(), raw_ascii);
     test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
 
     // Creating the online HSMM whose emission process doesnt take into account
     // the total segment duration. The pmfs are uniformly initialized.
     OnlineHSMMRunlengthBased model(emission, nstates, ndurations, min_duration);
+
+    // Learning the HSMM parameters from the labels.
+    field<ivec> training_labels_seqs = {train_labels};
+    model.setTransitionFromLabels(training_labels_seqs);
+    model.setDurationFromLabels(training_labels_seqs);
+
+    if (vm.count("output")) {
+        ofstream output_params(vm["output"].as<string>());
+        nlohmann::json current_params = model.to_stream();
+        output_params << std::setw(4) << current_params << endl;
+        output_params.close();
+    }
+
     mat runlength_marginals(min_duration + ndurations, test_features.n_elem);
     mat state_marginals(nstates, test_features.n_elem);
     for(int i = 0; i < test_features.n_elem; i++) {
