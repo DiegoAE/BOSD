@@ -23,6 +23,14 @@ namespace hsmm {
             void fitFromLabels(const arma::field<arma::vec> &observations,
                     const arma::ivec &labels);
 
+            // TODO: throw a not implemented exception.
+            void reestimate(int min_duration,
+                    const arma::field<arma::cube>& meta,
+                    const arma::field<arma::field<arma::mat>>& mobs) {}
+
+            arma::field<arma::mat> sampleFromState(int state, int size,
+                    std::mt19937 &rng) const;
+
         private:
             std::vector<robotics::random::NormalDist> states_;
     };

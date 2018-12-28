@@ -173,19 +173,6 @@ namespace hsmm {
                     const arma::field<arma::mat>& obs) const {
                 return 0;
             }
-
-            // TODO: throw a not implemented exception.
-            void reestimate(int min_duration,
-                    const arma::field<arma::cube>& meta,
-                    const arma::field<arma::field<arma::mat>>& mobs) {}
-
-            // TODO throw a not implemented exception;
-            arma::field<arma::mat> sampleFromState(int state, int size,
-                    std::mt19937 &rng) const {
-                arma::field<arma::mat> ret;
-                return ret;
-            }
-
     };
 
 };

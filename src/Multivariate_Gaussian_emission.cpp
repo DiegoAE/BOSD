@@ -42,5 +42,15 @@ namespace hsmm {
             states_.at(i) = random::mle_multivariate_normal(
                     obs_for_each_state[i]);
     }
+
+    field<mat> MultivariateGaussianEmission::sampleFromState(int state,
+            int size, mt19937 &rng) const {
+        vector<vec> s = sample_multivariate_normal(rng, states_.at(state),
+                size);
+        field<mat> ret(size);
+        for(int i = 0; i < size; i++)
+            ret(i) = s.at(i);
+        return ret;
+    }
 };
 

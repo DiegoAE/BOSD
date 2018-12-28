@@ -840,14 +840,23 @@ namespace hsmm {
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), transition,
             pi, duration, min_duration),
-            last_posterior_(min_duration + duration.n_cols, pi.n_elem) {}
+            last_posterior_(min_duration + duration.n_cols, pi.n_elem) {
+        init();
+    }
 
     OnlineHSMMRunlengthBased::OnlineHSMMRunlengthBased(
             shared_ptr<AbstractEmissionObsCondIIDgivenState> emission,
             int nstates, int ndurations, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), nstates,
             ndurations, min_duration),
-            last_posterior_(min_duration + ndurations, nstates) {}
+            last_posterior_(min_duration + ndurations, nstates) {
+        init();
+    }
+
+    void OnlineHSMMRunlengthBased::init() {
+        last_posterior_.zeros();
+        observations_.clear();
+    }
 
     shared_ptr<AbstractEmissionObsCondIIDgivenState>
             OnlineHSMMRunlengthBased::getOnlineDurationAgnosticEmission(
@@ -857,38 +866,44 @@ namespace hsmm {
     }
 
     void OnlineHSMMRunlengthBased::addNewObservation(const mat& obs) {
-        if (observations_.empty()) {
-            last_posterior_.zeros();
-            last_posterior_.row(0) = conv_to<rowvec>::from(pi_);
-        }
         observations_.push_back(obs);
-        int max_duration = min_duration_ + ndurations_ - 1;
         mat new_posterior(size(last_posterior_), fill::zeros);
+        int max_duration = min_duration_ + ndurations_ - 1;
         mat hazard = getHazardFunction_();
-        for(int r = 0; r < max_duration; r++) {
+        if (observations_.size() == 1) {
 
-            // Segment transition.
-            for(int i = 0; i < nstates_; i++) {
-                if (!is_finite(hazard(i, r)))
-                    continue;
-                for(int j = 0; j < nstates_; j++)
-                    new_posterior(0, j) += hazard(i, r) * transition_(i, j) *
-                        loglikelihood_(j, obs) * last_posterior_(r, i);
-            }
+            // Base case.
+            for(int i = 0; i < nstates_; i++)
+                new_posterior(0, i) = pi_(i) * exp(loglikelihood_(i, obs));
+        }
+        else {
+            for(int r = 0; r < max_duration; r++) {
 
-            // Segment continuation.
-            if (r + 1 < max_duration) {
-                for(int i = 0; i < nstates_; i++)
-                    if (is_finite(hazard(i, r)))
-                        new_posterior(r + 1, i) = last_posterior_(r, i) *
-                                (1 - hazard(i, r)) * loglikelihood_(i, obs);
+                // Segment transition.
+                for(int i = 0; i < nstates_; i++) {
+                    if (!is_finite(hazard(i, r)))
+                        continue;
+                    for(int j = 0; j < nstates_; j++) {
+                        new_posterior(0, j) += hazard(i, r)*transition_(i, j) *
+                            exp(loglikelihood_(j, obs)) * last_posterior_(r, i);
+                    }
+                }
+
+                // Segment continuation.
+                if (r + 1 < max_duration) {
+                    for(int i = 0; i < nstates_; i++)
+                        if (is_finite(hazard(i, r))) {
+                            new_posterior(r + 1, i) = last_posterior_(r, i) *
+                                    (1 - hazard(i, r)) *
+                                    exp(loglikelihood_(i, obs));
+                        }
+                }
             }
         }
 
         // Normalizing the current posterior.
         new_posterior = new_posterior / accu(new_posterior);
         assert(abs(accu(new_posterior) - 1.0) < 1e-7);
-
         last_posterior_ = new_posterior;
         return;
     }

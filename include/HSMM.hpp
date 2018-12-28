@@ -170,6 +170,8 @@ namespace hsmm {
                     AbstractEmissionObsCondIIDgivenState> emission,
                     int nstates, int ndurations, int min_duration);
 
+            void init();
+
             std::shared_ptr<AbstractEmissionObsCondIIDgivenState>
                     getOnlineDurationAgnosticEmission() const;
 
