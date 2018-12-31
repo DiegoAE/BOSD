@@ -123,6 +123,7 @@ int main(int argc, char *argv[]) {
         ("eeg2", po::value<string>(), "Path to input obs")
         ("emg", po::value<string>(), "Path to input obs")
         ("labels,l", po::value<string>(), "Path to input labels")
+        ("nodur", "Flag to deactivate the learning of durations")
         ("alphadurprior", po::value<int>(),
                 "Alpha for Dirichlet prior for the duration")
         ("iidprediction", po::value<string>(), "Path to predicted labels based"
@@ -215,7 +216,8 @@ int main(int argc, char *argv[]) {
     // Learning the HSMM parameters from the labels.
     field<ivec> training_labels_seqs = {train_labels};
     model.setTransitionFromLabels(training_labels_seqs);
-    model.setDurationFromLabels(training_labels_seqs);
+    if (!vm.count("nodur"))
+        model.setDurationFromLabels(training_labels_seqs);
 
     if (vm.count("output")) {
         ofstream output_params(vm["output"].as<string>());
