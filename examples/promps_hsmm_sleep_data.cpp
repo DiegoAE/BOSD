@@ -69,6 +69,13 @@ ivec predict_labels_iid(shared_ptr<MultivariateGaussianEmission> e,
     return ret;
 }
 
+ivec predict_labels_from_filtering(const mat& filtering_state_marginals) {
+    ivec ret(filtering_state_marginals.n_cols);
+    for(int i = 0; i < ret.n_elem; i++)
+        ret(i) = (int) filtering_state_marginals.col(i).index_max();
+    return ret;
+}
+
 vector<NormalDist> get_normal_distributions(int nstates, int ndurations,
         int min_duration, int ndimension) {
     mt19937 gen(0);
@@ -116,13 +123,16 @@ int main(int argc, char *argv[]) {
         ("eeg2", po::value<string>(), "Path to input obs")
         ("emg", po::value<string>(), "Path to input obs")
         ("labels,l", po::value<string>(), "Path to input labels")
-        ("prediction,p", po::value<string>(), "Path to predicted labels")
+        ("iidprediction", po::value<string>(), "Path to predicted labels based"
+                " on the iid assumption across epochs")
+        ("filteringprediction", po::value<string>(), "Path to predicted labels"
+                " based on the filtering distribution over states")
         ("groundtruth,g", po::value<string>(), "Path to where the true labels"
                 " are stored")
         ("mr", po::value<string>(), "Runlength marginals output filename")
         ("ms", po::value<string>(), "States marginals output filename");
     vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels",
-            "prediction", "groundtruth", "nstates", "mindur", "ndur"};
+            "nstates", "mindur", "ndur"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -179,9 +189,15 @@ int main(int argc, char *argv[]) {
     // Setting uniform prior.
     // labels_prior = ones<vec>(nstates) / nstates;
 
-    ivec prediction = predict_labels_iid(emission, test_features, labels_prior);
-    prediction.save(vm["prediction"].as<string>(), raw_ascii);
-    test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
+    // IID prediction.
+    if (vm.count("iidprediction")) {
+        ivec prediction = predict_labels_iid(emission, test_features,
+                labels_prior);
+        prediction.save(vm["iidprediction"].as<string>(), raw_ascii);
+    }
+
+    if (vm.count("groundtruth"))
+        test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
 
     // Creating the online HSMM whose emission process doesnt take into account
     // the total segment duration. The pmfs are uniformly initialized.
@@ -210,5 +226,11 @@ int main(int argc, char *argv[]) {
         runlength_marginals.save(vm["mr"].as<string>(), raw_ascii);
     if (vm.count("ms"))
         state_marginals.save(vm["ms"].as<string>(), raw_ascii);
+    if (vm.count("filteringprediction")) {
+        ivec filtering_prediction = predict_labels_from_filtering(
+                state_marginals);
+        filtering_prediction.save(vm["filteringprediction"].as<string>(),
+                raw_ascii);
+    }
     return 0;
 }
