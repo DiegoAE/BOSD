@@ -105,10 +105,17 @@ namespace hsmm {
             for(int i = 0; i < dur.n_elem; i++)
                 new_duration(hs(i), dur(i) - min_duration_)++;
         }
+
+        // Taking into account the Dirichlet prior.
+        for(int i = 0; i < nstates_; i++)
+            for(int j = 0; j < ndurations_; j++)
+                new_duration(i, j) += dirichlet_alphas_(i, j) - 1;
+
         for(int i = 0; i < nstates_; i++) {
             auto row = new_duration.row(i);
             new_duration.row(i) = row / accu(row);
         }
+
         setDuration(new_duration);
     }
 

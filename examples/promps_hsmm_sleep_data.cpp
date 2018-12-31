@@ -123,6 +123,8 @@ int main(int argc, char *argv[]) {
         ("eeg2", po::value<string>(), "Path to input obs")
         ("emg", po::value<string>(), "Path to input obs")
         ("labels,l", po::value<string>(), "Path to input labels")
+        ("alphadurprior", po::value<int>(),
+                "Alpha for Dirichlet prior for the duration")
         ("iidprediction", po::value<string>(), "Path to predicted labels based"
                 " on the iid assumption across epochs")
         ("filteringprediction", po::value<string>(), "Path to predicted labels"
@@ -202,6 +204,13 @@ int main(int argc, char *argv[]) {
     // Creating the online HSMM whose emission process doesnt take into account
     // the total segment duration. The pmfs are uniformly initialized.
     OnlineHSMMRunlengthBased model(emission, nstates, ndurations, min_duration);
+
+    // Setting a Dirichlet prior over the durations.
+    if (vm.count("alphadurprior")) {
+        mat alphas = ones<mat>(nstates, ndurations) *
+            vm["alphadurprior"].as<int>();
+        model.setDurationDirichletPrior(alphas);
+    }
 
     // Learning the HSMM parameters from the labels.
     field<ivec> training_labels_seqs = {train_labels};
