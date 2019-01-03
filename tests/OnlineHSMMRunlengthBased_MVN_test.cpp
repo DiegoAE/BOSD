@@ -58,7 +58,8 @@ BOOST_AUTO_TEST_CASE(OnlineHSMMRunlengthBased_Multivariate_Gaussian_Emission) {
     ivec hs, hd;
     field<mat> test_features = model.sampleSegments(50, hs, hd);
     imat vit_mat = join_horiz(hs, hd);
-    mat runlength_marginals(min_duration + ndurations, test_features.n_elem);
+    mat runlength_marginals(min_duration + ndurations - 1,
+            test_features.n_elem);
     mat state_marginals(nstates, test_features.n_elem);
     ivec filtering_labels(test_features.n_elem);
     for(int i = 0; i < test_features.n_elem; i++) {

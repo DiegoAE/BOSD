@@ -133,7 +133,10 @@ int main(int argc, char *argv[]) {
         ("groundtruth,g", po::value<string>(), "Path to where the true labels"
                 " are stored")
         ("mr", po::value<string>(), "Runlength marginals output filename")
-        ("ms", po::value<string>(), "States marginals output filename");
+        ("ms", po::value<string>(), "States marginals output filename")
+        ("md", po::value<string>(), "Duration marginals output filename")
+        ("ml", po::value<string>(), "Remaining runlength marginals output"
+                " filename");
     vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels",
             "nstates", "mindur", "ndur"};
     po::variables_map vm;
@@ -226,12 +229,27 @@ int main(int argc, char *argv[]) {
         output_params.close();
     }
 
-    mat runlength_marginals(min_duration + ndurations, test_features.n_elem);
-    mat state_marginals(nstates, test_features.n_elem);
+    mat runlength_marginals;
+    mat state_marginals;
+    mat remaining_runlength_marginals;
+    mat duration_marginals;
+
+    if (vm.count("mr"))
+        runlength_marginals = zeros<mat>(min_duration + ndurations - 1,
+                test_features.n_elem);
+    if (vm.count("ms"))
+        state_marginals = zeros<mat>(nstates, test_features.n_elem);
+    if (vm.count("md"))
+        duration_marginals = zeros<mat>(ndurations, test_features.n_elem);
+    if (vm.count("ml"))
+        remaining_runlength_marginals = zeros<mat>(
+                min_duration + ndurations - 1, test_features.n_elem);
     for(int i = 0; i < test_features.n_elem; i++) {
         model.addNewObservation(test_features.at(i));
-        runlength_marginals.col(i) = model.getRunlengthMarginal();
-        state_marginals.col(i) = model.getStateMarginal();
+        if (vm.count("mr"))
+            runlength_marginals.col(i) = model.getRunlengthMarginal();
+        if (vm.count("ms"))
+            state_marginals.col(i) = model.getStateMarginal();
     }
     if (vm.count("mr"))
         runlength_marginals.save(vm["mr"].as<string>(), raw_ascii);

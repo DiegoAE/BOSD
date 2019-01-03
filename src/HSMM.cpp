@@ -782,6 +782,7 @@ namespace hsmm {
         return ret;
     }
 
+    // TODO: the output len shoud be actually min_duration_ + ndurations_ - 1.
     vec OnlineHSMM::getRunlengthMarginal() const {
         cube current_posterior = exp(last_log_posterior_);
         mat tmp = sum(current_posterior, 0);
@@ -847,7 +848,7 @@ namespace hsmm {
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), transition,
             pi, duration, min_duration),
-            last_posterior_(min_duration + duration.n_cols, pi.n_elem) {
+            last_posterior_(min_duration + duration.n_cols - 1, pi.n_elem) {
         init();
     }
 
@@ -856,7 +857,7 @@ namespace hsmm {
             int nstates, int ndurations, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), nstates,
             ndurations, min_duration),
-            last_posterior_(min_duration + ndurations, nstates) {
+            last_posterior_(min_duration + ndurations - 1, nstates) {
         init();
     }
 
@@ -918,7 +919,7 @@ namespace hsmm {
     vec OnlineHSMMRunlengthBased::getRunlengthMarginal() const {
         vec marginal = conv_to<vec>::from(sum(last_posterior_, 1));
         assert(abs(accu(marginal) - 1.0) < 1e-7);
-        assert(marginal.n_elem == min_duration_ + ndurations_);
+        assert(marginal.n_elem == min_duration_ + ndurations_ - 1);
         return marginal;
     }
 
@@ -937,10 +938,15 @@ namespace hsmm {
         getOnlineDurationAgnosticEmission()->loglikelihood(state, obs_v);
     }
 
-    mat OnlineHSMMRunlengthBased::getHazardFunction_() const {
+    mat OnlineHSMMRunlengthBased::getDurationSuffixSum_() const {
         mat suffix_sum(duration_);
         for(int i = suffix_sum.n_cols - 2; i >= 0; i--)
             suffix_sum.col(i) += suffix_sum.col(i + 1);
+        return suffix_sum;
+    }
+
+    mat OnlineHSMMRunlengthBased::getHazardFunction_() const {
+        mat suffix_sum = getDurationSuffixSum_();
         mat hazard = duration_ / suffix_sum;
         if (min_duration_ > 1)
             hazard = join_horiz(zeros<mat>(nstates_,min_duration_ -1), hazard);

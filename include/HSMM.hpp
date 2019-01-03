@@ -185,6 +185,8 @@ namespace hsmm {
 
             double loglikelihood_(int state, const arma::mat& obs) const;
 
+            arma::mat getDurationSuffixSum_() const;
+
             // Hazard(r): probability that the segment ends "now" given that
             // the current runlength is r.
             arma::mat getHazardFunction_() const;
