@@ -181,6 +181,11 @@ namespace hsmm {
 
             arma::vec getStateMarginal() const;
 
+            arma::vec getResidualTimeMarginal() const;
+
+            // Based on last_residualtime_posterior_
+            arma::vec getStateMarginal2() const;
+
         protected:
 
             double loglikelihood_(int state, const arma::mat& obs) const;
@@ -191,8 +196,12 @@ namespace hsmm {
             // the current runlength is r.
             arma::mat getHazardFunction_() const;
 
-            // Logposterior over (r (runlength a.k.a. offset), i (hidden state))
+            // Posterior over (r (runlength a.k.a. offset), i (hidden state))
             arma::mat last_posterior_;
+
+            // Posterior over (l (residual time), i, (hidden state))
+            arma::mat last_residualtime_posterior_;
+
             std::vector<arma::mat> observations_;
     };
 

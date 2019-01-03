@@ -848,7 +848,9 @@ namespace hsmm {
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), transition,
             pi, duration, min_duration),
-            last_posterior_(min_duration + duration.n_cols - 1, pi.n_elem) {
+            last_posterior_(min_duration + duration.n_cols - 1, pi.n_elem),
+            last_residualtime_posterior_(min_duration + duration.n_cols - 1,
+                    pi.n_elem) {
         init();
     }
 
@@ -857,12 +859,15 @@ namespace hsmm {
             int nstates, int ndurations, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), nstates,
             ndurations, min_duration),
-            last_posterior_(min_duration + ndurations - 1, nstates) {
+            last_posterior_(min_duration + ndurations - 1, nstates),
+            last_residualtime_posterior_(min_duration + ndurations - 1,
+                    nstates) {
         init();
     }
 
     void OnlineHSMMRunlengthBased::init() {
         last_posterior_.zeros();
+        last_residualtime_posterior_.zeros();
         observations_.clear();
     }
 
@@ -876,6 +881,8 @@ namespace hsmm {
     void OnlineHSMMRunlengthBased::addNewObservation(const mat& obs) {
         observations_.push_back(obs);
         mat new_posterior(size(last_posterior_), fill::zeros);
+        mat new_residualtime_posterior(size(last_residualtime_posterior_),
+                fill::zeros);
         int max_duration = min_duration_ + ndurations_ - 1;
         mat hazard = getHazardFunction_();
         if (observations_.size() == 1) {
@@ -883,8 +890,18 @@ namespace hsmm {
             // Base case.
             for(int i = 0; i < nstates_; i++)
                 new_posterior(0, i) = pi_(i) * exp(loglikelihood_(i, obs));
+
+            // Residential time base case.
+            for(int i = 0; i < nstates_; i++) {
+                double tmp = pi_(i) * exp(loglikelihood_(i, obs));
+                for(int d = 0; d < ndurations_; d++)
+                    new_residualtime_posterior(min_duration_ + d - 1, i) =
+                            tmp * duration_(i, d);
+            }
         }
         else {
+
+            // Runlength posterior updates.
             for(int r = 0; r < max_duration; r++) {
 
                 // Segment transition.
@@ -907,12 +924,37 @@ namespace hsmm {
                         }
                 }
             }
+
+            // Residualtime posterior updates.
+            // Segment continuation.
+            for(int r = 1; r < max_duration; r++)
+                for(int i = 0; i < nstates_; i++)
+                    new_residualtime_posterior(r - 1, i) = exp(loglikelihood_(
+                            i, obs)) * last_residualtime_posterior_(r, i);
+
+            // Segment transition
+            vec prob_of_transition_to(nstates_, fill::zeros);
+            for(int i = 0; i < nstates_; i++)
+                for(int j = 0; j < nstates_; j++)
+                    prob_of_transition_to(i) += transition_(j, i) *
+                            last_residualtime_posterior_(0, j);
+
+            for(int i = 0; i < nstates_; i++)
+                for(int d = 0; d < ndurations_; d++)
+                    new_residualtime_posterior(min_duration_ + d - 1, i) +=
+                            prob_of_transition_to(i) *
+                            exp(loglikelihood_(i, obs)) * duration_(i, d);
         }
 
-        // Normalizing the current posterior.
+        // Normalizing the current posteriors.
         new_posterior = new_posterior / accu(new_posterior);
+        new_residualtime_posterior = new_residualtime_posterior /
+                accu(new_residualtime_posterior);
+
         assert(abs(accu(new_posterior) - 1.0) < 1e-7);
+        assert(abs(accu(new_residualtime_posterior) - 1.0) < 1e-7);
         last_posterior_ = new_posterior;
+        last_residualtime_posterior_ = new_residualtime_posterior;
         return;
     }
 
@@ -925,6 +967,22 @@ namespace hsmm {
 
     vec OnlineHSMMRunlengthBased::getStateMarginal() const {
         vec marginal = conv_to<vec>::from(sum(last_posterior_, 0));
+        assert(abs(accu(marginal) - 1.0) < 1e-7);
+        assert(marginal.n_elem == nstates_);
+        return marginal;
+    }
+
+    vec OnlineHSMMRunlengthBased::getResidualTimeMarginal() const {
+        vec marginal = conv_to<vec>::from(sum(last_residualtime_posterior_,
+                    1));
+        assert(abs(accu(marginal) - 1.0) < 1e-7);
+        assert(marginal.n_elem == min_duration_ + ndurations_ - 1);
+        return marginal;
+    }
+
+    vec OnlineHSMMRunlengthBased::getStateMarginal2() const {
+        vec marginal = conv_to<vec>::from(sum(last_residualtime_posterior_,
+                    0));
         assert(abs(accu(marginal) - 1.0) < 1e-7);
         assert(marginal.n_elem == nstates_);
         return marginal;

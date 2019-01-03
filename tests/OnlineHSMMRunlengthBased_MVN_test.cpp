@@ -61,13 +61,31 @@ BOOST_AUTO_TEST_CASE(OnlineHSMMRunlengthBased_Multivariate_Gaussian_Emission) {
     mat runlength_marginals(min_duration + ndurations - 1,
             test_features.n_elem);
     mat state_marginals(nstates, test_features.n_elem);
+    mat state_marginals_2(nstates, test_features.n_elem);
+    mat residualtime_marginals(min_duration + ndurations - 1,
+            test_features.n_elem);
     ivec filtering_labels(test_features.n_elem);
+    ivec residual_time_filtering_labels(test_features.n_elem);
     for(int i = 0; i < test_features.n_elem; i++) {
         model.addNewObservation(test_features.at(i));
         runlength_marginals.col(i) = model.getRunlengthMarginal();
         state_marginals.col(i) = model.getStateMarginal();
+        state_marginals_2.col(i) = model.getStateMarginal2();
+        residualtime_marginals.col(i) = model.getResidualTimeMarginal();
         filtering_labels(i) = (int) state_marginals.col(i).index_max();
+        residual_time_filtering_labels(i) = (int) state_marginals_2.col(
+                i).index_max();
     }
     ivec gt_labels = expand_vit_mat(vit_mat);
     BOOST_CHECK(all(gt_labels == filtering_labels));
+    BOOST_CHECK(all(gt_labels == residual_time_filtering_labels));
+    BOOST_CHECK(approx_equal(state_marginals, state_marginals_2,
+                "absdiff", 1e-10));
+
+    // Saving posteriors for debugging purposes.
+    //runlength_marginals.save("rl.txt", raw_ascii);
+    //residualtime_marginals.save("rt.txt", raw_ascii);
+    //vit_mat.save("gt.txt", raw_ascii);
+    //state_marginals.save("sm.txt", raw_ascii);
+    //state_marginals_2.save("sm2.txt", raw_ascii);
 }

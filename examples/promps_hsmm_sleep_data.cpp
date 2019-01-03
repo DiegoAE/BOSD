@@ -134,6 +134,9 @@ int main(int argc, char *argv[]) {
                 " are stored")
         ("mr", po::value<string>(), "Runlength marginals output filename")
         ("ms", po::value<string>(), "States marginals output filename")
+        ("ms2", po::value<string>(), "States marginals output filename. This "
+                "one is based on the residual time posterior instead of the "
+                "runlength posterior")
         ("md", po::value<string>(), "Duration marginals output filename")
         ("ml", po::value<string>(), "Remaining runlength marginals output"
                 " filename");
@@ -230,7 +233,7 @@ int main(int argc, char *argv[]) {
     }
 
     mat runlength_marginals;
-    mat state_marginals;
+    mat state_marginals, state_marginals_2;
     mat remaining_runlength_marginals;
     mat duration_marginals;
 
@@ -239,6 +242,8 @@ int main(int argc, char *argv[]) {
                 test_features.n_elem);
     if (vm.count("ms"))
         state_marginals = zeros<mat>(nstates, test_features.n_elem);
+    if (vm.count("ms2"))
+        state_marginals_2 = zeros<mat>(nstates, test_features.n_elem);
     if (vm.count("md"))
         duration_marginals = zeros<mat>(ndurations, test_features.n_elem);
     if (vm.count("ml"))
@@ -250,11 +255,20 @@ int main(int argc, char *argv[]) {
             runlength_marginals.col(i) = model.getRunlengthMarginal();
         if (vm.count("ms"))
             state_marginals.col(i) = model.getStateMarginal();
+        if (vm.count("ms2"))
+            state_marginals_2.col(i) = model.getStateMarginal2();
+        if (vm.count("ml"))
+            remaining_runlength_marginals.col(i) =
+                    model.getResidualTimeMarginal();
     }
     if (vm.count("mr"))
         runlength_marginals.save(vm["mr"].as<string>(), raw_ascii);
     if (vm.count("ms"))
         state_marginals.save(vm["ms"].as<string>(), raw_ascii);
+    if (vm.count("ms2"))
+        state_marginals_2.save(vm["ms2"].as<string>(), raw_ascii);
+    if (vm.count("ml"))
+        remaining_runlength_marginals.save(vm["ml"].as<string>(), raw_ascii);
     if (vm.count("filteringprediction")) {
         ivec filtering_prediction = predict_labels_from_filtering(
                 state_marginals);
