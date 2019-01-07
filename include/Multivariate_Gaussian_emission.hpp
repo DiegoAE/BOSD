@@ -20,8 +20,8 @@ namespace hsmm {
             double loglikelihood(int state,
                     const arma::vec &single_obs) const;
 
-            void fitFromLabels(const arma::field<arma::vec> &observations,
-                    const arma::ivec &labels);
+            void fitFromLabels(const arma::field<arma::mat> &observations_seq,
+                    const arma::field<arma::ivec> &labels_seq);
 
             // TODO: throw a not implemented exception.
             void reestimate(int min_duration,

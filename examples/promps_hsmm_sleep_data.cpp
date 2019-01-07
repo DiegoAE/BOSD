@@ -113,25 +113,22 @@ vector<NormalDist> get_normal_distributions(int nstates, int ndurations,
 
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
+    vector<string> input_features, input_labels;
     desc.add_options()
         ("help,h", "Produce help message")
+        ("input,i", po::value<vector<string>>(&input_features)->multitoken(),
+                "Path to the (multiple) input features")
         ("output,o", po::value<string>(), "Path to the json output params")
         ("nstates", po::value<int>(), "Number of hidden states for the HSMM")
         ("mindur", po::value<int>(), "Minimum duration of a segment")
         ("ndur", po::value<int>(), "Number of different durations supported")
-        ("eeg1", po::value<string>(), "Path to input obs")
-        ("eeg2", po::value<string>(), "Path to input obs")
-        ("emg", po::value<string>(), "Path to input obs")
-        ("labels,l", po::value<string>(), "Path to input labels")
+        ("labels,l", po::value<vector<string>>(&input_labels)->multitoken(),
+                "Path to input labels")
         ("nodur", "Flag to deactivate the learning of durations")
         ("alphadurprior", po::value<int>(),
                 "Alpha for Dirichlet prior for the duration")
-        ("iidprediction", po::value<string>(), "Path to predicted labels based"
-                " on the iid assumption across epochs")
         ("filteringprediction", po::value<string>(), "Path to predicted labels"
                 " based on the filtering distribution over states")
-        ("groundtruth,g", po::value<string>(), "Path to where the true labels"
-                " are stored")
         ("mr", po::value<string>(), "Runlength marginals output filename")
         ("ms", po::value<string>(), "States marginals output filename")
         ("ms2", po::value<string>(), "States marginals output filename. This "
@@ -139,8 +136,11 @@ int main(int argc, char *argv[]) {
                 "runlength posterior")
         ("md", po::value<string>(), "Duration marginals output filename")
         ("ml", po::value<string>(), "Remaining runlength marginals output"
-                " filename");
-    vector<string> required_fields = {"eeg1", "eeg2", "emg", "labels",
+                " filename")
+        ("leaveoneout", po::value<int>(), "Index of the sequence that will be"
+                " left out for validation");
+    assert(input_features.size() == input_labels.size());
+    vector<string> required_fields = {"input", "labels", "leaveoneout",
             "nstates", "mindur", "ndur"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -157,56 +157,39 @@ int main(int argc, char *argv[]) {
     }
     int nstates = vm["nstates"].as<int>();
     int ndurations = vm["ndur"].as<int>();
+    int leaveoneout = vm["leaveoneout"].as<int>();
     int min_duration = vm["mindur"].as<int>();
-    int ndimension = 7;
+    int nseq = input_features.size();
+
+    field<ivec> labels_seq(nseq - 1);
+    field<mat> obs_seq(nseq - 1);
+    ivec test_labels;
+    mat test_obs;
+    int train_idx = 0;
+    for(int i = 0; i < nseq; i++) {
+        if (i == leaveoneout) {
+            test_obs.load(input_features[i], raw_ascii);
+            test_labels.load(input_labels[i], raw_ascii);
+        }
+        else {
+            labels_seq(train_idx).load(input_labels[i], raw_ascii);
+            obs_seq(train_idx).load(input_features[i], raw_ascii);
+            train_idx++;
+        }
+    }
+    assert(train_idx == nseq - 1);
+    int ndimension = test_obs.n_rows;
 
     // Creating normal distributions for the emission process.
     vector<NormalDist> states = get_normal_distributions(nstates, ndurations,
             min_duration, ndimension);
-
-    // Reading inputs and labels.
-    mat eeg1, eeg2, emg;
-    ivec gt_labels;
-    eeg1.load(vm["eeg1"].as<string>(), raw_ascii);
-    eeg2.load(vm["eeg2"].as<string>(), raw_ascii);
-    emg.load(vm["emg"].as<string>(), raw_ascii);
-    gt_labels.load(vm["labels"].as<string>(), raw_ascii);
-
-    // Computing the FFT features.
-    field<vec> features = getFeatureVectors(eeg1, eeg2, emg);
-    const field<vec>& train_features = features.rows(0, 21600 * 2 - 1);
-    const ivec& train_labels = gt_labels.head(21600 * 2);
-    const field<vec>& test_features = features.rows(21600 * 2,
-            features.n_elem - 1);
-    const ivec& test_labels = gt_labels.tail(21600);
-
-    assert(features.at(0).n_elem == ndimension);
 
     // Creating the emission process.
     shared_ptr<MultivariateGaussianEmission> emission(
             new MultivariateGaussianEmission(states));
 
     // Training the emission based on the labels.
-    emission->fitFromLabels(train_features, train_labels);
-
-    // Defining the prior over hidden states.
-    vec labels_prior(nstates, fill::zeros);
-    for(int i = 0; i < train_labels.n_elem; i++)
-        labels_prior(train_labels(i))++;
-    labels_prior = labels_prior / accu(labels_prior);
-
-    // Setting uniform prior.
-    // labels_prior = ones<vec>(nstates) / nstates;
-
-    // IID prediction.
-    if (vm.count("iidprediction")) {
-        ivec prediction = predict_labels_iid(emission, test_features,
-                labels_prior);
-        prediction.save(vm["iidprediction"].as<string>(), raw_ascii);
-    }
-
-    if (vm.count("groundtruth"))
-        test_labels.save(vm["groundtruth"].as<string>(), raw_ascii);
+    emission->fitFromLabels(obs_seq, labels_seq);
 
     // Creating the online HSMM whose emission process doesnt take into account
     // the total segment duration. The pmfs are uniformly initialized.
@@ -220,10 +203,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Learning the HSMM parameters from the labels.
-    field<ivec> training_labels_seqs = {train_labels};
-    model.setTransitionFromLabels(training_labels_seqs);
+    model.setTransitionFromLabels(labels_seq);
     if (!vm.count("nodur"))
-        model.setDurationFromLabels(training_labels_seqs);
+        model.setDurationFromLabels(labels_seq);
 
     if (vm.count("output")) {
         ofstream output_params(vm["output"].as<string>());
@@ -239,21 +221,21 @@ int main(int argc, char *argv[]) {
 
     if (vm.count("mr"))
         runlength_marginals = zeros<mat>(min_duration + ndurations - 1,
-                test_features.n_elem);
-    if (vm.count("ms"))
-        state_marginals = zeros<mat>(nstates, test_features.n_elem);
+                test_obs.n_cols);
+    if (vm.count("ms") || vm.count("filteringprediction"))
+        state_marginals = zeros<mat>(nstates, test_obs.n_cols);
     if (vm.count("ms2"))
-        state_marginals_2 = zeros<mat>(nstates, test_features.n_elem);
+        state_marginals_2 = zeros<mat>(nstates, test_obs.n_cols);
     if (vm.count("md"))
-        duration_marginals = zeros<mat>(ndurations, test_features.n_elem);
+        duration_marginals = zeros<mat>(ndurations, test_obs.n_cols);
     if (vm.count("ml"))
         remaining_runlength_marginals = zeros<mat>(
-                min_duration + ndurations - 1, test_features.n_elem);
-    for(int i = 0; i < test_features.n_elem; i++) {
-        model.addNewObservation(test_features.at(i));
+                min_duration + ndurations - 1, test_obs.n_cols);
+    for(int i = 0; i < test_obs.n_cols; i++) {
+        model.addNewObservation(test_obs.col(i));
         if (vm.count("mr"))
             runlength_marginals.col(i) = model.getRunlengthMarginal();
-        if (vm.count("ms"))
+        if (vm.count("ms") || vm.count("filteringprediction"))
             state_marginals.col(i) = model.getStateMarginal();
         if (vm.count("ms2"))
             state_marginals_2.col(i) = model.getStateMarginal2();

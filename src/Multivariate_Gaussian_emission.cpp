@@ -32,12 +32,16 @@ namespace hsmm {
     }
 
     void MultivariateGaussianEmission::fitFromLabels(
-            const field<vec> &observations, const ivec &labels) {
-        assert(observations.n_elem == labels.n_elem);
+            const field<mat> &observations_seq, const field<ivec> &labels_seq) {
+        assert(observations_seq.n_elem == labels_seq.n_elem);
         vector<vec> obs_for_each_state[states_.size()];
-        for(int i = 0; i < labels.n_elem; i++)
-            obs_for_each_state[labels(i)].push_back(conv_to<vec>::from(
-                        observations(i)));
+        for(int j = 0; j < labels_seq.n_elem; j++) {
+            const mat& observations = observations_seq(j);
+            const ivec& labels = labels_seq(j);
+            assert(observations.n_cols == labels.n_elem);
+            for(int i = 0; i < labels.n_elem; i++)
+                obs_for_each_state[labels(i)].push_back(observations.col(i));
+        }
         for(int i = 0; i < states_.size(); i++)
             states_.at(i) = random::mle_multivariate_normal(
                     obs_for_each_state[i]);
