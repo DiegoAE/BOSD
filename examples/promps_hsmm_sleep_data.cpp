@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
         ("labels,l", po::value<vector<string>>(&input_labels)->multitoken(),
                 "Path to input labels")
         ("nodur", "Flag to deactivate the learning of durations")
-        ("alphadurprior", po::value<int>(),
+        ("alphadurprior", po::value<double>(),
                 "Alpha for Dirichlet prior for the duration")
         ("filteringprediction", po::value<string>(), "Path to predicted labels"
                 " based on the filtering distribution over states")
@@ -138,7 +138,9 @@ int main(int argc, char *argv[]) {
         ("ml", po::value<string>(), "Remaining runlength marginals output"
                 " filename")
         ("leaveoneout", po::value<int>(), "Index of the sequence that will be"
-                " left out for validation");
+                " left out for validation")
+        ("savefiletype", po::value<string>()->default_value("arma_binary"),
+                "File type to save the matrices after inference");
     assert(input_features.size() == input_labels.size());
     vector<string> required_fields = {"input", "labels", "leaveoneout",
             "nstates", "mindur", "ndur"};
@@ -198,7 +200,7 @@ int main(int argc, char *argv[]) {
     // Setting a Dirichlet prior over the durations.
     if (vm.count("alphadurprior")) {
         mat alphas = ones<mat>(nstates, ndurations) *
-            vm["alphadurprior"].as<int>();
+            vm["alphadurprior"].as<double>();
         model.setDurationDirichletPrior(alphas);
     }
 
@@ -243,14 +245,18 @@ int main(int argc, char *argv[]) {
             remaining_runlength_marginals.col(i) =
                     model.getResidualTimeMarginal();
     }
+
+    // Saving the filtering inferences.
+    auto file_type = vm["savefiletype"].as<string>().compare(
+            "arma_binary") == 0 ? arma_binary : raw_ascii;
     if (vm.count("mr"))
-        runlength_marginals.save(vm["mr"].as<string>(), raw_ascii);
+        runlength_marginals.save(vm["mr"].as<string>(), file_type);
     if (vm.count("ms"))
-        state_marginals.save(vm["ms"].as<string>(), raw_ascii);
+        state_marginals.save(vm["ms"].as<string>(), file_type);
     if (vm.count("ms2"))
-        state_marginals_2.save(vm["ms2"].as<string>(), raw_ascii);
+        state_marginals_2.save(vm["ms2"].as<string>(), file_type);
     if (vm.count("ml"))
-        remaining_runlength_marginals.save(vm["ml"].as<string>(), raw_ascii);
+        remaining_runlength_marginals.save(vm["ml"].as<string>(), file_type);
     if (vm.count("filteringprediction")) {
         ivec filtering_prediction = predict_labels_from_filtering(
                 state_marginals);
