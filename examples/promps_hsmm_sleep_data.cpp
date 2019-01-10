@@ -11,6 +11,19 @@ using namespace std;
 namespace po = boost::program_options;
 
 
+// MLE transition in the HMM case. This means self-transitions are allowed.
+mat getHmmTransitionFromLabels(const field<ivec>& labels_seq, int nstates) {
+    mat hmm_transition(nstates, nstates, fill::zeros);
+    for(const ivec &s : labels_seq)
+        for(int i = 0; i < s.n_elem - 1; i++)
+            hmm_transition(s(i), s(i + 1))++;
+
+    for(int i = 0; i < nstates; i++)
+        hmm_transition.row(i) = hmm_transition.row(i) / accu(
+                hmm_transition.row(i));
+    return hmm_transition;
+}
+
 // Equivalent to np.fft.rfftfreq(512, 1.0 / 128.0) in Python.
 vec discreteFourierTransformSampleFrequencies() {
     return linspace(0, 64, 257);
@@ -205,7 +218,11 @@ int main(int argc, char *argv[]) {
     }
 
     // Learning the HSMM parameters from the labels.
-    model.setTransitionFromLabels(labels_seq);
+    if (min_duration == 1 && ndurations == 1)
+        model.setTransition(getHmmTransitionFromLabels(labels_seq, nstates));
+    else
+        model.setTransitionFromLabels(labels_seq);
+
     if (!vm.count("nodur"))
         model.setDurationFromLabels(labels_seq);
 
@@ -215,7 +232,6 @@ int main(int argc, char *argv[]) {
         output_params << std::setw(4) << current_params << endl;
         output_params.close();
     }
-
     mat runlength_marginals;
     mat state_marginals, state_marginals_2;
     mat remaining_runlength_marginals;

@@ -102,8 +102,10 @@ namespace hsmm {
                     s);
             const ivec& hs = p.first;
             const ivec& dur = p.second;
-            for(int i = 0; i < dur.n_elem; i++)
+            for(int i = 0; i < dur.n_elem; i++) {
+                assert(hs(i)<nstates_ && dur(i)<=min_duration_ + ndurations_);
                 new_duration(hs(i), dur(i) - min_duration_)++;
+            }
         }
 
         // Taking into account the Dirichlet prior.
