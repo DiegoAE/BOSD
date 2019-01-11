@@ -249,7 +249,9 @@ int main(int argc, char *argv[]) {
     if (vm.count("ml"))
         remaining_runlength_marginals = zeros<mat>(
                 min_duration + ndurations - 1, test_obs.n_cols);
+    vec loglikelihoods(test_obs.n_cols);
     for(int i = 0; i < test_obs.n_cols; i++) {
+        loglikelihoods(i) = model.oneStepAheadLoglikelihood(test_obs.col(i));
         model.addNewObservation(test_obs.col(i));
         if (vm.count("mr"))
             runlength_marginals.col(i) = model.getRunlengthMarginal();
@@ -261,6 +263,9 @@ int main(int argc, char *argv[]) {
             remaining_runlength_marginals.col(i) =
                     model.getResidualTimeMarginal();
     }
+
+    // The test log-likelihood.
+    cout << accu(loglikelihoods) << endl;
 
     // Saving the filtering inferences.
     auto file_type = vm["savefiletype"].as<string>().compare(
