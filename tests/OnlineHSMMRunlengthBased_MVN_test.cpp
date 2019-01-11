@@ -66,10 +66,13 @@ BOOST_AUTO_TEST_CASE(OnlineHSMMRunlengthBased_Multivariate_Gaussian_Emission) {
             test_features.n_elem);
     ivec filtering_labels(test_features.n_elem);
     ivec residual_time_filtering_labels(test_features.n_elem);
-    double loglikelihood = 0;
+    vec loglikelihood1(test_features.n_elem);
+    vec loglikelihood2(test_features.n_elem);
     for(int i = 0; i < test_features.n_elem; i++) {
-        loglikelihood += model.oneStepAheadLoglikelihood(test_features.at(i));
-        model.addNewObservation(test_features.at(i));
+        const auto& f = test_features.at(i);
+        loglikelihood1(i) = model.oneStepAheadLoglikelihood(f);
+        loglikelihood2(i) = model.oneStepAheadLoglikelihood2(f);
+        model.addNewObservation(f);
         runlength_marginals.col(i) = model.getRunlengthMarginal();
         state_marginals.col(i) = model.getStateMarginal();
         state_marginals_2.col(i) = model.getStateMarginal2();
@@ -82,6 +85,8 @@ BOOST_AUTO_TEST_CASE(OnlineHSMMRunlengthBased_Multivariate_Gaussian_Emission) {
     BOOST_CHECK(all(gt_labels == filtering_labels));
     BOOST_CHECK(all(gt_labels == residual_time_filtering_labels));
     BOOST_CHECK(approx_equal(state_marginals, state_marginals_2,
+                "absdiff", 1e-10));
+    BOOST_CHECK(approx_equal(loglikelihood1, loglikelihood2,
                 "absdiff", 1e-10));
 
     // Saving posteriors for debugging purposes.

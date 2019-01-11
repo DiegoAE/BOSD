@@ -188,6 +188,8 @@ namespace hsmm {
 
             double oneStepAheadLoglikelihood(const arma::mat& obs) const;
 
+            double oneStepAheadLoglikelihood2(const arma::mat& obs) const;
+
         protected:
 
             double loglikelihood_(int state, const arma::mat& obs) const;
