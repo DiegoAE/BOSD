@@ -990,6 +990,37 @@ namespace hsmm {
         return marginal;
     }
 
+    double OnlineHSMMRunlengthBased::oneStepAheadLoglikelihood(
+            const arma::mat& obs) const {
+        double loglikelihood = 0;
+        if (observations_.size() == 0) {
+            for(int i = 0; i < nstates_; i++)
+                loglikelihood += loglikelihood_(i, obs) + pi_(i);
+            return loglikelihood;
+        }
+        int max_duration = min_duration_ + ndurations_ - 1;
+        mat hazard = getHazardFunction_();
+
+        for(int r = 0; r < max_duration; r++) {
+
+            // Segment transition.
+            for(int i = 0; i < nstates_; i++)
+                if (is_finite(hazard(i, r)))
+                    for(int j = 0; j < nstates_; j++)
+                        loglikelihood += last_posterior_(r, i) + hazard(i, r) +
+                                transition_(i, j) + loglikelihood_(j, obs);
+
+            // Segment continuation.
+            if (r > 0) {
+                for(int i = 0; i < nstates_; i++)
+                    if (is_finite(hazard(i, r - 1)))
+                        loglikelihood += last_posterior_(r - 1, i) +
+                            loglikelihood_(i, obs) + (1 - hazard(i, r - 1));
+            }
+        }
+        return loglikelihood;
+    }
+
     double OnlineHSMMRunlengthBased::loglikelihood_(int state,
             const mat& obs) const {
 

@@ -66,7 +66,9 @@ BOOST_AUTO_TEST_CASE(OnlineHSMMRunlengthBased_Multivariate_Gaussian_Emission) {
             test_features.n_elem);
     ivec filtering_labels(test_features.n_elem);
     ivec residual_time_filtering_labels(test_features.n_elem);
+    double loglikelihood = 0;
     for(int i = 0; i < test_features.n_elem; i++) {
+        loglikelihood += model.oneStepAheadLoglikelihood(test_features.at(i));
         model.addNewObservation(test_features.at(i));
         runlength_marginals.col(i) = model.getRunlengthMarginal();
         state_marginals.col(i) = model.getStateMarginal();
