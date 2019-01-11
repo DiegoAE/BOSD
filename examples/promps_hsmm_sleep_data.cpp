@@ -24,6 +24,19 @@ mat getHmmTransitionFromLabels(const field<ivec>& labels_seq, int nstates) {
     return hmm_transition;
 }
 
+// MLE categorical distribution over labels for the IID case.
+mat getMixtureModelTransitionFromLabels(const field<ivec>& labels_seq,
+        int nstates) {
+    mat transition(nstates, nstates, fill::zeros);
+    for(const ivec &s : labels_seq)
+        for(int i = 0; i < s.n_elem; i++)
+            transition.col(s(i)) += 1;
+
+    for(int i = 0; i < nstates; i++)
+        transition.row(i) = transition.row(i) / accu(transition.row(i));
+    return transition;
+}
+
 // Equivalent to np.fft.rfftfreq(512, 1.0 / 128.0) in Python.
 vec discreteFourierTransformSampleFrequencies() {
     return linspace(0, 64, 257);
@@ -69,16 +82,19 @@ field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
 }
 
 ivec predict_labels_iid(shared_ptr<MultivariateGaussianEmission> e,
-        const field<vec>& test_input, const vec& class_prior) {
+        const mat& test_input, const vec& class_prior) {
     assert(class_prior.n_elem == e->getNumberStates());
-    ivec ret(test_input.n_elem);
-    for(int i = 0; i < test_input.n_elem; i++) {
+    ivec ret(test_input.n_cols);
+    double seq_loglikelihood = 0;
+    for(int i = 0; i < test_input.n_cols; i++) {
         vec loglikelihoods(e->getNumberStates());
         for(int j = 0; j < e->getNumberStates(); j++)
             loglikelihoods(j) = e->loglikelihood(j,
-                    test_input(i)) + log(class_prior(j));
+                    test_input.col(i)) + log(class_prior(j));
         ret(i) = (int) loglikelihoods.index_max();
+        seq_loglikelihood += logsumexp(loglikelihoods);
     }
+    cout << "IIDtestloglikelihood " << seq_loglikelihood << endl;
     return ret;
 }
 
@@ -138,6 +154,7 @@ int main(int argc, char *argv[]) {
         ("labels,l", po::value<vector<string>>(&input_labels)->multitoken(),
                 "Path to input labels")
         ("nodur", "Flag to deactivate the learning of durations")
+        ("iid", "Flag to deactivate the learning of transitions")
         ("alphadurprior", po::value<double>(),
                 "Alpha for Dirichlet prior for the duration")
         ("filteringprediction", po::value<string>(), "Path to predicted labels"
@@ -218,11 +235,15 @@ int main(int argc, char *argv[]) {
     }
 
     // Learning the HSMM parameters from the labels.
-    if (min_duration == 1 && ndurations == 1)
-        model.setTransition(getHmmTransitionFromLabels(labels_seq, nstates));
+    if (!vm.count("iid")) {
+        if (min_duration == 1 && ndurations == 1)
+            model.setTransition(getHmmTransitionFromLabels(labels_seq,nstates));
+        else
+            model.setTransitionFromLabels(labels_seq);
+    }
     else
-        model.setTransitionFromLabels(labels_seq);
-
+        model.setTransition(getMixtureModelTransitionFromLabels(labels_seq,
+                    nstates));
     if (!vm.count("nodur"))
         model.setDurationFromLabels(labels_seq);
 
