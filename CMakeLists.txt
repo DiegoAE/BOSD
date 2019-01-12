@@ -19,9 +19,11 @@ add_library(${PROJECT_NAME}
 
 add_executable(hsmm_dummy_gaussian examples/dummy_hsmm_example.cpp)
 add_executable(hmm_dummy_gaussian examples/dummy_hmm_example.cpp)
+add_executable(paper_synth_exp examples/paper_synth_exp.cpp)
 
 target_link_libraries(hsmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 target_link_libraries(hmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
+target_link_libraries(paper_synth_exp ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 
 find_library(ROB_LIB NAMES robotics)
 find_library(MLPACK_LIB NAMES mlpack)
