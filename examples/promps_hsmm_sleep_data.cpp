@@ -11,6 +11,32 @@ using namespace std;
 namespace po = boost::program_options;
 
 
+// MLE transition in the HMM case. This means self-transitions are allowed.
+mat getHmmTransitionFromLabels(const field<ivec>& labels_seq, int nstates) {
+    mat hmm_transition(nstates, nstates, fill::zeros);
+    for(const ivec &s : labels_seq)
+        for(int i = 0; i < s.n_elem - 1; i++)
+            hmm_transition(s(i), s(i + 1))++;
+
+    for(int i = 0; i < nstates; i++)
+        hmm_transition.row(i) = hmm_transition.row(i) / accu(
+                hmm_transition.row(i));
+    return hmm_transition;
+}
+
+// MLE categorical distribution over labels for the IID case.
+mat getMixtureModelTransitionFromLabels(const field<ivec>& labels_seq,
+        int nstates) {
+    mat transition(nstates, nstates, fill::zeros);
+    for(const ivec &s : labels_seq)
+        for(int i = 0; i < s.n_elem; i++)
+            transition.col(s(i)) += 1;
+
+    for(int i = 0; i < nstates; i++)
+        transition.row(i) = transition.row(i) / accu(transition.row(i));
+    return transition;
+}
+
 // Equivalent to np.fft.rfftfreq(512, 1.0 / 128.0) in Python.
 vec discreteFourierTransformSampleFrequencies() {
     return linspace(0, 64, 257);
@@ -56,16 +82,19 @@ field<vec> getFeatureVectors(const mat& eeg1, const mat& eeg2, const mat& emg) {
 }
 
 ivec predict_labels_iid(shared_ptr<MultivariateGaussianEmission> e,
-        const field<vec>& test_input, const vec& class_prior) {
+        const mat& test_input, const vec& class_prior) {
     assert(class_prior.n_elem == e->getNumberStates());
-    ivec ret(test_input.n_elem);
-    for(int i = 0; i < test_input.n_elem; i++) {
+    ivec ret(test_input.n_cols);
+    double seq_loglikelihood = 0;
+    for(int i = 0; i < test_input.n_cols; i++) {
         vec loglikelihoods(e->getNumberStates());
         for(int j = 0; j < e->getNumberStates(); j++)
             loglikelihoods(j) = e->loglikelihood(j,
-                    test_input(i)) + log(class_prior(j));
+                    test_input.col(i)) + log(class_prior(j));
         ret(i) = (int) loglikelihoods.index_max();
+        seq_loglikelihood += logsumexp(loglikelihoods);
     }
+    cout << "IIDtestloglikelihood " << seq_loglikelihood << endl;
     return ret;
 }
 
@@ -125,7 +154,8 @@ int main(int argc, char *argv[]) {
         ("labels,l", po::value<vector<string>>(&input_labels)->multitoken(),
                 "Path to input labels")
         ("nodur", "Flag to deactivate the learning of durations")
-        ("alphadurprior", po::value<int>(),
+        ("iid", "Flag to deactivate the learning of transitions")
+        ("alphadurprior", po::value<double>(),
                 "Alpha for Dirichlet prior for the duration")
         ("filteringprediction", po::value<string>(), "Path to predicted labels"
                 " based on the filtering distribution over states")
@@ -138,7 +168,9 @@ int main(int argc, char *argv[]) {
         ("ml", po::value<string>(), "Remaining runlength marginals output"
                 " filename")
         ("leaveoneout", po::value<int>(), "Index of the sequence that will be"
-                " left out for validation");
+                " left out for validation")
+        ("savefiletype", po::value<string>()->default_value("arma_binary"),
+                "File type to save the matrices after inference");
     assert(input_features.size() == input_labels.size());
     vector<string> required_fields = {"input", "labels", "leaveoneout",
             "nstates", "mindur", "ndur"};
@@ -198,12 +230,20 @@ int main(int argc, char *argv[]) {
     // Setting a Dirichlet prior over the durations.
     if (vm.count("alphadurprior")) {
         mat alphas = ones<mat>(nstates, ndurations) *
-            vm["alphadurprior"].as<int>();
+            vm["alphadurprior"].as<double>();
         model.setDurationDirichletPrior(alphas);
     }
 
     // Learning the HSMM parameters from the labels.
-    model.setTransitionFromLabels(labels_seq);
+    if (!vm.count("iid")) {
+        if (min_duration == 1 && ndurations == 1)
+            model.setTransition(getHmmTransitionFromLabels(labels_seq,nstates));
+        else
+            model.setTransitionFromLabels(labels_seq);
+    }
+    else
+        model.setTransition(getMixtureModelTransitionFromLabels(labels_seq,
+                    nstates));
     if (!vm.count("nodur"))
         model.setDurationFromLabels(labels_seq);
 
@@ -213,7 +253,6 @@ int main(int argc, char *argv[]) {
         output_params << std::setw(4) << current_params << endl;
         output_params.close();
     }
-
     mat runlength_marginals;
     mat state_marginals, state_marginals_2;
     mat remaining_runlength_marginals;
@@ -231,7 +270,9 @@ int main(int argc, char *argv[]) {
     if (vm.count("ml"))
         remaining_runlength_marginals = zeros<mat>(
                 min_duration + ndurations - 1, test_obs.n_cols);
+    vec loglikelihoods(test_obs.n_cols);
     for(int i = 0; i < test_obs.n_cols; i++) {
+        loglikelihoods(i) = model.oneStepAheadLoglikelihood(test_obs.col(i));
         model.addNewObservation(test_obs.col(i));
         if (vm.count("mr"))
             runlength_marginals.col(i) = model.getRunlengthMarginal();
@@ -243,14 +284,21 @@ int main(int argc, char *argv[]) {
             remaining_runlength_marginals.col(i) =
                     model.getResidualTimeMarginal();
     }
+
+    // The test log-likelihood.
+    cout << accu(loglikelihoods) << endl;
+
+    // Saving the filtering inferences.
+    auto file_type = vm["savefiletype"].as<string>().compare(
+            "arma_binary") == 0 ? arma_binary : raw_ascii;
     if (vm.count("mr"))
-        runlength_marginals.save(vm["mr"].as<string>(), raw_ascii);
+        runlength_marginals.save(vm["mr"].as<string>(), file_type);
     if (vm.count("ms"))
-        state_marginals.save(vm["ms"].as<string>(), raw_ascii);
+        state_marginals.save(vm["ms"].as<string>(), file_type);
     if (vm.count("ms2"))
-        state_marginals_2.save(vm["ms2"].as<string>(), raw_ascii);
+        state_marginals_2.save(vm["ms2"].as<string>(), file_type);
     if (vm.count("ml"))
-        remaining_runlength_marginals.save(vm["ml"].as<string>(), raw_ascii);
+        remaining_runlength_marginals.save(vm["ml"].as<string>(), file_type);
     if (vm.count("filteringprediction")) {
         ivec filtering_prediction = predict_labels_from_filtering(
                 state_marginals);

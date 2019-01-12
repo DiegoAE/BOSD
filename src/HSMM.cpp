@@ -102,8 +102,10 @@ namespace hsmm {
                     s);
             const ivec& hs = p.first;
             const ivec& dur = p.second;
-            for(int i = 0; i < dur.n_elem; i++)
+            for(int i = 0; i < dur.n_elem; i++) {
+                assert(hs(i)<nstates_ && dur(i)<=min_duration_ + ndurations_);
                 new_duration(hs(i), dur(i) - min_duration_)++;
+            }
         }
 
         // Taking into account the Dirichlet prior.
@@ -986,6 +988,69 @@ namespace hsmm {
         assert(abs(accu(marginal) - 1.0) < 1e-7);
         assert(marginal.n_elem == nstates_);
         return marginal;
+    }
+
+    double OnlineHSMMRunlengthBased::oneStepAheadLoglikelihood(
+            const arma::mat& obs) const {
+        if (observations_.size() == 0) {
+            vec ret(nstates_);
+            for(int i = 0; i < nstates_; i++)
+                ret(i) = loglikelihood_(i, obs) + log(pi_(i));
+            return logsumexp(ret);
+        }
+        int max_duration = min_duration_ + ndurations_ - 1;
+        mat hazard = getHazardFunction_();
+        vector<double> v;
+        for(int r = 0; r < max_duration; r++) {
+
+            // Segment transition.
+            for(int i = 0; i < nstates_; i++)
+                if (is_finite(hazard(i, r)))
+                    for(int j = 0; j < nstates_; j++)
+                        v.push_back(log(last_posterior_(r, i)) + log(
+                                hazard(i, r)) + log(transition_(i, j)) +
+                                loglikelihood_(j, obs));
+
+            // Segment continuation.
+            if (r > 0) {
+                for(int i = 0; i < nstates_; i++)
+                    if (is_finite(hazard(i, r - 1)))
+                        v.push_back(log(last_posterior_(r - 1, i)) +
+                            loglikelihood_(i, obs) + log(1 - hazard(i, r - 1)));
+            }
+        }
+        vec ret = conv_to<vec>::from(v);
+        return logsumexp(ret);
+    }
+
+    double OnlineHSMMRunlengthBased::oneStepAheadLoglikelihood2(
+            const arma::mat& obs) const {
+        if (observations_.size() == 0) {
+            vec ret(nstates_);
+            for(int i = 0; i < nstates_; i++)
+                ret(i) = loglikelihood_(i, obs) + log(pi_(i));
+            return logsumexp(ret);
+        }
+        int max_duration = min_duration_ + ndurations_ - 1;
+        mat hazard = getHazardFunction_();
+        vector<double> v;
+
+        // Segment continuation.
+        for(int r = 1; r < max_duration; r++)
+            for(int i = 0; i < nstates_; i++)
+                v.push_back(log(last_residualtime_posterior_(r, i)) +
+                        loglikelihood_(i, obs));
+
+        // Segment transition. Notice that the next bit is not log scaled.
+        vec prob_of_transition_to(nstates_, fill::zeros);
+        for(int i = 0; i < nstates_; i++)
+            for(int j = 0; j < nstates_; j++)
+                prob_of_transition_to(i) += transition_(j, i) *
+                        last_residualtime_posterior_(0, j);
+        for(int i = 0; i < nstates_; i++)
+            v.push_back(log(prob_of_transition_to(i)) + loglikelihood_(i, obs));
+        vec ret = conv_to<vec>::from(v);
+        return logsumexp(ret);
     }
 
     double OnlineHSMMRunlengthBased::loglikelihood_(int state,

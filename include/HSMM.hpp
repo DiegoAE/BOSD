@@ -186,6 +186,10 @@ namespace hsmm {
             // Based on last_residualtime_posterior_
             arma::vec getStateMarginal2() const;
 
+            double oneStepAheadLoglikelihood(const arma::mat& obs) const;
+
+            double oneStepAheadLoglikelihood2(const arma::mat& obs) const;
+
         protected:
 
             double loglikelihood_(int state, const arma::mat& obs) const;
