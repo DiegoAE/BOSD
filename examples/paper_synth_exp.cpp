@@ -159,21 +159,32 @@ int main(int arc, char* argv[]) {
     // Online inference.
     mat state_marginals(states.size(), nobs);
     mat runlength_marginals(MINDUR + NDUR, nobs);
+    mat implicit_remaining_marginals(MINDUR + NDUR, nobs);
     mat duration_marginals(NDUR, nobs);
+    mat implicit_duration_marginals(NDUR, nobs);
     for(int c = 0; c < nobs; c++) {
         cout << "time step: " << c << endl;
         online_toy_model.addNewObservation(toy_seq(c));
         state_marginals.col(c) = online_toy_model.getStateMarginal();
         runlength_marginals.col(c) = online_toy_model.getRunlengthMarginal();
         duration_marginals.col(c) = online_toy_model.getDurationMarginal();
+        implicit_remaining_marginals.col(c) = online_toy_model.
+                getImplicitResidualTimeMarginal();
+        //implicit_duration_marginals.col(c) = online_toy_model.
+        //        getImplicitDurationMarginal();
     }
 
     // Saving everything.
+    string prefix = "/local_data/dagudelo/paper_synth_experiment/";
     mat output = fieldToMat(NDIM, toy_seq);
-    output.save("/tmp/paper_synth_exp.txt", raw_ascii);
-    vit_mat.save("/tmp/paper_synth_gt_vit_seq.txt", raw_ascii);
-    state_marginals.save("/tmp/paper_synth_mstates.txt", raw_ascii);
-    runlength_marginals.save("/tmp/paper_synth_runlength.txt", raw_ascii);
-    duration_marginals.save("/tmp/paper_synth_duration.txt", raw_ascii);
+    output.save(prefix + "paper_synth_exp.txt", raw_ascii);
+    vit_mat.save(prefix + "paper_synth_gt_vit_seq.txt", raw_ascii);
+    state_marginals.save(prefix + "paper_synth_mstates.txt", raw_ascii);
+    runlength_marginals.save(prefix + "paper_synth_runlength.txt", raw_ascii);
+    duration_marginals.save(prefix + "paper_synth_duration.txt", raw_ascii);
+    implicit_remaining_marginals.save(prefix + "paper_synth_remaining.txt",
+            raw_ascii);
+    //implicit_duration_marginals.save(prefix + "paper_synth_impli_duration.txt",
+    //        raw_ascii);
     return 0;
 }

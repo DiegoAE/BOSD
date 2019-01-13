@@ -825,6 +825,21 @@ namespace hsmm {
         return ret;
     }
 
+    vec OnlineHSMM::getImplicitResidualTimeMarginal() const {
+        cube current_posterior = exp(last_log_posterior_);
+        mat duration_runlength_posterior = sum(current_posterior, 2);
+        vec ret(min_duration_ + ndurations_, fill::zeros);
+        for(int r = 0; r < min_duration_ + ndurations_; r++) {
+            for(int d = 0; d < ndurations_; d++) {
+                int current_dur = min_duration_ + d;
+                if (r < current_dur)
+                    ret(current_dur-r-1) += duration_runlength_posterior(d,r);
+            }
+        }
+        assert(abs(sum(ret) - 1.0) < 1e-7);
+        return ret;
+    }
+
     // TODO: This could be cached.
     mat OnlineHSMM::getDurationSuffixSum() const {
         mat suffix_sum(duration_);
