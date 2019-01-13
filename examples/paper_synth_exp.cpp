@@ -60,10 +60,17 @@ class ToyEmission : public AbstractEmissionOnlineSetting {
             vec t = getSampleLocations(obs.n_elem);
             double ret = 0;
             for(int i = 0; i < obs.n_elem; i++) {
+                // Making sure all the missing obs are at the end.
+                // Other missing obs patterns are not supported yet.
+                if (obs(i).is_empty()) {
+                    for(int j = i; j < obs.n_elem; j++)
+                        assert(obs(j).is_empty());
+                    break;
+                }
                 vec diff = obs(i) - states_.at(state)(t(i));
                 for(int j = 0; j < diff.n_elem; j++)
                     ret += gaussianlogpdf_(diff(j), 0,
-                            output_gaussian_stddev_(state, j));
+                            output_gaussian_stddev_(j, state));
             }
             return ret;
         }
@@ -145,9 +152,28 @@ int main(int arc, char* argv[]) {
     int nsegments = 12;
     ivec hs, hd;
     field<mat> toy_seq = online_toy_model.sampleSegments(nsegments, hs, hd);
+    int nobs = toy_seq.n_elem;
     imat vit_mat = join_horiz(hs, hd);
     cout << "vit file" << endl << vit_mat << endl;
+
+    // Online inference.
+    mat state_marginals(states.size(), nobs);
+    mat runlength_marginals(MINDUR + NDUR, nobs);
+    mat duration_marginals(NDUR, nobs);
+    for(int c = 0; c < nobs; c++) {
+        cout << "time step: " << c << endl;
+        online_toy_model.addNewObservation(toy_seq(c));
+        state_marginals.col(c) = online_toy_model.getStateMarginal();
+        runlength_marginals.col(c) = online_toy_model.getRunlengthMarginal();
+        duration_marginals.col(c) = online_toy_model.getDurationMarginal();
+    }
+
+    // Saving everything.
     mat output = fieldToMat(NDIM, toy_seq);
-    output.save("paper_synth_exp.txt", raw_ascii);
+    output.save("/tmp/paper_synth_exp.txt", raw_ascii);
+    vit_mat.save("/tmp/paper_synth_gt_vit_seq.txt", raw_ascii);
+    state_marginals.save("/tmp/paper_synth_mstates.txt", raw_ascii);
+    runlength_marginals.save("/tmp/paper_synth_runlength.txt", raw_ascii);
+    duration_marginals.save("/tmp/paper_synth_duration.txt", raw_ascii);
     return 0;
 }
