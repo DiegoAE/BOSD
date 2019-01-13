@@ -30,7 +30,9 @@ mat fieldToMat(int njoints, field<mat> &samples) {
 void fillDurationMatrix(mat& duration, const ivec& centers) {
     assert(centers.n_elem == duration.n_rows);
     duration.zeros();
-    vec pmf_pattern = {0.1, 0.2, 0.4, 0.2, 0.1};
+    //vec pmf_pattern = {0.1, 0.2, 0.4, 0.2, 0.1};
+    vec pmf_pattern(20);
+    pmf_pattern.fill(1.0/pmf_pattern.n_elem);
     for(int i = 0; i < centers.n_elem; i++) {
         int m = centers(i);
         int half = pmf_pattern.n_elem / 2;
@@ -143,7 +145,7 @@ int main(int arc, char* argv[]) {
     pi.fill(1.0 / states.size());
     transition.fill(1.0 / (states.size() - 1));
     transition.diag().zeros();
-    ivec duration_centers = {5, 25, 45, 65};
+    ivec duration_centers = {15, 30, 45, 60};
     fillDurationMatrix(duration, duration_centers);
 
     OnlineHSMM online_toy_model(static_pointer_cast<
@@ -177,7 +179,7 @@ int main(int arc, char* argv[]) {
     // Saving everything.
     string prefix = "/local_data/dagudelo/paper_synth_experiment/";
     mat output = fieldToMat(NDIM, toy_seq);
-    output.save(prefix + "paper_synth_exp.txt", raw_ascii);
+    output.save(prefix + "paper_synth_obs.txt", raw_ascii);
     vit_mat.save(prefix + "paper_synth_gt_vit_seq.txt", raw_ascii);
     state_marginals.save(prefix + "paper_synth_mstates.txt", raw_ascii);
     runlength_marginals.save(prefix + "paper_synth_runlength.txt", raw_ascii);
