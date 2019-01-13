@@ -10,8 +10,9 @@ using namespace hsmm;
 using namespace std;
 
 #define NDIM 2
-#define NDUR 10
+#define NDUR 70
 #define MINDUR 30
+#define NOISE_STDDEV 0.05
 
 double gaussianlogpdf_(double x, double mu, double sigma) {
     double ret = ((x - mu)*(x - mu)) / (-2*sigma*sigma);
@@ -26,12 +27,25 @@ mat fieldToMat(int njoints, field<mat> &samples) {
     return ret;
 }
 
+void fillDurationMatrix(mat& duration, const ivec& centers) {
+    assert(centers.n_elem == duration.n_rows);
+    duration.zeros();
+    vec pmf_pattern = {0.1, 0.2, 0.4, 0.2, 0.1};
+    for(int i = 0; i < centers.n_elem; i++) {
+        int m = centers(i);
+        int half = pmf_pattern.n_elem / 2;
+        for(int j = 0; j < pmf_pattern.n_elem; j++)
+            duration(i, m - half + j) = pmf_pattern(j);
+    }
+}
+
 class ToyEmission : public AbstractEmissionOnlineSetting {
     public:
-        ToyEmission(vector<function<vec(double)>> states, int ndim) : states_(
-                states), AbstractEmissionOnlineSetting(states.size(), ndim) {
-            output_gaussian_stddev_ = ones<mat>(getNumberStates(),
-                    getDimension());
+        ToyEmission(vector<function<vec(double)>> states, int ndim,
+                double noise_stddev) : states_(states),
+                AbstractEmissionOnlineSetting(states.size(), ndim) {
+            output_gaussian_stddev_ = ones<mat>(getDimension(),
+                    getNumberStates()) * noise_stddev;
         }
 
         ToyEmission* clone() const {
@@ -81,35 +95,58 @@ class ToyEmission : public AbstractEmissionOnlineSetting {
         mat output_gaussian_stddev_;
 };
 
-vec simple(double t) {
-    assert(t <= 1.0 && t >= 0); 
-    return ones<vec>(NDIM) * t;
+vec halfsine1(double t) {
+    assert(t <= 1.0 && t >= 0);
+    t = t * M_PI;
+    vec ret = {sin(t), -sin(t)};
+    return ret;
 }
 
-vec simple2(double t) {
-    assert(t <= 1.0 && t >= 0); 
-    return ones<vec>(NDIM) * t * 2;
+vec halfsine2(double t) {
+    assert(t <= 1.0 && t >= 0);
+    t = t * M_PI;
+    vec ret = {-sin(t), sin(t)};
+    return ret;
+}
+
+vec halfsine3(double t) {
+    assert(t <= 1.0 && t >= 0);
+    t = t * M_PI;
+    vec ret = {0.5*sin(t), 0.25*sin(t)};
+    return ret;
+}
+
+vec halfsine4(double t) {
+    assert(t <= 1.0 && t >= 0);
+    t = t * M_PI;
+    vec ret = {-0.25*sin(t), -0.5*sin(t)};
+    return ret;
 }
 
 int main(int arc, char* argv[]) {
-    function<vec(double)> f1 = simple;
-    function<vec(double)> f2 = simple2;
-    vector<function<vec(double)>> states = {simple, simple2};
-    shared_ptr<ToyEmission> ptr_emission(new ToyEmission(states, NDIM));
-
+    vector<function<vec(double)>> states = {halfsine1, halfsine2,
+            halfsine3, halfsine4};
+    shared_ptr<ToyEmission> ptr_emission(new ToyEmission(states, NDIM,
+            NOISE_STDDEV));
     vec pi(states.size());
     mat transition(states.size(), states.size());
-    mat duration(states.size(), NDUR);
+    mat duration(states.size(), NDUR, fill::zeros);
+
+    // Init the parameters.
     pi.fill(1.0 / states.size());
-    transition.fill(1.0 / states.size());
-    duration.fill(1.0 / NDUR);
+    transition.fill(1.0 / (states.size() - 1));
+    transition.diag().zeros();
+    ivec duration_centers = {5, 25, 45, 65};
+    fillDurationMatrix(duration, duration_centers);
+
     OnlineHSMM online_toy_model(static_pointer_cast<
             AbstractEmissionOnlineSetting>(ptr_emission), transition, pi,
             duration, MINDUR);
-    int nsegments = 10;
+    int nsegments = 12;
     ivec hs, hd;
     field<mat> toy_seq = online_toy_model.sampleSegments(nsegments, hs, hd);
     imat vit_mat = join_horiz(hs, hd);
+    cout << "vit file" << endl << vit_mat << endl;
     mat output = fieldToMat(NDIM, toy_seq);
     output.save("paper_synth_exp.txt", raw_ascii);
     return 0;
