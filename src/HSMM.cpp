@@ -103,8 +103,10 @@ namespace hsmm {
             const ivec& hs = p.first;
             const ivec& dur = p.second;
             for(int i = 0; i < dur.n_elem; i++) {
-                assert(hs(i)<nstates_ && dur(i)<=min_duration_ + ndurations_);
-                new_duration(hs(i), dur(i) - min_duration_)++;
+                if (hs(i)<nstates_ && dur(i)<=min_duration_ + ndurations_)
+                    new_duration(hs(i), dur(i) - min_duration_)++;
+                else
+                    cout << "There is an invalid (hs,d) entry" << endl;
             }
         }
 
