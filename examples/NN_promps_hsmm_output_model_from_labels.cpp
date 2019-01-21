@@ -74,8 +74,8 @@ int main(int argc, char *argv[]) {
         ("savebasisfunparams", po::value<string>(), "File where the NN weights"
                 " will be saved after training")
         ("test,t", po::value<string>(), "Path to the test observation file");
-    vector<string> required_fields = {"input", "test", "viterbilabels",
-            "nfiles", "nstates", "mindur", "ndur", "ms", "mr", "md"};
+    vector<string> required_fields = {"input", "viterbilabels",
+            "nfiles", "nstates", "mindur", "ndur"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -264,6 +264,12 @@ int main(int argc, char *argv[]) {
         initial_params.close();
     }
 
+    if (!vm.count("test")) {
+        cout << "No test file was provided" << endl;
+        return 0;
+    }
+    assert(vm.count("ms") && vm.count("mr") && vm.count("md"));
+
     // Testing the online inference algorithm.
     mat obs_for_cond;
     obs_for_cond.load(vm["test"].as<string>(), raw_ascii);
@@ -272,6 +278,7 @@ int main(int argc, char *argv[]) {
             obs_for_cond.n_cols);
     mat duration_marginals_over_time(ndurations, obs_for_cond.n_cols);
     for(int c = 0; c < obs_for_cond.n_cols; c++) {
+        cout << "Processing obs idx: " << c << endl;
         promp_hsmm.addNewObservation(obs_for_cond.col(c));
         if (vm.count("ms")) {
             vec s_marginal = promp_hsmm.getStateMarginal();
