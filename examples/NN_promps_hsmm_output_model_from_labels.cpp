@@ -240,7 +240,6 @@ int main(int argc, char *argv[]) {
         //cout << "Mean: " << curr.first << endl;
         //cout << "Covariance: " << curr.second << endl;
 
-        //Debug
         vec test_input = linspace<vec>(0,1,100);
         mat mean(njoints, test_input.n_elem);
         mat std_dev(njoints, test_input.n_elem);
@@ -251,6 +250,8 @@ int main(int argc, char *argv[]) {
             mean.col(j) = output_mean;
             std_dev.col(j) = sqrt(output_cov.diag());
         }
+
+        //Debug
         //mean.save("mean_prediction.txt." + to_string(i), raw_ascii);
         //std_dev.save("stddev_prediction.txt." + to_string(i), raw_ascii);
     }
@@ -261,7 +262,9 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < nstates; i++) {
         vec mu_w = mle_gaussians.at(i).first;
         assert(mu_w.n_elem == n_basis_functions * njoints);
-        mat Sigma_w = mle_gaussians.at(i).second;
+
+        // TODO: the covariance is fixed for now due to overfitting.
+        mat Sigma_w = 0.05*eye(mu_w.n_elem, mu_w.n_elem);
         mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP nn_promp(basis.at(i), promp, njoints);
