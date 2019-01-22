@@ -44,6 +44,19 @@ mat reverse(const mat& m) {
     return ret;
 }
 
+pair<vec, mat> getMeanAndCovFromSamples(const vector<vec>& samples) {
+    vec mean(size(samples.at(0)), fill::zeros);
+    mat cov(mean.n_elem, mean.n_elem, fill::zeros);
+    for(const auto& s: samples) {
+        mean += s;
+        cov += s * s.t();
+    }
+    mean = mean * (1.0/samples.size());
+    cov = cov * (1.0/samples.size());
+    cov = cov - mean * mean.t();
+    return make_pair(mean, cov);
+}
+
 int main(int argc, char *argv[]) {
     mlpack::Log::Info.ignoreInput = false;
     po::options_description desc("Outputs a fitted HSMM+ProMP model assuming"
@@ -204,13 +217,51 @@ int main(int argc, char *argv[]) {
         basis_fun_file.close();
     }
 
+    // Computing the the mean and covariance of Omega using least squares.
+    // NOTE: this is only tested for one dimensional observations.
+    vector<pair<vec, mat>> mle_gaussians;
+    for(int i = 0; i < nstates; i++) {
+        const auto& nn = basis.at(i);
+        const vector<mat>& t_seq = times_for_each_state[i];
+        const vector<mat>& obs_seq = obs_for_each_state[i];
+        vector<vec> ls_omegas;
+        for(int j = 0; j < t_seq.size(); j++) {
+            vector<mat> Phi_vec, Y_vec;
+            for(const auto& time_step: t_seq.at(j))
+                Phi_vec.push_back(nn->eval(time_step));
+            mat Phi = join_mats(Phi_vec).t();
+            mat Y = vectorise(obs_seq.at(j));
+            vec ls_omega = solve(Phi, Y);
+            ls_omegas.push_back(ls_omega);
+            assert(ls_omega.n_rows == n_basis_functions * njoints);
+        }
+        pair<vec, mat> curr = getMeanAndCovFromSamples(ls_omegas);
+        mle_gaussians.push_back(curr);
+        //cout << "Mean: " << curr.first << endl;
+        //cout << "Covariance: " << curr.second << endl;
+
+        //Debug
+        vec test_input = linspace<vec>(0,1,100);
+        mat mean(njoints, test_input.n_elem);
+        mat std_dev(njoints, test_input.n_elem);
+        for(int j = 0; j < test_input.n_elem; j++) {
+            vec m = nn->eval(test_input(j));
+            vec output_mean = m.t() * curr.first;
+            mat output_cov = m.t() * curr.second * m;
+            mean.col(j) = output_mean;
+            std_dev.col(j) = sqrt(output_cov.diag());
+        }
+        //mean.save("mean_prediction.txt." + to_string(i), raw_ascii);
+        //std_dev.save("stddev_prediction.txt." + to_string(i), raw_ascii);
+    }
+
+
     // Instantiating as many ProMPs as hidden states.
     vector<FullProMP> promps;
     for(int i = 0; i < nstates; i++) {
-        vec mu_w = means.at(i);
+        vec mu_w = mle_gaussians.at(i).first;
         assert(mu_w.n_elem == n_basis_functions * njoints);
-        mat Sigma_w = eye<mat>(n_basis_functions * njoints,
-                    n_basis_functions * njoints);
+        mat Sigma_w = mle_gaussians.at(i).second;
         mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP nn_promp(basis.at(i), promp, njoints);
