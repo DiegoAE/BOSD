@@ -168,7 +168,6 @@ int main(int argc, char *argv[]) {
         auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
         auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis(
                     {nn, poly}));
-
         // Predicting.
         vec test_input = linspace<vec>(0,1,100);
         vector<mat> test_output;
@@ -176,10 +175,11 @@ int main(int argc, char *argv[]) {
             vec output = nn->eval(test_input(j));
             vec output2 = nn1->eval(test_input(j));
             assert(approx_equal(output, output2, "reldiff", 1e-8));
-            test_output.push_back(output);
+            vec very_last_output = out_params.first * output + out_params.second;
+            test_output.push_back(very_last_output);
         }
         mat mat_test_output = join_mats(test_output);
-        //mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
+        mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
         basis.push_back(comb);
     }
     int n_basis_functions = basis.at(0)->dim();
