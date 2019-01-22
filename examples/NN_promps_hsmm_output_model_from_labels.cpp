@@ -37,6 +37,13 @@ mat join_mats(vector<mat> v) {
     return ret;
 }
 
+mat reverse(const mat& m) {
+    mat ret(size(m));
+    for(int i = 0; i < m.n_cols; i++)
+        ret.col(m.n_cols - 1 - i) = m.col(i);
+    return ret;
+}
+
 int main(int argc, char *argv[]) {
     mlpack::Log::Info.ignoreInput = false;
     po::options_description desc("Outputs a fitted HSMM+ProMP model assuming"
@@ -146,15 +153,15 @@ int main(int argc, char *argv[]) {
 
         // Defining the architecture of the NN.
         ivec hidden_units_per_layer = ones<ivec>(nlayers) * hidden_units;
-        auto nn1 = make_shared<ScalarNNBasis>(hidden_units_per_layer, njoints);
+        auto nn = make_shared<ScalarNNBasis>(hidden_units_per_layer, njoints);
 
         // Training the NN.
-        nn1->getNeuralNet().Train(inputs, outputs);
-        auto serialized = nn1->to_stream();
+        nn->getNeuralNet().Train(inputs, outputs);
+        auto serialized = nn->to_stream();
         basis_fun_params.push_back(serialized);
 
         // Testing the NN building from serialized parameters.
-        auto nn = make_shared<ScalarNNBasis>(serialized);
+        auto nn_copy = make_shared<ScalarNNBasis>(serialized);
 
         // Extracting the parameters from the output layer.
         pair<mat,vec> out_params = nn->getOutputLayerParams();
@@ -173,13 +180,19 @@ int main(int argc, char *argv[]) {
         vector<mat> test_output;
         for(int j = 0; j < test_input.n_elem; j++) {
             vec output = nn->eval(test_input(j));
-            vec output2 = nn1->eval(test_input(j));
+            vec output2 = nn_copy->eval(test_input(j));
             assert(approx_equal(output, output2, "reldiff", 1e-8));
-            vec very_last_output = out_params.first * output + out_params.second;
-            test_output.push_back(very_last_output);
+            test_output.push_back(output);
         }
-        mat mat_test_output = join_mats(test_output);
-        mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
+        mat mat_test_output;
+        mat mat_test_input = linspace<rowvec>(0, 1, 100);
+        nn->getNeuralNet().Predict(mat_test_input, mat_test_output);
+        //mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
+        mat prueba = out_params.first * join_mats(test_output);
+        for(int i = 0; i < prueba.n_cols; i++)
+            prueba.col(i) += out_params.second;
+        //prueba.save("fprediction.txt." + to_string(i) , raw_ascii);
+        assert(approx_equal(mat_test_output, prueba, "reldiff", 1e-8));
         basis.push_back(comb);
     }
     int n_basis_functions = basis.at(0)->dim();

@@ -39,8 +39,10 @@ namespace hsmm {
         return neural_net_;
     }
 
+    // There are two layers (Linear, Sigmoid) per entry in hidden units vector.
+    // Notice that it takes into account the input layer.
     int ScalarNNBasis::getNumberLayers() const {
-        return hidden_units_per_layer_.n_elem + 2;
+        return hidden_units_per_layer_.n_elem * 2 + 1;
     }
 
     pair<mat, vec> ScalarNNBasis::getOutputLayerParams() const {
