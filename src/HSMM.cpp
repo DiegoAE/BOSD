@@ -805,6 +805,22 @@ namespace hsmm {
         return ret;
     }
 
+    vec OnlineHSMM::getResidualTimeMarginal() const {
+        cube current_posterior = exp(last_log_posterior_);
+        mat tmp = sum(current_posterior, 2);
+        vec ret(min_duration_ + ndurations_, fill::zeros);
+        for(int d = 0; d < ndurations_; d++) {
+            for(int r = 0; r < min_duration_ + ndurations_; r++) {
+                if (r < min_duration_ + d) {
+                    int residual_time = min_duration_ + d - r - 1;
+                    ret(residual_time) += tmp(d, r);
+                }
+            }
+        }
+        assert(abs(sum(ret) - 1.0) < 1e-7);
+        return ret;
+    }
+
     vec OnlineHSMM::getImplicitDurationMarginal() const {
         cube current_posterior = exp(last_log_posterior_);
         mat runlength_state_posterior = sum(current_posterior, 0);

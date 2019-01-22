@@ -142,6 +142,8 @@ namespace hsmm {
 
             arma::vec getDurationMarginal() const;
 
+            arma::vec getResidualTimeMarginal() const;
+
             arma::vec getImplicitResidualTimeMarginal() const;
 
             arma::vec getImplicitDurationMarginal() const;

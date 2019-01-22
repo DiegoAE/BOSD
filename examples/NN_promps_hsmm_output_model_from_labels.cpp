@@ -69,6 +69,8 @@ int main(int argc, char *argv[]) {
                 "matrix containing the state marginals will be stored.")
         ("mr", po::value<string>(), "File name where a "
                 "matrix containing the run length marginals will be stored.")
+        ("ml", po::value<string>(), "File name where a matrix"
+                " containing the residual time marginals will be stored.")
         ("md", po::value<string>(), "File name where a "
                 "matrix containing the duration marginals will be stored.")
         ("savebasisfunparams", po::value<string>(), "File where the NN weights"
@@ -268,13 +270,14 @@ int main(int argc, char *argv[]) {
         cout << "No test file was provided" << endl;
         return 0;
     }
-    assert(vm.count("ms") && vm.count("mr") && vm.count("md"));
 
     // Testing the online inference algorithm.
     mat obs_for_cond;
     obs_for_cond.load(vm["test"].as<string>(), raw_ascii);
     mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
     mat runlength_marginals_over_time(min_duration + ndurations,
+            obs_for_cond.n_cols);
+    mat residualtime_marginals_over_time(min_duration + ndurations,
             obs_for_cond.n_cols);
     mat duration_marginals_over_time(ndurations, obs_for_cond.n_cols);
     for(int c = 0; c < obs_for_cond.n_cols; c++) {
@@ -288,6 +291,10 @@ int main(int argc, char *argv[]) {
             vec r_marginal = promp_hsmm.getRunlengthMarginal();
             runlength_marginals_over_time.col(c) = r_marginal;
         }
+        if (vm.count("ml")) {
+            vec l_marginal = promp_hsmm.getResidualTimeMarginal();
+            residualtime_marginals_over_time.col(c) = l_marginal;
+        }
         if (vm.count("md")) {
             vec d_marginal = promp_hsmm.getDurationMarginal();
             duration_marginals_over_time.col(c) = d_marginal;
@@ -299,6 +306,8 @@ int main(int argc, char *argv[]) {
         state_marginals_over_time.save(vm["ms"].as<string>(), raw_ascii);
     if (vm.count("mr"))
         runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
+    if (vm.count("ml"))
+        residualtime_marginals_over_time.save(vm["ml"].as<string>(), raw_ascii);
     if (vm.count("md"))
         duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
 
