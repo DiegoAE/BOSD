@@ -47,7 +47,9 @@ int main(int argc, char *argv[]) {
         ("mr", po::value<string>(), "File name where a "
                 "matrix containing the run length marginals will be stored.")
         ("md", po::value<string>(), "File name where a "
-                "matrix containing the duration marginals will be stored.");
+                "matrix containing the duration marginals will be stored.")
+        ("savefiletype", po::value<string>()->default_value("arma_binary"),
+                "File type to save the matrices after inference");
     vector<string> required_fields = {"params"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -164,12 +166,14 @@ int main(int argc, char *argv[]) {
             field_obs) << endl;
 
     // Saving the marginals if required.
+    auto file_type = vm["savefiletype"].as<string>().compare(
+            "arma_binary") == 0 ? arma_binary : raw_ascii;
     if (vm.count("ms"))
-        state_marginals_over_time.save(vm["ms"].as<string>(), raw_ascii);
+        state_marginals_over_time.save(vm["ms"].as<string>(), file_type);
     if (vm.count("mr"))
-        runlength_marginals_over_time.save(vm["mr"].as<string>(), raw_ascii);
+        runlength_marginals_over_time.save(vm["mr"].as<string>(), file_type);
     if (vm.count("md"))
-        duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
+        duration_marginals_over_time.save(vm["md"].as<string>(), file_type);
     return 0;
 }
 
