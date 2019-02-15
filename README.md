@@ -12,12 +12,15 @@ The framework requires the following ubuntu packages:
 sudo apt-get install libboost-all-dev nlohmann-json-dev libarmadillo-dev cmake
 ```
 
-If the ProMPs functionality is also wanted then you'll need to install TODO.
+Once you have installed these basic dependencies you can use some vanilla emission processes (e.g., i.i.d. Gaussian model) and create your own custom emission models. If you want to reproduce the paper results and/or use other already-implemented more advanced observation models you'll need to install two extra dependencies:
+* mlpack 3.0.4
+* Probabilistic Movement Primitives (ProMPs)
+
+Installation instructions for mlpack can be foud [here](https://www.mlpack.org/docs/mlpack-3.0.4/doxygen/build.html). TODO: how to install ProMPs. 
 
 #### Building
 
-Follow the standard procedure for building cmake projects. Once you are in repository main directory type:
-
+Follow the standard procedure for building cmake projects. Once you are in the repository main directory type:
 ```
 mkdir build
 cd build
