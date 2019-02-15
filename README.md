@@ -33,6 +33,22 @@ The latter will only build executables for which the dependencies are fulfilled.
 
 Examples of HSMMs with different emission processes can be found in the examples folder distributed with the code.
 
+#### Plots
+
+The paper plots can be reproduced by typing the following commands in the plots directory of this repository.
+```
+sh plot_cmd_synth
+sh plot_cmd_ecg
+```
+As a result you'll get the following plots:
+
+![](plots/synth_experiment/synth_plot.pdf)
+![](plots/ecg_experiment/ecg_plot.pdf)
+
+The sh scripts call the plotting script with the right arguments to get the same plots reported in the paper. Note that you don't need to install anything to obtain the plots given that the output inferences of the model are included in the repository as matrices.
+
+The output matrices for the EEG/EMG experiment are not provided because they would increase the repository size considerably. Instructions about how to generate them once the project is built will be provided (TODO).
+
 #### References
 
 Please cite the paper *Bayesian Online Detection and Prediction of Change Points* (https://arxiv.org/abs/1902.04524) if you find this work useful.
