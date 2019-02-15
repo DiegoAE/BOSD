@@ -1,0 +1,1 @@
+python online_posterior_plots.py --obs ecg_experiment/last_10_ecg.txt --run_length ecg_experiment/mrunlength.txt --statesm ecg_experiment/mstates.txt --duration ecg_experiment/mresidualtime.txt --gtvitseq ecg_experiment/gt_vit_last_10.txt --type ecg --filename ecg_experiment/ecg_plot.pdf;
