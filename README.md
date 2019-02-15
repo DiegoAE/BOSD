@@ -43,14 +43,10 @@ sh plot_cmd_ecg
 As a result you'll get the following plots:
 
 Synthetic experiment:
-<object data="https://github.com/DiegoAE/BOSD/blob/master/plots/ecg_experiment/ecg_plot.pdf" type="application/pdf" width="700px" height="700px">
-    <embed src="https://github.com/DiegoAE/BOSD/blob/master/plots/ecg_experiment/ecg_plot.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/DiegoAE/BOSD/blob/master/plots/ecg_experiment/ecg_plot.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
+![alt text](plots/synth_experiment/synth_plot.png)
 
 ECG experiment:
-![alt text](plots/ecg_experiment/ecg_plot.pdf)
+![alt text](plots/ecg_experiment/ecg_plot.png)
 
 The sh scripts call the plotting script with the right arguments to get the same plots reported in the paper. Note that you don't need to install anything to obtain the plots given that the output inferences of the model are included in the repository as matrices.
 
