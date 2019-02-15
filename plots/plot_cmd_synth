@@ -1,0 +1,1 @@
+python online_posterior_plots.py --obs synth_experiment/paper_synth_obs.txt --run_length synth_experiment/paper_synth_runlength.txt --duration synth_experiment/paper_synth_remaining.txt --statesm synth_experiment/paper_synth_mstates.txt --gtvitseq synth_experiment/paper_synth_gt_vit_seq.txt --filename synth_experiment/synth_plot.pdf;
