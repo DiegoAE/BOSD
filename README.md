@@ -16,7 +16,7 @@ Once you have installed these basic dependencies you can use some vanilla emissi
 * mlpack 3.0.4
 * Probabilistic Movement Primitives (ProMPs)
 
-Installation instructions for mlpack can be foud [here](https://www.mlpack.org/docs/mlpack-3.0.4/doxygen/build.html). TODO: how to install ProMPs. 
+Installation instructions for mlpack can be foud [here](https://www.mlpack.org/docs/mlpack-3.0.4/doxygen/build.html) and for ProMPs go [here](https://github.com/sebasutp/promp-cpp). Please note that both dependencies are built similarly to this project using cmake, which make things easier.
 
 #### Building
 
