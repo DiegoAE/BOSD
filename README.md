@@ -26,6 +26,7 @@ mkdir build
 cd build
 cmake ..
 make
+make test #optional (Tests that the compiled library passes the test cases)
 ```
 The latter will only build executables for which the dependencies are fulfilled. Make sure your mlpack and ProMPs installations are discoverable by cmake if you want to build their respective examples.
 
