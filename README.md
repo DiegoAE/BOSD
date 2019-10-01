@@ -59,9 +59,11 @@ The output matrices for the EEG/EMG experiment are not provided because they wou
 
 ECG experiment:
 ```
-./build/nn_promps_model_from_labels -i data/ecg/ecg.txt -l data/ecg/gt_vit_seq_ecg.txt -s 2 --mindur 50 --ndur 130 \
---notrans --nopi --noselftransitions --ms plots/ecg_experiment/mstates.txt \
---mr plots/ecg_experiment/mrunlength.txt --ml plots/ecg_experiment/mresidualtime.txt \
+./build/nn_promps_model_from_labels -i data/ecg/ecg.txt -l data/ecg/gt_vit_seq_ecg.txt \
+-s 2 --mindur 50 --ndur 130 --notrans --nopi --noselftransitions \
+--ms plots/ecg_experiment/mstates.txt \
+--mr plots/ecg_experiment/mrunlength.txt \
+--ml plots/ecg_experiment/mresidualtime.txt \
 -t data/ecg/last_10_ecg.txt --nfiles 1
 ```
 
