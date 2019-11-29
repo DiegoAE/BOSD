@@ -648,9 +648,9 @@ namespace hsmm {
         }
 
         // Normalizing the current joint posterior.
-        double normalization_c = logsumexp(normalization_terms);
-        assert(normalization_c > -datum::inf);
-        last_log_posterior_ -= normalization_c;
+        last_normalization_c_ = logsumexp(normalization_terms);
+        assert(last_normalization_c_ > -datum::inf);
+        last_log_posterior_ -= last_normalization_c_;
 
         // Computing the marginal posterior over the next hidden state assuming
         // there is a change point right after the current input observation.
@@ -856,6 +856,11 @@ namespace hsmm {
         }
         assert(abs(sum(ret) - 1.0) < 1e-7);
         return ret;
+    }
+
+    double OnlineHSMM::getLastOneStepAheadLoglikelihood() const {
+        assert(observations_.size() > 0);
+        return last_normalization_c_;
     }
 
     // TODO: This could be cached.

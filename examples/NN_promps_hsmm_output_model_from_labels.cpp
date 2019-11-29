@@ -324,6 +324,14 @@ int main(int argc, char *argv[]) {
             AbstractEmissionOnlineSetting>(ptr_emission),
             transition, pi, durations, min_duration);
 
+    if (!vm.count("test")) {
+        cout << "No test file was provided" << endl;
+        return 0;
+    }
+    mat obs_for_cond;
+    obs_for_cond.load(vm["test"].as<string>(), raw_ascii);
+    field<field<mat>> field_obs = {fromMatToField(obs_for_cond)};
+
     // Saving the model in a json file.
     if (vm.count("output")) {
         string output_filename = vm["output"].as<string>();
@@ -331,25 +339,20 @@ int main(int argc, char *argv[]) {
         nlohmann::json initial_model = promp_hsmm.to_stream();
         initial_params << std::setw(4) << initial_model << std::endl;
         initial_params.close();
-    }
-
-    if (!vm.count("test")) {
-        cout << "No test file was provided" << endl;
-        return 0;
-    }
+   }
 
     // Testing the online inference algorithm.
-    mat obs_for_cond;
-    obs_for_cond.load(vm["test"].as<string>(), raw_ascii);
     mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
     mat runlength_marginals_over_time(min_duration + ndurations,
             obs_for_cond.n_cols);
     mat residualtime_marginals_over_time(min_duration + ndurations,
             obs_for_cond.n_cols);
     mat duration_marginals_over_time(ndurations, obs_for_cond.n_cols);
+    vec onlineloglikelihoods(obs_for_cond.n_cols);
     for(int c = 0; c < obs_for_cond.n_cols; c++) {
         cout << "Processing obs idx: " << c << endl;
         promp_hsmm.addNewObservation(obs_for_cond.col(c));
+        onlineloglikelihoods(c) = promp_hsmm.getLastOneStepAheadLoglikelihood();
         if (vm.count("ms")) {
             vec s_marginal = promp_hsmm.getStateMarginal();
             state_marginals_over_time.col(c) = s_marginal;
@@ -378,10 +381,13 @@ int main(int argc, char *argv[]) {
     if (vm.count("md"))
         duration_marginals_over_time.save(vm["md"].as<string>(), raw_ascii);
 
-    // Evaluation the likelihood of the test observation.
-    field<field<mat>> field_obs = {fromMatToField(obs_for_cond)};
-    double onlinell = promp_hsmm.loglikelihood(field_obs);
-    cout << "onlineloglikelihood: " << onlinell << endl;
+    // Evaluation the likelihood of the test observation sequence.
+    // The batch one uses the HSMM algos whereas the online takes into account
+    // that the last segment might not be complete.
+    double batch_ll = promp_hsmm.loglikelihood(field_obs);
+    double online_ll = accu(onlineloglikelihoods);
+    cout << "batch loglikelihood: " << batch_ll << endl;
+    cout << "online loglikelihood: " << online_ll << endl;
     return 0;
 }
 

@@ -148,12 +148,17 @@ namespace hsmm {
 
             arma::vec getImplicitDurationMarginal() const;
 
+            double getLastOneStepAheadLoglikelihood() const;
+
         protected:
 
             arma::mat getDurationSuffixSum() const;
 
             int appendToField(arma::field<arma::mat>& current_obs, int idx,
                     const arma::field<arma::mat> new_obs) const;
+
+            // This represents p(y_{t+1} | y_1, y_2, ..., y_t).
+            double last_normalization_c_;
 
             // Logposterior over (d (duration),s (offset),i (hidden state))
             // conditioned on all the observations given so far.
