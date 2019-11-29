@@ -44,14 +44,28 @@ sh plot_cmd_ecg
 As a result you'll get the following plots:
 
 Synthetic experiment:
+
 ![alt text](plots/synth_experiment/synth_plot.png)
 
 ECG experiment:
+
 ![alt text](plots/ecg_experiment/ecg_plot.png)
 
 The sh scripts call the plotting script with the right arguments to get the same plots reported in the paper. Note that you don't need to install anything to obtain the plots given that the output inferences of the model are included in the repository as matrices.
 
 The output matrices for the EEG/EMG experiment are not provided because they would increase the repository size considerably. Instructions about how to generate them once the project is built will be provided (TODO).
+
+#### To reproduce the filtering posteriors:
+
+ECG experiment:
+```
+./build/nn_promps_model_from_labels -i data/ecg/ecg.txt -l data/ecg/gt_vit_seq_ecg.txt \
+-s 2 --mindur 50 --ndur 130 --notrans --nopi --noselftransitions \
+--ms plots/ecg_experiment/mstates.txt \
+--mr plots/ecg_experiment/mrunlength.txt \
+--ml plots/ecg_experiment/mresidualtime.txt \
+-t data/ecg/last_10_ecg.txt --nfiles 1
+```
 
 #### References
 
