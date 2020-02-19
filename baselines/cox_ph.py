@@ -9,6 +9,14 @@ from data.ecg import obs_ecg, gt_vit_seq_ecg
 
 MAX_DUR = 180
 
+def get_pmf_from_survival(survival_f):
+    pmf = survival_f.copy()
+    for i in range(survival_f.shape[0] - 1):
+        pmf[i, :] -= pmf[i + 1, :]
+    print('Debug', np.sum(pmf, axis=0))
+    plt.plot(np.arange(MAX_DUR), pmf)
+    plt.show()
+
 def loglikelihood(hazards, cum_hazards):
     """ Refer to https://stats.stackexchange.com/questions/417303/
     what-is-the-likelihood-for-this-process"""
@@ -70,17 +78,11 @@ if __name__ == '__main__':
         s1_pd = ecg_pd.loc[ecg_pd['state'].astype(bool)]
         s0_cph = fit_cph(s0_pd)
         s1_cph = fit_cph(s1_pd)
-        test = s1_pd.loc[:10]
-        times_to_predict = np.arange(MAX_DUR + 1)
-        cumulative_hazard = s1_cph.predict_cumulative_hazard(test,
+        test = s1_pd.loc[5]
+        print(test)
+
+        times_to_predict = np.arange(MAX_DUR)
+        survival_f = s1_cph.predict_survival_function(test,
                 times=times_to_predict)
-        print('Debug', times_to_predict.shape)
-        cumulative_hazard = cumulative_hazard.values
-        hazard = get_hazard_from_cum_hazard(cumulative_hazard)
-
-        #plt.plot(times_to_predict[:-1], hazard)
-        #plt.show()
-
-        lls = loglikelihood(hazard, cumulative_hazard[:-1,:])
-        plt.plot(times_to_predict[:-1], lls)
-        plt.show()
+        survival_f = survival_f.values
+        get_pmf_from_survival(survival_f)
