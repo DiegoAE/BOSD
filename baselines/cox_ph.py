@@ -8,6 +8,8 @@ from lifelines import CoxPHFitter
 from data.ecg import obs_ecg, gt_vit_seq_ecg
 
 MAX_DUR = 180
+K = 10
+FRAC = 0.01
 
 def get_pmf_from_survival(survival_f):
     pmf = survival_f.copy()
@@ -69,6 +71,18 @@ def fit_cph(data):
     #cph.print_summary()
     return cph
 
+def cross_validation(df):
+    df_test = df.sample(frac=FRAC)
+    df_train = df.loc[~df.index.isin(df_test.index)]
+    cph = fit_cph(df_train)
+
+    # TODO: return the corresponding score
+    times_to_predict = np.arange(MAX_DUR)
+    survival_f = cph.predict_survival_function(df_test,
+            times=times_to_predict)
+    survival_f = survival_f.values
+    get_pmf_from_survival(survival_f)
+    return None
 
 if __name__ == '__main__':
     for nobs in [5, 10, 20, 40]:
@@ -76,13 +90,7 @@ if __name__ == '__main__':
         ecg_pd = get_ecg_pd(nobs)
         s0_pd = ecg_pd.loc[~ecg_pd['state'].astype(bool)]
         s1_pd = ecg_pd.loc[ecg_pd['state'].astype(bool)]
-        s0_cph = fit_cph(s0_pd)
-        s1_cph = fit_cph(s1_pd)
-        test = s1_pd.loc[5]
-        print(test)
 
-        times_to_predict = np.arange(MAX_DUR)
-        survival_f = s1_cph.predict_survival_function(test,
-                times=times_to_predict)
-        survival_f = survival_f.values
-        get_pmf_from_survival(survival_f)
+        for _ in range(K):
+            c0 = cross_validation(s0_pd)
+            c1 = cross_validation(s1_pd)
