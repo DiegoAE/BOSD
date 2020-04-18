@@ -139,6 +139,7 @@ int main(int argc, char *argv[]) {
         ivec dur = vit.col(1);
         vit_file_for_each_obs.push_back(vit);
         int idx = 0;
+        assert(sum(dur) == obs.n_cols);
         for(int j = 0; j < dur.n_rows; j++) {
             mat segment = obs.cols(idx, idx + dur(j) - 1);
             obs_for_each_state[hs(j)].push_back(segment);

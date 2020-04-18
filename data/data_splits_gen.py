@@ -43,7 +43,9 @@ if __name__ == '__main__':
         print('Split {} has {} observations and {} segments'.format(
             s, o.shape[0], v.shape[0]))
         if args.output_obs_split:
-            np.savetxt(args.output_obs_split + '.' + str(s), o)
+
+            # Note the reshaping such that it's compatible.
+            np.savetxt(args.output_obs_split + '.' + str(s), o.reshape((1,-1)))
         if args.output_vit_split:
             np.savetxt(args.output_vit_split + '.' + str(s), v, fmt='%i')
         s += 1
