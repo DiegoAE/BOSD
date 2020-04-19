@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
         ("polybasisfun", po::value<int>()->default_value(0), "Order of the "
                 "poly basis functions")
         ("noselftransitions", "Flag to deactive self transitions")
-	    ("delta", po::value<double>()->default_value(-1), "If this is given "
+        ("delta", po::value<double>()->default_value(-1), "If this is given "
                 "a value, the model switches to segment agnostic and the "
                 "samples are generated according to the provided delta")
         ("ms", po::value<string>(), "File name where a "
@@ -95,7 +95,10 @@ int main(int argc, char *argv[]) {
                 "matrix containing the duration marginals will be stored.")
         ("savebasisfunparams", po::value<string>(), "File where the NN weights"
                 " will be saved after training")
-        ("test,t", po::value<string>(), "Path to the test observation file");
+        ("test,t", po::value<string>(), "Path to the test observation file")
+        ("nobstest", po::value<int>()->default_value(-1), "Number of obs to "
+                "feed into the model from the test file. Defaults to all obs"
+                "(i.e., -1)");
     vector<string> required_fields = {"input", "viterbilabels",
             "nfiles", "nstates", "mindur", "ndur"};
     po::variables_map vm;
@@ -340,17 +343,19 @@ int main(int argc, char *argv[]) {
         nlohmann::json initial_model = promp_hsmm.to_stream();
         initial_params << std::setw(4) << initial_model << std::endl;
         initial_params.close();
-   }
+    }
+    int n_obs_test = vm["nobstest"].as<int>();
+    n_obs_test = (n_obs_test < 0) ?  obs_for_cond.n_cols: n_obs_test;
 
     // Testing the online inference algorithm.
-    mat state_marginals_over_time(nstates, obs_for_cond.n_cols);
+    mat state_marginals_over_time(nstates, n_obs_test);
     mat runlength_marginals_over_time(min_duration + ndurations,
-            obs_for_cond.n_cols);
+            n_obs_test);
     mat residualtime_marginals_over_time(min_duration + ndurations,
-            obs_for_cond.n_cols);
-    mat duration_marginals_over_time(ndurations, obs_for_cond.n_cols);
-    vec onlineloglikelihoods(obs_for_cond.n_cols);
-    for(int c = 0; c < obs_for_cond.n_cols; c++) {
+            n_obs_test);
+    mat duration_marginals_over_time(ndurations, n_obs_test);
+    vec onlineloglikelihoods(n_obs_test);
+    for(int c = 0; c < n_obs_test; c++) {
         cout << "Processing obs idx: " << c << endl;
         promp_hsmm.addNewObservation(obs_for_cond.col(c));
         onlineloglikelihoods(c) = promp_hsmm.getLastOneStepAheadLoglikelihood();
@@ -385,9 +390,9 @@ int main(int argc, char *argv[]) {
     // Evaluation the likelihood of the test observation sequence.
     // The batch one uses the HSMM algos whereas the online takes into account
     // that the last segment might not be complete.
-    double batch_ll = promp_hsmm.loglikelihood(field_obs);
+    // double batch_ll = promp_hsmm.loglikelihood(field_obs);
+    // cout << "batch loglikelihood: " << batch_ll << endl;
     double online_ll = accu(onlineloglikelihoods);
-    cout << "batch loglikelihood: " << batch_ll << endl;
     cout << "online loglikelihood: " << online_ll << endl;
     return 0;
 }
