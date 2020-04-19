@@ -57,6 +57,18 @@ pair<vec, mat> getMeanAndCovFromSamples(const vector<vec>& samples) {
     return make_pair(mean, cov);
 }
 
+ivec get_residual_time_from_vit(const imat& vit) {
+    vector<int> ret;
+    ivec dur = vit.col(1);
+    for(int i = 0; i < vit.n_rows; i++) {
+        int d = dur(i);
+        for(int j = d - 1; j >= 0; j--)
+            ret.push_back(j);
+    }
+    assert (sum(dur) == ret.size());
+    return conv_to<ivec>::from(ret);
+}
+
 int main(int argc, char *argv[]) {
     mlpack::Log::Info.ignoreInput = false;
     po::options_description desc("Outputs a fitted HSMM+ProMP model assuming"
@@ -96,6 +108,7 @@ int main(int argc, char *argv[]) {
         ("savebasisfunparams", po::value<string>(), "File where the NN weights"
                 " will be saved after training")
         ("test,t", po::value<string>(), "Path to the test observation file")
+        ("vittest", po::value<string>(), "Path to the test vit file (truth)")
         ("nobstest", po::value<int>()->default_value(-1), "Number of obs to "
                 "feed into the model from the test file. Defaults to all obs"
                 "(i.e., -1)");
@@ -344,8 +357,19 @@ int main(int argc, char *argv[]) {
         initial_params << std::setw(4) << initial_model << std::endl;
         initial_params.close();
     }
+
+    // Number of test observations to feed in.
     int n_obs_test = vm["nobstest"].as<int>();
     n_obs_test = (n_obs_test < 0) ?  obs_for_cond.n_cols: n_obs_test;
+
+    // Load ground truth values of residual time is available.
+    double residual_times_ll = 0.0;
+    ivec ground_truth_residual_t;
+    if (vm.count("vittest")) {
+        imat test_vit;
+        test_vit.load(vm["vittest"].as<string>(), raw_ascii);
+        ground_truth_residual_t = get_residual_time_from_vit(test_vit);
+    }
 
     // Testing the online inference algorithm.
     mat state_marginals_over_time(nstates, n_obs_test);
@@ -375,6 +399,13 @@ int main(int argc, char *argv[]) {
             vec d_marginal = promp_hsmm.getDurationMarginal();
             duration_marginals_over_time.col(c) = d_marginal;
         }
+
+        // Computing the loglikelihoods of the residual times if needed.
+        if (!ground_truth_residual_t.empty()) {
+            vec r_marginal = promp_hsmm.getResidualTimeMarginal();
+            double cll = r_marginal.at(ground_truth_residual_t.at(c));
+            residual_times_ll += log(cll);
+        }
     }
 
     // Saving the marginals if required.
@@ -394,6 +425,10 @@ int main(int argc, char *argv[]) {
     // cout << "batch loglikelihood: " << batch_ll << endl;
     double online_ll = accu(onlineloglikelihoods);
     cout << "online loglikelihood: " << online_ll << endl;
+
+    // Outputting the llk of the residual times if needed.
+    if (!ground_truth_residual_t.empty())
+        cout << "residual times loglikelihood: " << residual_times_ll << endl;
     return 0;
 }
 
