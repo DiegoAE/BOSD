@@ -1,6 +1,9 @@
-import argparse
+""" Survival regression with Cox's proportional hazard model. """
 
+import argparse
+import logging
 import numpy as np
+
 import matplotlib.pyplot as plt
 import pandas as pd
 from lifelines import CoxPHFitter
@@ -8,8 +11,6 @@ from lifelines import CoxPHFitter
 from data.ecg import obs_ecg, gt_vit_seq_ecg
 
 MAX_DUR = 180
-K = 10
-FRAC = 0.01
 
 def get_pmf_from_survival(survival_f):
     pmf = survival_f.copy()
@@ -37,74 +38,98 @@ def get_hazard_from_cum_hazard(cum_hazard):
     return hazard
 
 def get_covariates_dict_from_list(covs_list):
+    m = np.array([c.flatten() for c in covs_list])
     d = {}
-    for i in range(len(covs_list[0])):
-        l = []
-        for covs in covs_list:
-            l.append(covs[i])
-        d['c{}'.format(i)] = l
+    for i, dim in enumerate(m.T):
+        d['c{}'.format(i)] = dim
     return d
 
-def get_ecg_pd(nobs):
-    """ Get a pandas data frame from the ecg data. nobs denotes the number of
-        observations that will be feed into the predictive model."""
-    assert nobs > 0
-    survival_time = []
-    state = []
-    ecg = []
-    acum = 0
-    for s, d in gt_vit_seq_ecg:
-        ecg.append(obs_ecg[acum: acum + nobs]) 
-        state.append(s)
-        st = d - nobs
-        assert(st >= 0)
-        survival_time.append(st)
-        acum += d
-    finished = [1] * len(state)  # All segments are complete. No censoring.
-    ecg_dict = {'survival_time': survival_time, 'state': state,
-            'finished': finished}
-    covs_dict = get_covariates_dict_from_list(ecg)
-    ecg_dict.update(covs_dict)
-    return pd.DataFrame(ecg_dict)
+def get_state_sequence_and_residual_time_from_vit(vit):
+    states = []
+    residual_times = []
+    for hs, dur in vit:
+        states.extend([hs] * dur)
+        residual_times.extend(np.arange(dur)[::-1])
+    assert len(states) == len(residual_times) and len(states) == vit[:,1].sum()
+    return states, residual_times
+
+def get_pd(horizon, lobs, lvit):
+    """ Get a pandas data frame from input data (lobs, lvit). horizon denotes
+        the number of observations that will be feed into the predictive model.
+    """
+    assert horizon > 0
+    survival_times = []
+    covariates = []
+    for obs, vit in zip(lobs, lvit):
+        dim, nobs = obs.shape
+        _, residual_times = get_state_sequence_and_residual_time_from_vit(vit)
+        assert len(residual_times) == nobs
+        for t in range(nobs - horizon + 1):
+            covariates.append(obs[:, t: t + horizon])
+            survival_time = residual_times[t + horizon - 1]
+            assert survival_time >= 0
+            survival_times.append(survival_time)
+    complete = [1] * len(survival_times)  # All segments are complete. No censoring.
+    data_dict = {'survival_time': survival_times, 'complete': complete}
+    covariates_dict = get_covariates_dict_from_list(covariates)
+    data_dict.update(covariates_dict)
+    return pd.DataFrame(data_dict)
 
 def fit_cph(data):
     cph = CoxPHFitter()
-    cph.fit(data, duration_col='survival_time', event_col='finished',
-            strata=['state'])
-    #cph.print_summary()
+    cph.fit(data, duration_col='survival_time', event_col='complete')
+    # cph.print_summary()
     return cph
 
-def cross_validation(df):
-    df_test = df.sample(frac=FRAC)
-    df_train = df.loc[~df.index.isin(df_test.index)]
-    cph = fit_cph(df_train)
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    np.random.seed(10)
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    # Training arguments.
+    parser.add_argument('horizon', type=int)
+    parser.add_argument('training_obs')
+    parser.add_argument('training_vit')
+    parser.add_argument('nfiles', type=int)
+
+    # Testing arguments. Note that a single file is assumed.
+    parser.add_argument('testing_obs')
+    parser.add_argument('testing_vit')
+
+    parser.add_argument('--ntest_obs', type=int)
+
+    args = parser.parse_args()
+    logging.info('horizon: ' + str(args.horizon))
+
+    lobs = []
+    lvit = []
+    for i in range(args.nfiles):
+        obs = np.loadtxt(args.training_obs + '.' + str(i), ndmin=2)
+        vit = np.loadtxt(args.training_vit + '.' + str(i)).astype('int')
+        lobs.append(obs)
+        lvit.append(vit)
+
+    # Training pandas data frame.
+    train_pd = get_pd(args.horizon, lobs, lvit)
+
+    # Testing pandas data frame.
+    test_obs = np.loadtxt(args.testing_obs, ndmin=2)
+    test_vit = np.loadtxt(args.testing_vit).astype('int')
+    test_pd = get_pd(args.horizon, [test_obs], [test_vit])
+
+    # Learning Cox's proportional hazards model.
+    cph = fit_cph(train_pd)
     times_to_predict = np.arange(MAX_DUR)
-    survival_f = cph.predict_survival_function(df_test,
+    survival_f = cph.predict_survival_function(test_pd,
             times=times_to_predict)
     survival_f = survival_f.values
     pmf = get_pmf_from_survival(survival_f)
     ll = 0
-    gt_survival_times = df_test['survival_time'].values
+    gt_survival_times = test_pd['survival_time'].values
     for i in range(len(gt_survival_times)):
+        if args.ntest_obs and i >= args.ntest_obs:
+            break
         ll += np.log(pmf[gt_survival_times[i], i])
-    return ll
+    print('test loglikelihood: {}'.format(ll))
 
-
-if __name__ == '__main__':
-    np.random.seed(10)
-    for nobs in [5, 10, 20, 40]:
-        print('nobs {} ========'.format(nobs))
-        ecg_pd = get_ecg_pd(nobs)
-        s0_pd = ecg_pd.loc[~ecg_pd['state'].astype(bool)]
-        s1_pd = ecg_pd.loc[ecg_pd['state'].astype(bool)]
-
-        state_pds = [s0_pd, s1_pd]
-        results = []
-        for _ in range(K):
-            l = []
-            for s_pd in state_pds:
-                l.append(cross_validation(s_pd))
-            results.append(l)
-        results = np.array(results)
-        print('Means', np.mean(results, axis=0))
-        print('Stds', np.std(results, axis=0))
