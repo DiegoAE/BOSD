@@ -53,7 +53,7 @@ def get_state_sequence_and_residual_time_from_vit(vit):
     assert len(states) == len(residual_times) and len(states) == vit[:,1].sum()
     return states, residual_times
 
-def get_pd(horizon, lobs, lvit):
+def get_pd(horizon, lobs, lvit, ntest_obs=None):
     """ Get a pandas data frame from input data (lobs, lvit). horizon denotes
         the number of observations that will be feed into the predictive model.
     """
@@ -64,6 +64,8 @@ def get_pd(horizon, lobs, lvit):
         dim, nobs = obs.shape
         _, residual_times = get_state_sequence_and_residual_time_from_vit(vit)
         assert len(residual_times) == nobs
+        if ntest_obs is not None:
+            nobs = ntest_obs
         for t in range(nobs - horizon + 1):
             covariates.append(obs[:, t: t + horizon])
             survival_time = residual_times[t + horizon - 1]
@@ -116,7 +118,7 @@ if __name__ == '__main__':
     # Testing pandas data frame.
     test_obs = np.loadtxt(args.testing_obs, ndmin=2)
     test_vit = np.loadtxt(args.testing_vit).astype('int')
-    test_pd = get_pd(args.horizon, [test_obs], [test_vit])
+    test_pd = get_pd(args.horizon, [test_obs], [test_vit], args.ntest_obs)
 
     # Learning Cox's proportional hazards model.
     cph = fit_cph(train_pd)
@@ -126,10 +128,11 @@ if __name__ == '__main__':
     survival_f = survival_f.values
     pmf = get_pmf_from_survival(survival_f)
     ll = 0
+    terms = 0
     gt_survival_times = test_pd['survival_time'].values
     for i in range(len(gt_survival_times)):
-        if args.ntest_obs and i >= args.ntest_obs:
-            break
+        terms += 1
         ll += np.log(pmf[gt_survival_times[i], i])
+    print('test terms: {}'.format(terms))
     print('test loglikelihood: {}'.format(ll))
 
