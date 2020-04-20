@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from lifelines import CoxPHFitter
 
-from data.ecg import obs_ecg, gt_vit_seq_ecg
 
 MAX_DUR = 180
 
