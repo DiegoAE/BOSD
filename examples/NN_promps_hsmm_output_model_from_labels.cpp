@@ -87,6 +87,8 @@ int main(int argc, char *argv[]) {
         ("nlayers", po::value<int>()->default_value(1),
                 "Number of hidden layers")
         ("nfiles,n", po::value<int>(), "Number of input files to process")
+        ("leaveoneout", po::value<int>()->default_value(-1),
+                "Leaves the training file associated to this number out")
         ("debug", "Flag for activating debug mode in HSMM")
         ("nodur", "Flag to deactivate the learning of durations")
         ("notrans", "Flag to deactivate the learning of transitions")
@@ -109,6 +111,8 @@ int main(int argc, char *argv[]) {
                 " will be saved after training")
         ("test,t", po::value<string>(), "Path to the test observation file")
         ("vittest", po::value<string>(), "Path to the test vit file (truth)")
+        ("offsettest", po::value<int>()->default_value(0), "this many number "
+                "of observations are skipped for the test llk computation.")
         ("nobstest", po::value<int>()->default_value(-1), "Number of obs to "
                 "feed into the model from the test file. Defaults to all obs"
                 "(i.e., -1)");
@@ -130,6 +134,7 @@ int main(int argc, char *argv[]) {
     string input_filename = vm["input"].as<string>();
     string viterbi_filename = vm["viterbilabels"].as<string>();
     int nseq = vm["nfiles"].as<int>();
+    int leaveoneout = vm["leaveoneout"].as<int>();
     int nstates = vm["nstates"].as<int>();
     int hidden_units = vm["hiddenunits"].as<int>();
     int nlayers = vm["nlayers"].as<int>();
@@ -140,6 +145,8 @@ int main(int argc, char *argv[]) {
     field<Labels> seq_labels(nseq);
     vector<imat> vit_file_for_each_obs;
     for(int i = 0; i < nseq; i++) {
+        if (i == leaveoneout)
+            continue;
         string iname = input_filename;
         string vname = viterbi_filename;
         if (nseq != 1) {
@@ -282,7 +289,7 @@ int main(int argc, char *argv[]) {
 
         // TODO: the covariance is fixed for now due to overfitting.
         mat Sigma_w = 0.05*eye(mu_w.n_elem, mu_w.n_elem);
-        mat Sigma_y = 0.001 * eye<mat>(njoints, njoints);
+        mat Sigma_y = 0.1*eye<mat>(njoints, njoints);
         ProMP promp(mu_w, Sigma_w, Sigma_y);
         FullProMP nn_promp(basis.at(i), promp, njoints);
         promps.push_back(nn_promp);
@@ -323,8 +330,10 @@ int main(int argc, char *argv[]) {
     if (!vm.count("nodur")) {
         durations.fill(0.0);
         for(const auto& vit: vit_file_for_each_obs)
-            for(int i = 0; i < vit.n_rows; i++)
+            for(int i = 0; i < vit.n_rows; i++) {
                 durations(vit(i,0), vit(i,1) - min_duration) += 1.0;
+                //durations(1 - vit(i,0), vit(i,1) - min_duration) += 1.0;
+            }
         for(int i = 0; i < nstates; i++)
             if (accu(durations.row(i)) > 1e-7)
                 durations.row(i) *= (1.0/accu(durations.row(i)));
@@ -361,9 +370,11 @@ int main(int argc, char *argv[]) {
     // Number of test observations to feed in.
     int n_obs_test = vm["nobstest"].as<int>();
     n_obs_test = (n_obs_test < 0) ?  obs_for_cond.n_cols: n_obs_test;
+    int offset_test = vm["offsettest"].as<int>();
 
     // Load ground truth values of residual time is available.
     double residual_times_ll = 0.0;
+    int residual_times_ll_neval = 0;
     ivec ground_truth_residual_t;
     if (vm.count("vittest")) {
         imat test_vit;
@@ -401,10 +412,11 @@ int main(int argc, char *argv[]) {
         }
 
         // Computing the loglikelihoods of the residual times if needed.
-        if (!ground_truth_residual_t.empty()) {
+        if (c >= offset_test && !ground_truth_residual_t.empty()) {
             vec r_marginal = promp_hsmm.getResidualTimeMarginal();
             double cll = r_marginal.at(ground_truth_residual_t.at(c));
             residual_times_ll += log(cll);
+            residual_times_ll_neval++;
         }
     }
 
@@ -427,8 +439,10 @@ int main(int argc, char *argv[]) {
     cout << "online loglikelihood: " << online_ll << endl;
 
     // Outputting the llk of the residual times if needed.
-    if (!ground_truth_residual_t.empty())
+    if (!ground_truth_residual_t.empty()) {
+        cout << "evaluated terms: " << residual_times_ll_neval << endl;
         cout << "residual times loglikelihood: " << residual_times_ll << endl;
+    }
     return 0;
 }
 
