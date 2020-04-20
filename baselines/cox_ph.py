@@ -112,27 +112,35 @@ if __name__ == '__main__':
         lobs.append(obs)
         lvit.append(vit)
 
-    # Training pandas data frame.
-    train_pd = get_pd(args.horizon, lobs, lvit)
-
     # Testing pandas data frame.
     test_obs = np.loadtxt(args.testing_obs, ndmin=2)
     test_vit = np.loadtxt(args.testing_vit).astype('int')
     test_pd = get_pd(args.horizon, [test_obs], [test_vit], args.ntest_obs)
 
-    # Learning Cox's proportional hazards model.
-    cph = fit_cph(train_pd)
-    times_to_predict = np.arange(MAX_DUR)
-    survival_f = cph.predict_survival_function(test_pd,
-            times=times_to_predict)
-    survival_f = survival_f.values
-    pmf = get_pmf_from_survival(survival_f)
-    ll = 0
-    terms = 0
-    gt_survival_times = test_pd['survival_time'].values
-    for i in range(len(gt_survival_times)):
-        terms += 1
-        ll += np.log(pmf[gt_survival_times[i], i])
-    print('test terms: {}'.format(terms))
-    print('test loglikelihood: {}'.format(ll))
+    lls = []
+    for leave_one_out in range(args.nfiles):
+        lobs_copy = list(lobs)
+        lvit_copy = list(lvit)
+        lobs_copy.pop(leave_one_out)
+        lvit_copy.pop(leave_one_out)
+
+        # Training pandas data frame.
+        train_pd = get_pd(args.horizon, lobs_copy, lvit_copy)
+
+        # Learning Cox's proportional hazards model.
+        cph = fit_cph(train_pd)
+        times_to_predict = np.arange(MAX_DUR)
+        survival_f = cph.predict_survival_function(test_pd,
+                times=times_to_predict)
+        survival_f = survival_f.values
+        pmf = get_pmf_from_survival(survival_f)
+        ll = 0
+        terms = 0
+        gt_survival_times = test_pd['survival_time'].values
+        for i in range(len(gt_survival_times)):
+            terms += 1
+            ll += np.log(pmf[gt_survival_times[i], i])
+        print('iter {}, test terms: {}'.format(leave_one_out, terms))
+        lls.append(ll)
+    print('test loglikelihood: {} +- {}'.format(np.mean(lls), np.std(lls)))
 
