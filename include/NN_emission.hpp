@@ -24,7 +24,8 @@ namespace hsmm {
 
     class NNEmission : public AbstractEmissionOnlineSetting {
         public:
-            NNEmission(int nstates, int njoints);
+            NNEmission(int nstates, int njoints,
+                    arma::ivec hidden_units_per_layer);
 
             NNEmission* clone() const;
 

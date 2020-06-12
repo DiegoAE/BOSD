@@ -69,6 +69,8 @@ ivec get_residual_time_from_vit(const imat& vit) {
     return conv_to<ivec>::from(ret);
 }
 
+
+
 int main(int argc, char *argv[]) {
     mlpack::Log::Info.ignoreInput = false;
     po::options_description desc("Outputs a fitted HSMM+ProMP model assuming"
@@ -181,7 +183,9 @@ int main(int argc, char *argv[]) {
     int njoints = obs_for_each_state[0].at(0).n_rows;
 
     // Creating the NN emission.
-    shared_ptr<NNEmission> ptr_emission(new NNEmission(nstates, njoints));
+    ivec hidden_units_per_layer = ones<ivec>(nlayers) * hidden_units;
+    shared_ptr<NNEmission> ptr_emission(new NNEmission(nstates, njoints,
+                hidden_units_per_layer));
 
     // TODO.
     // if (delta > 0.0)
@@ -204,7 +208,7 @@ int main(int argc, char *argv[]) {
         cout << "Var: " << noise_var << endl;
 
         // Only works for 1D.
-        noise_vars.col(i) *= 5 * noise_var;
+        noise_vars.col(i) *= noise_var;
     }
     ptr_emission->setNoiseVar(noise_vars);
     int min_duration = vm["mindur"].as<int>();
@@ -299,7 +303,8 @@ int main(int argc, char *argv[]) {
     mat duration_marginals_over_time(ndurations, n_obs_test);
     vec onlineloglikelihoods(n_obs_test);
     for(int c = 0; c < n_obs_test; c++) {
-        cout << "Processing obs idx: " << c << endl;
+        cout << "Processing obs idx: " << c << ", " <<
+                residual_times_ll << endl;
         promp_hsmm.addNewObservation(obs_for_cond.col(c));
         onlineloglikelihoods(c) = promp_hsmm.getLastOneStepAheadLoglikelihood();
         if (vm.count("ms")) {

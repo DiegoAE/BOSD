@@ -12,14 +12,25 @@ namespace hsmm {
                 x.n_elem * log(2*datum::pi));
     }
 
-    NNEmission::NNEmission(int nstates, int njoints) :
+    NNEmission::NNEmission(int nstates, int njoints,
+            ivec hidden_units_per_layer) :
             AbstractEmissionOnlineSetting(nstates, njoints),
             noise_var_(njoints, nstates, arma::fill::ones) {
-        for(int i = 0; i < nstates; i++) {
+        int nhidden_layers = hidden_units_per_layer.n_elem;
+        assert(nhidden_layers > 0);
+        for(int j = 0; j < nstates; j++) {
             NNmodel model;
-            model.Add<Linear<> >(1, 10);
+            model.Add<Linear<> >(1, hidden_units_per_layer(0));
             model.Add<SigmoidLayer<> >();
-            model.Add<Linear<> >(10, njoints);
+            for(int i = 1; i < nhidden_layers; i++) {
+                int last_number_units = hidden_units_per_layer(i - 1);
+                int current_number_units = hidden_units_per_layer(i);
+                model.Add<Linear<> >(last_number_units, current_number_units);
+                model.Add<SigmoidLayer<> >();
+            }
+            model.Add<Linear<> >(
+                    hidden_units_per_layer(nhidden_layers - 1),
+                    njoints);
             ffns_.push_back(model);
         }
     }
