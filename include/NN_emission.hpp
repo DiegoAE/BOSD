@@ -42,11 +42,15 @@ namespace hsmm {
                     int seg_dur, const arma::field<arma::mat>& past_obs,
                     std::mt19937 &rng) const;
 
+            NNmodel& getNeuralNet(int state);
+
+            void setNoiseVar(const arma::mat& noise_var);
+
         protected:
 
             arma::vec getSampleLocations(int length) const;
 
-            std::vector<NNmodel> ffns_;
+            mutable std::vector<NNmodel> ffns_;
             arma::mat noise_var_;
 
             // Delta for emissions which are not dependent on the total

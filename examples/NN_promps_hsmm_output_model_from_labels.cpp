@@ -1,5 +1,5 @@
 #include <mlpack/core.hpp>
-#include <NN_basis_function.hpp>
+#include <NN_emission.hpp>
 #include <armadillo>
 #include <boost/program_options.hpp>
 #include <iostream>
@@ -179,121 +179,34 @@ int main(int argc, char *argv[]) {
 
     // There should be at least one segment for the hidden state 0.
     int njoints = obs_for_each_state[0].at(0).n_rows;
-    vector<shared_ptr<ScalarCombBasis>> basis;
-    vector<vec> means;
-    vector<nlohmann::json> basis_fun_params;
+
+    // Creating the NN emission.
+    shared_ptr<NNEmission> ptr_emission(new NNEmission(nstates, njoints));
+
+    // TODO.
+    // if (delta > 0.0)
+    //    ptr_emission->setDelta(delta);
+    mat noise_vars = ones<mat>(njoints, nstates);
     for(int i = 0; i < nstates; i++) {
         mat inputs = join_mats(times_for_each_state[i]);
         mat outputs = join_mats(obs_for_each_state[i]);
         assert (outputs.n_rows == njoints);
         assert(outputs.n_cols == inputs.n_cols);
 
-        // Defining the architecture of the NN.
-        ivec hidden_units_per_layer = ones<ivec>(nlayers) * hidden_units;
-        auto nn = make_shared<ScalarNNBasis>(hidden_units_per_layer, njoints);
-
         // Training the NN.
-        nn->getNeuralNet().Train(inputs, outputs);
-        auto serialized = nn->to_stream();
-        basis_fun_params.push_back(serialized);
+        ptr_emission->getNeuralNet(i).Train(inputs, outputs);
 
-        // Testing the NN building from serialized parameters.
-        auto nn_copy = make_shared<ScalarNNBasis>(serialized);
+        // Var of residuals.
+        mat predictions;
+        ptr_emission->getNeuralNet(i).Predict(inputs, predictions);
+        vec residuals = conv_to<vec>::from(outputs - predictions);
+        double noise_var = as_scalar(var(residuals));
+        cout << "Var: " << noise_var << endl;
 
-        // Extracting the parameters from the output layer.
-        pair<mat,vec> out_params = nn->getOutputLayerParams();
-        mat joint_params = join_horiz(out_params.first, out_params.second);
-        vec flattened_params = conv_to<vec>::from(vectorise(joint_params, 1));
-        means.push_back(flattened_params);
-        cout << "Weights " << endl << out_params.first << endl;
-        cout << "Bias " << endl << out_params.second << endl;
-
-        // Adding polynomial terms to the NN basis.
-        auto poly = make_shared<ScalarPolyBasis>(vm["polybasisfun"].as<int>());
-        auto comb = shared_ptr<ScalarCombBasis>(new ScalarCombBasis(
-                    {nn, poly}));
-        // Predicting.
-        vec test_input = linspace<vec>(0,1,100);
-        vector<mat> test_output;
-        for(int j = 0; j < test_input.n_elem; j++) {
-            vec output = nn->eval(test_input(j));
-            vec output2 = nn_copy->eval(test_input(j));
-            assert(approx_equal(output, output2, "reldiff", 1e-8));
-            test_output.push_back(output);
-        }
-        mat mat_test_output;
-        mat mat_test_input = linspace<rowvec>(0, 1, 100);
-        nn->getNeuralNet().Predict(mat_test_input, mat_test_output);
-        //mat_test_output.save("prediction.txt." + to_string(i) , raw_ascii);
-        mat prueba = out_params.first * join_mats(test_output);
-        for(int i = 0; i < prueba.n_cols; i++)
-            prueba.col(i) += out_params.second;
-        //prueba.save("fprediction.txt." + to_string(i) , raw_ascii);
-        assert(approx_equal(mat_test_output, prueba, "reldiff", 1e-8));
-        basis.push_back(comb);
+        // Only works for 1D.
+        noise_vars.col(i) *= 5 * noise_var;
     }
-    int n_basis_functions = basis.at(0)->dim();
-
-    if (vm.count("savebasisfunparams")) {
-        nlohmann::json basisfunparams = basis_fun_params;
-        std::ofstream basis_fun_file(vm["savebasisfunparams"].as<string>());
-        basis_fun_file << std::setw(4) << basisfunparams << std::endl;
-        basis_fun_file.close();
-    }
-
-    // Computing the the mean and covariance of Omega using least squares.
-    // NOTE: this is only tested for one dimensional observations.
-    vector<pair<vec, mat>> mle_gaussians;
-    for(int i = 0; i < nstates; i++) {
-        const auto& nn = basis.at(i);
-        const vector<mat>& t_seq = times_for_each_state[i];
-        const vector<mat>& obs_seq = obs_for_each_state[i];
-        vector<vec> ls_omegas;
-        for(int j = 0; j < t_seq.size(); j++) {
-            vector<mat> Phi_vec, Y_vec;
-            for(const auto& time_step: t_seq.at(j))
-                Phi_vec.push_back(nn->eval(time_step));
-            mat Phi = join_mats(Phi_vec).t();
-            mat Y = vectorise(obs_seq.at(j));
-            vec ls_omega = solve(Phi, Y);
-            ls_omegas.push_back(ls_omega);
-            assert(ls_omega.n_rows == n_basis_functions * njoints);
-        }
-        pair<vec, mat> curr = getMeanAndCovFromSamples(ls_omegas);
-        mle_gaussians.push_back(curr);
-        //cout << "Mean: " << curr.first << endl;
-        //cout << "Covariance: " << curr.second << endl;
-
-        vec test_input = linspace<vec>(0,1,100);
-        mat mean(njoints, test_input.n_elem);
-        mat std_dev(njoints, test_input.n_elem);
-        for(int j = 0; j < test_input.n_elem; j++) {
-            vec m = nn->eval(test_input(j));
-            vec output_mean = m.t() * curr.first;
-            mat output_cov = m.t() * curr.second * m;
-            mean.col(j) = output_mean;
-            std_dev.col(j) = sqrt(output_cov.diag());
-        }
-
-        //Debug
-        //mean.save("mean_prediction.txt." + to_string(i), raw_ascii);
-        //std_dev.save("stddev_prediction.txt." + to_string(i), raw_ascii);
-    }
-
-
-    // Instantiating as many ProMPs as hidden states.
-    vector<FullProMP> promps;
-    for(int i = 0; i < nstates; i++) {
-        vec mu_w = mle_gaussians.at(i).first;
-        assert(mu_w.n_elem == n_basis_functions * njoints);
-
-        // TODO: the covariance is fixed for now due to overfitting.
-        mat Sigma_w = 0.05*eye(mu_w.n_elem, mu_w.n_elem);
-        mat Sigma_y = 0.1*eye<mat>(njoints, njoints);
-        ProMP promp(mu_w, Sigma_w, Sigma_y);
-        FullProMP nn_promp(basis.at(i), promp, njoints);
-        promps.push_back(nn_promp);
-    }
+    ptr_emission->setNoiseVar(noise_vars);
     int min_duration = vm["mindur"].as<int>();
     int ndurations = vm["ndur"].as<int>();
     mat transition(nstates, nstates);
@@ -328,7 +241,7 @@ int main(int argc, char *argv[]) {
     }
     cout << "Transition matrix" << endl << transition << endl;
     if (!vm.count("nodur")) {
-        durations.fill(0.0);
+        durations.fill(1.0);
         for(const auto& vit: vit_file_for_each_obs)
             for(int i = 0; i < vit.n_rows; i++) {
                 durations(vit(i,0), vit(i,1) - min_duration) += 1.0;
@@ -340,11 +253,6 @@ int main(int argc, char *argv[]) {
     }
     cout << "Duration matrix" << endl << durations << endl;
 
-    // Creating the ProMP emission.
-    shared_ptr<ProMPsEmission> ptr_emission(new ProMPsEmission(promps));
-
-    if (delta > 0.0)
-        ptr_emission->setDelta(delta);
 
     OnlineHSMM promp_hsmm(std::static_pointer_cast<
             AbstractEmissionOnlineSetting>(ptr_emission),

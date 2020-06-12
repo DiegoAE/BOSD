@@ -121,6 +121,14 @@ if (MLPACK_LIB)
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES}
     )
+    add_library(NN_emission
+        src/NN_emission.cpp
+    )
+    target_link_libraries(NN_emission
+        ${flag}
+        ${MLPACK_LIB}
+        ${ARMADILLO_LIBRARIES}
+    )
     if (ROB_LIB)
         add_library(NN_basis_function
             src/NN_basis_function.cpp
@@ -146,7 +154,7 @@ if (MLPACK_LIB)
         )
         target_link_libraries(nn_promps_model_from_labels
             ${flag}
-            NN_basis_function
+            NN_emission
             ${PROJECT_NAME}
             ${ROB_LIB}
             ${MLPACK_LIB}
