@@ -121,18 +121,16 @@ namespace hsmm {
 
     class OnlineHSMM : public HSMM {
         public:
-            OnlineHSMM(std::shared_ptr<AbstractEmissionOnlineSetting> emission,
+            OnlineHSMM(std::shared_ptr<AbstractEmissionConditionalIIDobs> emission,
                     arma::mat transition, arma::vec pi, arma::mat duration,
                     int min_duration);
 
-            std::shared_ptr<AbstractEmissionOnlineSetting> getOnlineEmission(
+            std::shared_ptr<AbstractEmissionConditionalIIDobs> getEmission(
                     ) const;
 
             void addNewObservation(const arma::mat& obs);
 
             void sampleFromPosterior(int &dur, int &offset, int &hs) const;
-
-            arma::field<arma::mat> sampleNextObservations(int nobs) const;
 
             void printTopKFromPosterior(int k) const;
 
@@ -160,11 +158,10 @@ namespace hsmm {
             // This represents p(y_{t+1} | y_1, y_2, ..., y_t).
             double last_normalization_c_;
 
-            // Logposterior over (d (duration),s (offset),i (hidden state))
+            // Posterior over (d (duration),s (offset),i (hidden state))
             // conditioned on all the observations given so far.
-            arma::cube last_log_posterior_;
+            arma::cube last_posterior_;
             std::vector<arma::mat> observations_;
-            std::deque<arma::vec> alpha_posteriors_;
     };
 
 

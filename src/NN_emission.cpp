@@ -14,7 +14,7 @@ namespace hsmm {
 
     NNEmission::NNEmission(int nstates, int njoints,
             ivec hidden_units_per_layer) :
-            AbstractEmissionOnlineSetting(nstates, njoints),
+            AbstractEmissionConditionalIIDobs(nstates, njoints),
             noise_var_(njoints, nstates, arma::fill::ones) {
         int nhidden_layers = hidden_units_per_layer.n_elem;
         assert(nhidden_layers > 0);
@@ -39,32 +39,21 @@ namespace hsmm {
         return new NNEmission(*this);
     }
 
-    double NNEmission::loglikelihood(int state, const field<mat>& obs) const {
+    double NNEmission::loglikelihoodIIDobs(int state, int seg_dur, int offset,
+            const mat& single_obs) const {
+        assert(!single_obs.is_empty());
 
         // The samples are assumed to be equally spaced.
-        vec sample_locations = getSampleLocations(obs.n_elem);
+        vec sample_locations = getSampleLocations(seg_dur);
 
         // Noise precision.
         mat precision  = diagmat(1. / noise_var_.col(state));
 
-        double ret = 0;
-        for(int i = 0; i < obs.n_elem; i++) {
-
-            if (obs(i).is_empty()) {
-
-                // Making sure all the missing obs are at the end.
-                // Other missing obs patterns are not supported yet.
-                for(int j = i; j < obs.n_elem; j++)
-                    assert(obs(j).is_empty());
-                break;
-            }
-            mat output;
-            mat input = {sample_locations(i)};
-            ffns_.at(state).Predict(input, output);
-            vec diff = obs(i) - output;
-            ret += zeroMeanGaussianLogLikelihoodR(diff, precision);
-        }
-        return ret;
+        mat output;
+        mat input = {sample_locations(offset)};
+        ffns_.at(state).Predict(input, output);
+        vec diff = single_obs - output;
+        return zeroMeanGaussianLogLikelihoodR(diff, precision);
     }
 
     void NNEmission::reestimate(int min_duration, const field<cube>& meta,

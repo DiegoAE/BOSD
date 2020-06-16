@@ -19,23 +19,23 @@ add_library(${PROJECT_NAME}
 
 add_executable(hsmm_dummy_gaussian examples/dummy_hsmm_example.cpp)
 add_executable(hmm_dummy_gaussian examples/dummy_hmm_example.cpp)
-add_executable(paper_synth_exp examples/paper_synth_exp.cpp)
+#add_executable(paper_synth_exp examples/paper_synth_exp.cpp)
 
 target_link_libraries(hsmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 target_link_libraries(hmm_dummy_gaussian ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
-target_link_libraries(paper_synth_exp ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
+#target_link_libraries(paper_synth_exp ${PROJECT_NAME} ${ARMADILLO_LIBRARIES})
 
 find_library(ROB_LIB NAMES robotics)
 find_library(MLPACK_LIB NAMES mlpack)
 
-add_subdirectory(tests)
-enable_testing()
-add_test(NAME labels_test COMMAND labels_test WORKING_DIRECTORY
-    ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME FB_test COMMAND FB_test WORKING_DIRECTORY
-    ${CMAKE_CURRENT_SOURCE_DIR})
-add_test(NAME HSMM_test COMMAND HSMM_test WORKING_DIRECTORY
-    ${CMAKE_CURRENT_SOURCE_DIR})
+#add_subdirectory(tests)
+#enable_testing()
+#add_test(NAME labels_test COMMAND labels_test WORKING_DIRECTORY
+#    ${CMAKE_CURRENT_SOURCE_DIR})
+#add_test(NAME FB_test COMMAND FB_test WORKING_DIRECTORY
+#    ${CMAKE_CURRENT_SOURCE_DIR})
+#add_test(NAME HSMM_test COMMAND HSMM_test WORKING_DIRECTORY
+#    ${CMAKE_CURRENT_SOURCE_DIR})
 
 if (ROB_LIB)
     find_path(ROB_INCLUDES NAMES robotics.hpp)
@@ -43,11 +43,11 @@ if (ROB_LIB)
     add_executable(promps_hsmm_example examples/promps_hsmm_example.cpp)
     add_executable(promps_hsmm_ball examples/promps_hsmm_ball.cpp)
     add_executable(promps_hsmm_ball_viterbi examples/promps_hsmm_ball_viterbi.cpp)
-    add_executable(promps_hsmm_online examples/promps_hsmm_online.cpp)
+    #add_executable(promps_hsmm_online examples/promps_hsmm_online.cpp)
     add_executable(promps_hsmm_robot examples/promps_hsmm_robot.cpp)
     add_executable(promps_hmm_example examples/promps_hmm_example.cpp)
     add_executable(promps_hmm_robot examples/promps_hmm_robot.cpp)
-    add_executable(promps_hsmm_synth_exp examples/promps_hsmm_synth_exp.cpp)
+    #add_executable(promps_hsmm_synth_exp examples/promps_hsmm_synth_exp.cpp)
     add_executable(promps_hsmm_sleep_data examples/promps_hsmm_sleep_data.cpp)
     target_link_libraries(promps_hsmm_example
         ${PROJECT_NAME}
@@ -63,11 +63,11 @@ if (ROB_LIB)
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES})
-    target_link_libraries(promps_hsmm_online
-        ${PROJECT_NAME}
-        ${ROB_LIB}
-        ${ARMADILLO_LIBRARIES}
-        ${Boost_LIBRARIES})
+    #target_link_libraries(promps_hsmm_online
+    #    ${PROJECT_NAME}
+    #    ${ROB_LIB}
+    #    ${ARMADILLO_LIBRARIES}
+    #    ${Boost_LIBRARIES})
     target_link_libraries(promps_hsmm_robot
         ${PROJECT_NAME}
         ${ROB_LIB}
@@ -82,11 +82,11 @@ if (ROB_LIB)
         ${ROB_LIB}
         ${ARMADILLO_LIBRARIES}
         ${Boost_LIBRARIES})
-    target_link_libraries(promps_hsmm_synth_exp
-        ${PROJECT_NAME}
-        ${ROB_LIB}
-        ${ARMADILLO_LIBRARIES}
-        ${Boost_LIBRARIES})
+    #target_link_libraries(promps_hsmm_synth_exp
+    #    ${PROJECT_NAME}
+    #    ${ROB_LIB}
+    #    ${ARMADILLO_LIBRARIES}
+    #    ${Boost_LIBRARIES})
     add_library(Gaussian_emission_promp
         src/Multivariate_Gaussian_emission.cpp
     )
@@ -139,16 +139,16 @@ if (MLPACK_LIB)
             ${MLPACK_LIB}
             ${ARMADILLO_LIBRARIES}
         )
-        add_executable(nn_example examples/NN_example.cpp)
-        target_link_libraries(nn_example
-            ${flag}
-            NN_basis_function
-            ${PROJECT_NAME}
-            ${ROB_LIB}
-            ${MLPACK_LIB}
-            ${ARMADILLO_LIBRARIES}
-            ${Boost_LIBRARIES}
-        )
+        #add_executable(nn_example examples/NN_example.cpp)
+        #target_link_libraries(nn_example
+        #    ${flag}
+        #    NN_basis_function
+        #    ${PROJECT_NAME}
+        #    ${ROB_LIB}
+        #    ${MLPACK_LIB}
+        #    ${ARMADILLO_LIBRARIES}
+        #    ${Boost_LIBRARIES}
+        #)
         add_executable(nn_promps_model_from_labels
             examples/NN_promps_hsmm_output_model_from_labels.cpp
         )

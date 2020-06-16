@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
         cout << "Var: " << noise_var << endl;
 
         // Only works for 1D.
-        noise_vars.col(i) *= noise_var;
+        noise_vars.col(i) *= 3*noise_var;
     }
     ptr_emission->setNoiseVar(noise_vars);
     int min_duration = vm["mindur"].as<int>();
@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
 
 
     OnlineHSMM promp_hsmm(std::static_pointer_cast<
-            AbstractEmissionOnlineSetting>(ptr_emission),
+            AbstractEmissionConditionalIIDobs>(ptr_emission),
             transition, pi, durations, min_duration);
 
     if (!vm.count("test")) {
@@ -292,6 +292,18 @@ int main(int argc, char *argv[]) {
         imat test_vit;
         test_vit.load(vm["vittest"].as<string>(), raw_ascii);
         ground_truth_residual_t = get_residual_time_from_vit(test_vit);
+
+        // Debug.
+        int offset = 0;
+        for(int i = 0; i < test_vit.n_rows; i++) {
+            int hs = test_vit(i, 0);
+            int d = test_vit(i, 1);
+            mat segment = obs_for_cond.cols(offset, offset + d - 1);
+            double good = ptr_emission->loglikelihood(hs, fromMatToField(segment));
+            double bad = ptr_emission->loglikelihood(1 - hs, fromMatToField(segment));
+            // cout << hs << " " << d << " " << "good: " << good << "bad: " << bad << endl;
+            offset += d;
+        }
     }
 
     // Testing the online inference algorithm.

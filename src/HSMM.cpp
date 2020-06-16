@@ -23,6 +23,7 @@ namespace hsmm {
                 prefixsum.begin();
     }
 
+
     /**
      * HSMM implementation.
      */
@@ -598,83 +599,72 @@ namespace hsmm {
     /*
      * Online HSMM implementation
      */
-    OnlineHSMM::OnlineHSMM(shared_ptr<AbstractEmissionOnlineSetting> emission,
+    OnlineHSMM::OnlineHSMM(shared_ptr<AbstractEmissionConditionalIIDobs> emission,
             mat transition, vec pi, mat duration, int min_duration) : HSMM(
             static_pointer_cast<AbstractEmission>(emission), transition,
             pi, duration, min_duration),
-            last_log_posterior_(ndurations_, min_duration_ + ndurations_,
-            nstates_) {}
+            last_posterior_(ndurations_, min_duration_ + ndurations_,
+            nstates_, fill::zeros) {}
 
-    shared_ptr<AbstractEmissionOnlineSetting> OnlineHSMM::getOnlineEmission(
+    shared_ptr<AbstractEmissionConditionalIIDobs> OnlineHSMM::getEmission(
             ) const {
-        return static_pointer_cast<AbstractEmissionOnlineSetting>(emission_);
+        return static_pointer_cast<AbstractEmissionConditionalIIDobs>(emission_);
     }
 
     void OnlineHSMM::addNewObservation(const mat& obs) {
+
+        // Computing the current hidden state marginal posterior assuming a
+        // change point happened right before.
+        vec current_marginal_posterior(nstates_, fill::zeros);
         if (observations_.empty())
-             alpha_posteriors_.push_back(log(pi_));
-        observations_.push_back(obs);
-        mat log_duration = log(duration_);
-        mat log_transition = log(transition_);
-        last_log_posterior_.fill(-datum::inf);
-        vector<double> normalization_terms;
-        for(int d = min_duration_; d < min_duration_ + ndurations_; d++) {
-            for(int s = 0; s < d; s++) {
-
-                // Making sure the offset is consistent with the number of
-                // observations so far.
-                if (s >= observations_.size())
-                    break;
-
-                // Building the current segment. Notice that it is padded with
-                // empty matrices.
-                field<mat> current_segment(d);
-                for(int idx = s, obs_idx = observations_.size()-1; idx >= 0;
-                        idx--, obs_idx--) {
-                    current_segment(idx) = observations_[obs_idx];
-                }
-                const vec& relevant_alpha_posterior = alpha_posteriors_.at(
-                        alpha_posteriors_.size() - 1 - s);
-                for(int i = 0; i < nstates_; i++) {
-                    double log_pdf_seg = emission_->loglikelihood(i,
-                            current_segment) + log_duration(i,d-min_duration_);
-                    double log_unnormalized_value = log_pdf_seg +
-                            relevant_alpha_posterior(i);
-                    last_log_posterior_(d - min_duration_, s, i) =
-                            log_unnormalized_value;
-                    normalization_terms.push_back(log_unnormalized_value);
-                }
-            }
-        }
-
-        // Normalizing the current joint posterior.
-        last_normalization_c_ = logsumexp(normalization_terms);
-        assert(last_normalization_c_ > -datum::inf);
-        last_log_posterior_ -= last_normalization_c_;
-
-        // Computing the marginal posterior over the next hidden state assuming
-        // there is a change point right after the current input observation.
-        vec current_marginal_posterior(nstates_);
-        for(int i = 0; i < nstates_; i++) {
-            vector<double> terms;
+            current_marginal_posterior = pi_;
+        else {
+            vec last_marginal_posterior(nstates_, fill::zeros);
             for(int j = 0; j < nstates_; j++) {
-                for(int dur = 0; dur < ndurations_; dur++) {
-                    double term = last_log_posterior_(dur,
-                            min_duration_ + dur - 1, j) + log_transition(j, i);
-                    terms.push_back(term);
-                }
+                for(int dur = 0; dur < ndurations_; dur++)
+                    last_marginal_posterior(j) += last_posterior_(dur,
+                            min_duration_ + dur - 1, j);
+            for(int i = 0; i < nstates_; i++)
+                for(int j = 0; j < nstates_; j++)
+                    current_marginal_posterior(i) += transition_(j, i) *
+                            last_marginal_posterior(j);
             }
-            current_marginal_posterior(i) = logsumexp(terms);
+        }
+        observations_.push_back(obs);
+
+        // Growth probabilities.
+        for(int i = 0; i < nstates_; i++) {
+            for(int d = min_duration_; d < min_duration_ + ndurations_; d++) {
+                for(int s = d - 1; s > 0; s--) {
+                    int d_idx = d - min_duration_;
+                    last_posterior_(d_idx, s, i) = last_posterior_(d_idx, s - 1,
+                            i) * exp(getEmission()->loglikelihoodIIDobs(i, d, s,
+                            obs));
+               }
+            }
         }
 
-        // Pushing back the computed posterior. NOTE: it isn't a pmf.
-        alpha_posteriors_.push_back(current_marginal_posterior);
+        // Change point probabilities.
+        for(int i = 0; i < nstates_; i++) {
+            for(int d_idx = 0; d_idx < ndurations_; d_idx++) {
+                double prob = duration_(i, d_idx);
+                prob *= exp(getEmission()->loglikelihoodIIDobs(
+                            i, d_idx + min_duration_, 0, obs));
+                prob *= current_marginal_posterior(i);
+                last_posterior_(d_idx, 0, i) = prob;
+            }
+        }
+
+        // Normalizing the current posterior.
+        last_normalization_c_ =  accu(last_posterior_);
+        last_posterior_ = last_posterior_ / last_normalization_c_;
+        assert(abs(accu(last_posterior_) - 1.0) < 1e-7);
     }
 
     void OnlineHSMM::sampleFromPosterior(int & dur, int & offset,
             int & hs) const {
         dur = offset = hs = -1;
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         int nrows = current_posterior.n_rows;
         int ncols = current_posterior.n_cols;
         int nslices = current_posterior.n_slices;
@@ -701,67 +691,8 @@ namespace hsmm {
         return;
     }
 
-    field<mat> OnlineHSMM::sampleNextObservations(int nobs) const {
-        assert(!observations_.empty());  // TODO: handle empty observations.
-
-        // Sampling a triplet (d,s,i) from the current posterior.
-        int d, s, i;
-        sampleFromPosterior(d, s, i);
-        if (debug_) {
-            cout << "Posterior sample (" << d << ", " << s << ", " <<
-                    i << ")" << endl;
-        }
-        field<mat> last_obs(s + 1);
-        int tam = observations_.size();
-        for(int j = s, idx = tam - 1; j >= 0; j--, idx--)
-            last_obs(j) = observations_.at(idx);
-        field<mat> ret(nobs);
-        int idx = 0;
-        field<mat> seg;
-        int curr_state;
-        if (s == min_duration_ + d - 1) {
-
-            // Handling the case when there is a transition
-            // right after the current observation. Sampling
-            // next state and duration.
-            int next_state = sampleFromCategorical(
-                    transition_.row(i));
-            int next_duration = sampleFromCategorical(
-                    duration_.row(next_state)) + min_duration_;
-            seg = getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
-                    next_state, next_duration, last_obs, i);
-            curr_state = next_state;
-            for(int j = 0; j < seg.n_elem && idx < ret.n_elem; j++)
-                ret(idx++) = seg(j);
-        }
-        else {
-            seg = getOnlineEmission()->sampleNextObsGivenPastObs(i,
-                    min_duration_ + d, last_obs);
-            curr_state = i;
-            field<mat> suffix = seg.rows(last_obs.n_elem, seg.n_elem - 1);
-            idx = appendToField(ret, idx, suffix);
-        }
-
-        while(idx < ret.n_elem) {
-             int next_state = sampleFromCategorical(transition_.row(
-                         curr_state));
-             int next_duration =  sampleFromCategorical(duration_.row(
-                         next_state)) + min_duration_;
-             if (debug_) {
-                cout << "Next state and dur: " << next_state << " " <<
-                        next_duration << endl;
-             }
-             seg = getOnlineEmission()->sampleFirstSegmentObsGivenLastSegment(
-                     next_state, next_duration, seg, curr_state);
-             curr_state = next_state;
-             idx = appendToField(ret, idx, seg);
-        }
-        assert(idx == nobs);
-        return ret;
-    }
-
     void OnlineHSMM::printTopKFromPosterior(int k) const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         set<pair<double,string>> pq;
         for(int d = 0; d < ndurations_; d++)
             for(int s = 0; s < min_duration_ + d; s++)
@@ -778,7 +709,7 @@ namespace hsmm {
     }
 
     vec OnlineHSMM::getStateMarginal() const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         mat tmp = sum(current_posterior, 0);
         vec ret = vectorise(sum(tmp, 0));
         assert(abs(sum(ret) - 1.0) < 1e-7);
@@ -788,7 +719,7 @@ namespace hsmm {
 
     // TODO: the output len shoud be actually min_duration_ + ndurations_ - 1.
     vec OnlineHSMM::getRunlengthMarginal() const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         mat tmp = sum(current_posterior, 0);
         vec ret = vectorise(sum(tmp, 1));
         assert(abs(sum(ret) - 1.0) < 1e-7);
@@ -797,7 +728,7 @@ namespace hsmm {
     }
 
     vec OnlineHSMM::getDurationMarginal() const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         mat tmp = sum(current_posterior, 2);
         vec ret = vectorise(sum(tmp, 1));
         assert(abs(sum(ret) - 1.0) < 1e-7);
@@ -806,7 +737,7 @@ namespace hsmm {
     }
 
     vec OnlineHSMM::getResidualTimeMarginal() const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         mat tmp = sum(current_posterior, 2);
         vec ret(min_duration_ + ndurations_, fill::zeros);
         for(int d = 0; d < ndurations_; d++) {
@@ -822,7 +753,7 @@ namespace hsmm {
     }
 
     vec OnlineHSMM::getImplicitDurationMarginal() const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         mat runlength_state_posterior = sum(current_posterior, 0);
 
         vec ret(ndurations_, fill::zeros);
@@ -844,7 +775,7 @@ namespace hsmm {
     }
 
     vec OnlineHSMM::getImplicitResidualTimeMarginal() const {
-        cube current_posterior = exp(last_log_posterior_);
+        cube current_posterior = last_posterior_;
         mat duration_runlength_posterior = sum(current_posterior, 2);
         vec ret(min_duration_ + ndurations_, fill::zeros);
         for(int r = 0; r < min_duration_ + ndurations_; r++) {

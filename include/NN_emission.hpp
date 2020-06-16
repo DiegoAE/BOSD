@@ -22,15 +22,15 @@ namespace hsmm {
     typedef mlpack::ann::FFN<mlpack::ann::MeanSquaredError<>,
             mlpack::ann::RandomInitialization> NNmodel;
 
-    class NNEmission : public AbstractEmissionOnlineSetting {
+    class NNEmission : public AbstractEmissionConditionalIIDobs {
         public:
             NNEmission(int nstates, int njoints,
                     arma::ivec hidden_units_per_layer);
 
             NNEmission* clone() const;
 
-            double loglikelihood(int state,
-                    const arma::field<arma::mat>& obs) const;
+            double loglikelihoodIIDobs(int state, int seg_dur, int offset,
+                    const arma::mat& single_obs) const;
 
             void reestimate(int min_duration,
                     const arma::field<arma::cube>& meta,
