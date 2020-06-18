@@ -140,19 +140,40 @@ vector<NormalDist> get_normal_distributions(int nstates, int ndurations,
     return states;
 }
 
+ivec expand_vit_mat(const imat& vit) {
+    vector<int> ret;
+    for(int i = 0; i < vit.n_rows; i++)
+        for(int j = 0; j < vit(i, 1); j++)
+            ret.push_back(vit(i, 0));
+    return conv_to<ivec>::from(ret);
+}
+
+ivec get_residual_time_from_vit(const imat& vit) {
+    vector<int> ret;
+    ivec dur = vit.col(1);
+    for(int i = 0; i < vit.n_rows; i++) {
+        int d = dur(i);
+        for(int j = d - 1; j >= 0; j--)
+            ret.push_back(j);
+    }
+    assert (sum(dur) == ret.size());
+    return conv_to<ivec>::from(ret);
+}
+
+
 int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     vector<string> input_features, input_labels;
     desc.add_options()
         ("help,h", "Produce help message")
-        ("input,i", po::value<vector<string>>(&input_features)->multitoken(),
-                "Path to the (multiple) input features")
+        ("input,i", po::value<string>(), "Path to the input obs")
         ("output,o", po::value<string>(), "Path to the json output params")
+        ("viterbilabels,l", po::value<string>(), "Path to the input viterbi "
+            "files (labels). Note that the format is viterbi (not labels)")
+        ("nfiles,n", po::value<int>(), "Number of input files to process")
         ("nstates", po::value<int>(), "Number of hidden states for the HSMM")
         ("mindur", po::value<int>(), "Minimum duration of a segment")
         ("ndur", po::value<int>(), "Number of different durations supported")
-        ("labels,l", po::value<vector<string>>(&input_labels)->multitoken(),
-                "Path to input labels")
         ("nodur", "Flag to deactivate the learning of durations")
         ("iid", "Flag to deactivate the learning of transitions")
         ("alphadurprior", po::value<double>(),
@@ -169,11 +190,15 @@ int main(int argc, char *argv[]) {
                 " filename")
         ("leaveoneout", po::value<int>(), "Index of the sequence that will be"
                 " left out for validation")
+        ("test,t", po::value<string>(), "Path to the test observation file")
+        ("vittest", po::value<string>(), "Path to the test vit file (truth)")
+        ("offsettest", po::value<int>()->default_value(0), "this many number "
+                "of observations are skipped for the test llk computation.")
         ("savefiletype", po::value<string>()->default_value("arma_binary"),
                 "File type to save the matrices after inference");
     assert(input_features.size() == input_labels.size());
-    vector<string> required_fields = {"input", "labels", "leaveoneout",
-            "nstates", "mindur", "ndur"};
+    vector<string> required_fields = {"input", "viterbilabels", "leaveoneout",
+            "nstates", "mindur", "ndur", "nfiles"};
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
@@ -191,26 +216,28 @@ int main(int argc, char *argv[]) {
     int ndurations = vm["ndur"].as<int>();
     int leaveoneout = vm["leaveoneout"].as<int>();
     int min_duration = vm["mindur"].as<int>();
-    int nseq = input_features.size();
+    int nseq = vm["nfiles"].as<int>();
+    string input_filename = vm["input"].as<string>();
+    string viterbi_filename = vm["viterbilabels"].as<string>();
 
     field<ivec> labels_seq(nseq - 1);
     field<mat> obs_seq(nseq - 1);
-    ivec test_labels;
-    mat test_obs;
     int train_idx = 0;
     for(int i = 0; i < nseq; i++) {
-        if (i == leaveoneout) {
-            test_obs.load(input_features[i], raw_ascii);
-            test_labels.load(input_labels[i], raw_ascii);
-        }
-        else {
-            labels_seq(train_idx).load(input_labels[i], raw_ascii);
-            obs_seq(train_idx).load(input_features[i], raw_ascii);
+        string iname = input_filename + string(".") + to_string(i);
+        string vname = viterbi_filename + string(".") + to_string(i);
+        mat obs;
+        obs.load(iname, raw_ascii);
+        imat vit;
+        vit.load(vname, raw_ascii);
+        if (i != leaveoneout) {
+            labels_seq(train_idx) = expand_vit_mat(vit);
+            obs_seq(train_idx) = obs;
             train_idx++;
         }
     }
     assert(train_idx == nseq - 1);
-    int ndimension = test_obs.n_rows;
+    int ndimension = obs_seq(0).n_rows;
 
     // Creating normal distributions for the emission process.
     vector<NormalDist> states = get_normal_distributions(nstates, ndurations,
@@ -226,6 +253,13 @@ int main(int argc, char *argv[]) {
     // Creating the online HSMM whose emission process doesnt take into account
     // the total segment duration. The pmfs are uniformly initialized.
     OnlineHSMMRunlengthBased model(emission, nstates, ndurations, min_duration);
+
+    if (!vm.count("test")) {
+        cout << "No test file was provided" << endl;
+        return 0;
+    }
+    mat test_obs;
+    test_obs.load(vm["test"].as<string>(), raw_ascii);
 
     // Setting a Dirichlet prior over the durations.
     if (vm.count("alphadurprior")) {
@@ -258,6 +292,18 @@ int main(int argc, char *argv[]) {
     mat remaining_runlength_marginals;
     mat duration_marginals;
 
+    // Load ground truth values of residual time is available.
+    double residual_times_ll = 0.0;
+    int residual_times_ll_neval = 0;
+    ivec ground_truth_residual_t;
+    int offset_test = vm["offsettest"].as<int>();
+    if (vm.count("vittest")) {
+        imat test_vit;
+        test_vit.load(vm["vittest"].as<string>(), raw_ascii);
+        ground_truth_residual_t = get_residual_time_from_vit(test_vit);
+        assert(ground_truth_residual_t.n_elem == test_obs.n_cols);
+    }
+
     if (vm.count("mr"))
         runlength_marginals = zeros<mat>(min_duration + ndurations - 1,
                 test_obs.n_cols);
@@ -283,10 +329,18 @@ int main(int argc, char *argv[]) {
         if (vm.count("ml"))
             remaining_runlength_marginals.col(i) =
                     model.getResidualTimeMarginal();
+
+        // Computing the loglikelihoods of the residual times if needed.
+        if (i >= offset_test && !ground_truth_residual_t.empty()) {
+            vec r_marginal = model.getResidualTimeMarginal();
+            double cll = r_marginal.at(ground_truth_residual_t.at(i));
+            residual_times_ll += log(cll);
+            residual_times_ll_neval++;
+        }
     }
 
     // The test log-likelihood.
-    cout << accu(loglikelihoods) << endl;
+    cout << "Test ll: " << accu(loglikelihoods) << endl;
 
     // Saving the filtering inferences.
     auto file_type = vm["savefiletype"].as<string>().compare(
@@ -304,6 +358,12 @@ int main(int argc, char *argv[]) {
                 state_marginals);
         filtering_prediction.save(vm["filteringprediction"].as<string>(),
                 raw_ascii);
+    }
+
+    // Outputting the llk of the residual times if needed.
+    if (!ground_truth_residual_t.empty()) {
+        cout << "evaluated terms: " << residual_times_ll_neval << endl;
+        cout << "residual times loglikelihood: " << residual_times_ll << endl;
     }
     return 0;
 }
