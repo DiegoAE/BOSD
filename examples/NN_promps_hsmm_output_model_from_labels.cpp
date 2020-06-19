@@ -204,11 +204,18 @@ int main(int argc, char *argv[]) {
         mat predictions;
         ptr_emission->getNeuralNet(i).Predict(inputs, predictions);
         vec residuals = conv_to<vec>::from(outputs - predictions);
-        double noise_var = as_scalar(var(residuals));
-        cout << "Var: " << noise_var << endl;
+        double mle_var = as_scalar(var(residuals));
+        cout << "MLE var: " << mle_var << endl;
+
+        double data_term = as_scalar(sum(square(residuals)));
+        double beta = 0.01;
+        double alpha = 5;
+        double map_var = (beta + 0.5 * data_term) / (
+                alpha - 1 + 0.5 * residuals.n_elem);
+        cout << "MAP var: " << map_var << endl;
 
         // Only works for 1D.
-        noise_vars.col(i) *= 3*noise_var;
+        noise_vars.col(i) *= map_var;
     }
     ptr_emission->setNoiseVar(noise_vars);
     int min_duration = vm["mindur"].as<int>();
